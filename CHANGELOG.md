@@ -1,5 +1,17 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-07-06 — UI: ai-dev-team theme + Agent Office + Run progress
+
+- **Restyle ทั้งระบบตาม `ai-dev-team-complete.html`**: โทนสว่าง #f4f5fb + dot grid,
+  การ์ดขาว r14, สีทีม Claude ม่วง / Codex เขียว / Gemini ฟ้า (utilities ใน globals.css)
+- **🏢 Agent Office** (หน้าบอร์ด): ตัวการ์ตูน PM/Dev/SR/Reviewer เดินไปมาเมื่อ role นั้น
+  มีงาน active (พร้อมป้ายชื่องาน) / ยืนจิบกาแฟเมื่อว่าง — สถานะจริงจาก task ที่ poll
+- **Run progress bar**: ตัวนับงานเสร็จ/ทั้งหมด, สถานะเฟสงานปัจจุบัน (มอบหมาย/เขียน/ตรวจ
+  + รอบแก้), เวลาที่ใช้ (เดินสดทุกวิ), ETA จากค่าเฉลี่ยต่องานที่จบ; poll ถี่ขึ้นเป็น 2 วิระหว่างรัน
+- Fix ระหว่างใช้งานจริง: เผลอลบ dep_pm.db ระหว่าง cleanup ทำให้โปรเจกต์ผู้ใช้หาย —
+  กู้ด้วยโปรเจกต์เดโมใหม่ + บันทึกกติกาถาวร "ห้ามลบ dep_pm.db" (memory + runbook)
+
+
 ## 2026-07-06 — UAT กับของจริง (Anthropic API + GitHub) + bugfixes
 
 - **UAT ผ่าน 3 รายการ:** (1) PM Agent จริง — requirement ไทย → 16 tasks มี priority/points/deps

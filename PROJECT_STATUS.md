@@ -1,8 +1,16 @@
 # PROJECT_STATUS.md — DEP-PM Platform
 
-> อัปเดตล่าสุด: 2026-07-06 (ค่ำ) | สถานะโดยรวม: **MVP ครบ + UAT หลักผ่านกับของจริงแล้ว**
-> (PM Agent จริง ✅, Solo Mode จริง ✅, Deploy dispatch จริง ✅ — เหลือ optional: callback tunnel,
-> Team Mode keys, PostgreSQL)
+> อัปเดตล่าสุด: 2026-07-06 (ปิดวัน) | สถานะโดยรวม: **ระบบใช้งานจริงได้แล้ว** — MVP ครบ +
+> UAT หลักผ่าน + UI ธีม ai-dev-team พร้อม Agent Office และ progress bar
+> ผู้ใช้ทดลองใช้ผ่าน UI แล้ววันนี้
+
+## สถานะการใช้งาน (สำคัญสำหรับ session ถัดไป)
+
+- **`backend/dep_pm.db` = ข้อมูลจริงของผู้ใช้ — ห้ามลบเด็ดขาด** (มีบันทึกใน memory แล้ว)
+- `backend/.env` มี key จริงครบ: ANTHROPIC (Solo Mode live), GITHUB_TOKEN+REPO
+  (`ohho2518/d_DEP-PM_Platform`) — deploy dispatch ใช้ได้จริง
+- โปรเจกต์เดโมในระบบ: "Demo: Booking API" (4 tasks) — ผู้ใช้กด Run Agents เล่นแล้ว
+- Servers ปิดแล้วตอนจบวัน — เปิดใหม่: ดู CLAUDE.md §Run Dev Server
 
 ## Completed Work
 
