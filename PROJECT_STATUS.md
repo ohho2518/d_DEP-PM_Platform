@@ -42,26 +42,26 @@
 
 ## Current State
 
-- pytest 48/48 | ทุกอย่างรันบน SQLite + stub/fallback ครบวงจร
-- **โค้ด MVP ครบตามแผน 4 สปรินต์** — ที่เหลือเป็นการเปิดใช้กับของจริง (ดู UAT ค้าง)
-- git: e512771 → c1cef14 → e3d323a → 986c092 — Sprint 4 รอ commit นี้
+- pytest 48/48 (hermetic — ไม่แตะ .env/network) | โค้ด MVP ครบ 4 สปรินต์ + UAT หลักผ่านกับของจริง
+- `backend/.env` มี ANTHROPIC + GITHUB keys แล้ว (gitignored) — `/health` → `agent_enabled: true`
+- git: main push ขึ้น `github.com/ohho2518/d_DEP-PM_Platform` แล้ว (ล่าสุด d5fddaa)
 
-## Next Tasks (= UAT ที่ค้าง — รอทรัพยากรจากผู้ใช้)
+## Next Tasks (optional ที่เหลือ)
 
-1. **`ANTHROPIC_API_KEY`** → ทดสอบ PM breakdown + Solo Mode จริง (+ ทบทวน reviewer auto-approve)
-2. **GitHub repo ทดสอบ + `GITHUB_TOKEN`** → วาง workflow template → deploy จริง end-to-end
-3. **PostgreSQL** (Docker หรือ managed) → `DATABASE_URL` → รัน test suite เต็มบน PG (DoD ADR-01)
-4. **`OPENAI_API_KEY` + `GEMINI_API_KEY`** → ทดสอบ Team Mode จริง
-5. หลัง UAT ผ่าน: security gate ใน `docs/SECURITY.md` ก่อน deploy สาธารณะ (auth, HTTPS,
-   callback secret, rate limit)
+1. **Callback ครบวงจร**: tunnel (cloudflared) + secret `DEP_PM_API_URL` ใน repo → deployment
+   สถานะ success อัตโนมัติ + task done→deployed (ขั้นตอน runbook §3)
+2. **PostgreSQL** (Docker หรือ managed) → `DATABASE_URL` → รัน test suite เต็มบน PG (DoD ADR-01)
+3. **`OPENAI_API_KEY` + `GEMINI_API_KEY`** → ทดสอบ Team Mode จริง (ยืนยันรุ่น model ใน .env ด้วย)
+4. ก่อน deploy สาธารณะ: security gate ใน `docs/SECURITY.md` (auth, HTTPS, callback secret, rate limit)
 
 ## Known Issues
 
 - CI callback (`PATCH /api/deployments/:id`) ยังไม่มี auth — ห้าม expose backend สาธารณะ
   (อยู่ใน security gate)
-- Executors ของจริง (Claude/OpenAI/Gemini) + GitHub dispatch ยังไม่เคยรันกับ service จริง
+- Task ที่ acceptance criteria ต้องการ artifact จริง (repo/CI) จะ escalate เสมอใน MVP —
+  พฤติกรรมถูกต้อง แต่ควรเขียน spec ให้ deliverable เป็นเอกสาร/โค้ด (บทเรียนใน runbook §7)
+- OpenAI/Gemini executors ยังไม่เคยรันกับ service จริง (รอ keys)
 - `/run` synchronous + ไม่ thread-safe ต่อโปรเจกต์ (technical debt #1 ใน SYSTEM_DOCUMENTATION §22)
-- Frontend ยังไม่มีหน้า deployments แยก (portfolio แสดง last_deployment แล้ว — พอสำหรับ MVP)
 
 ## Decisions Made (Sprint 4)
 
