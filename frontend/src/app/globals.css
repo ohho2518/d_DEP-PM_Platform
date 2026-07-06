@@ -1,26 +1,163 @@
 @import "tailwindcss";
 
+/* Palette ตาม ai-dev-team-complete.html (เอกสารอ้างอิงหลักของทีม) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f4f5fb;
+  --surface: #ffffff;
+  --border: #e6e8f0;
+  --text: #1c2033;
+  --text2: #6a7390;
+  --text3: #aab0c8;
+  --claude: #7c6af7;
+  --codex: #22c08b;
+  --gemini: #4da6ff;
+  --ok: #17b978;
+  --warn: #f5a623;
+  --danger: #ff6b6b;
+  --r: 14px;
+  --shadow: 0 1px 4px rgba(90, 100, 150, 0.08);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background:
+    radial-gradient(circle, #c8cce0 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans), "Inter", sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ---------- shared UI ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+}
+.btn-primary {
+  background: var(--claude);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: filter 0.15s;
+}
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-primary:disabled { opacity: 0.5; }
+.btn-ghost {
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 10px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.875rem;
+}
+.btn-ghost:hover { background: #f8f9ff; color: var(--text); }
+.chip {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10.5px;
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: #f0f1f8;
+  color: var(--text2);
+}
+.input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+.input:focus { border-color: var(--claude); box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.15); }
+
+/* ---------- Agent Office (ตัวการ์ตูน agent เดินทำงาน) ---------- */
+.office {
+  position: relative;
+  overflow: hidden;
+  height: 96px;
+  border-radius: var(--r);
+  background:
+    linear-gradient(to bottom, transparent 62px, rgba(124, 106, 247, 0.07) 62px),
+    repeating-linear-gradient(90deg, transparent 0 34px, rgba(170, 176, 200, 0.16) 34px 35px),
+    linear-gradient(#fafbff, #f2f3fa);
+  border: 1px solid var(--border);
+}
+.agent-actor {
+  position: absolute;
+  bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 74px;
+  transition: left 0.4s linear;
+  will-change: left;
+}
+.agent-emoji {
+  font-size: 30px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 2px rgba(90, 100, 150, 0.25));
+}
+.agent-actor.working .agent-emoji { animation: walk-bob 0.45s ease-in-out infinite; }
+.agent-actor.idle .agent-emoji { animation: idle-sway 2.6s ease-in-out infinite; opacity: 0.85; }
+.agent-actor.flip .agent-emoji { transform: scaleX(-1); }
+.agent-actor.flip.working .agent-emoji { animation: walk-bob-flip 0.45s ease-in-out infinite; }
+.agent-name {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9.5px;
+  margin-top: 2px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: #fff;
+  white-space: nowrap;
+}
+.agent-bubble {
+  position: absolute;
+  bottom: 58px;
+  max-width: 150px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  font-size: 10px;
+  color: var(--text2);
+  padding: 2px 7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: bubble-pop 0.25s ease-out;
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.dot-busy { background: var(--ok); animation: blink 1.2s infinite; }
+.dot-idle { background: var(--text3); }
+
+@keyframes walk-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-4px) rotate(2deg); }
+}
+@keyframes walk-bob-flip {
+  0%, 100% { transform: scaleX(-1) translateY(0) rotate(2deg); }
+  50% { transform: scaleX(-1) translateY(-4px) rotate(-2deg); }
+}
+@keyframes idle-sway {
+  0%, 100% { transform: rotate(-1.5deg); }
+  50% { transform: rotate(1.5deg) translateY(-1px); }
+}
+@keyframes bubble-pop {
+  from { transform: translateY(4px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }

@@ -1,19 +1,25 @@
 "use client";
-// Portfolio View — ภาพรวมทุกโปรเจกต์ (GET /api/portfolio) + polling (ADR-04)
+// Portfolio View — โทนสีตาม ai-dev-team-complete.html + polling (ADR-04)
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { usePolling } from "@/lib/usePolling";
 import { STATUS_ORDER, type TaskStatus } from "@/lib/types";
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
-  backlog: "bg-neutral-600",
-  planned: "bg-sky-600",
-  assigned: "bg-indigo-600",
-  in_progress: "bg-amber-500",
-  review: "bg-purple-500",
-  done: "bg-emerald-600",
-  deployed: "bg-teal-500",
-  escalated: "bg-rose-600",
+  backlog: "#c8cce0",
+  planned: "var(--gemini)",
+  assigned: "var(--claude)",
+  in_progress: "var(--warn)",
+  review: "#a06010",
+  done: "var(--ok)",
+  deployed: "var(--codex)",
+  escalated: "var(--danger)",
+};
+
+const AGENT_COLOR: Record<string, string> = {
+  anthropic: "var(--claude)",
+  openai: "var(--codex)",
+  google: "var(--gemini)",
 };
 
 export default function PortfolioPage() {
@@ -21,58 +27,48 @@ export default function PortfolioPage() {
 
   if (error)
     return (
-      <p className="rounded border border-rose-800 bg-rose-950/40 p-4 text-sm text-rose-300">
+      <p className="card p-4 text-sm" style={{ color: "var(--danger)" }}>
         เชื่อมต่อ backend ไม่ได้: {error} — ตรวจว่า uvicorn รันอยู่ที่ NEXT_PUBLIC_API_URL
       </p>
     );
-  if (!data) return <p className="text-neutral-400">กำลังโหลด…</p>;
+  if (!data) return <p style={{ color: "var(--text2)" }}>กำลังโหลด…</p>;
 
   return (
     <div className="space-y-8">
       <section>
         <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Portfolio</h1>
-          <Link
-            href="/projects/new"
-            className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium hover:bg-emerald-500"
-          >
-            + New Project
-          </Link>
+          <h1 className="text-xl font-bold">Portfolio</h1>
+          <Link href="/projects/new" className="btn-primary">+ New Project</Link>
         </div>
 
         {data.projects.length === 0 ? (
-          <p className="rounded border border-dashed border-neutral-700 p-8 text-center text-neutral-500">
+          <p
+            className="rounded-[14px] border border-dashed p-8 text-center"
+            style={{ borderColor: "var(--text3)", color: "var(--text3)" }}
+          >
             ยังไม่มีโปรเจกต์ — เริ่มจาก “New Project”
           </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.projects.map((p) => (
-              <Link
-                key={p.id}
-                href={`/projects/${p.id}`}
-                className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 transition hover:border-emerald-700"
-              >
+              <Link key={p.id} href={`/projects/${p.id}`} className="card p-4 transition hover:shadow-md">
                 <div className="flex items-start justify-between">
-                  <h2 className="font-medium">{p.name}</h2>
-                  <span className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
-                    {p.type}
-                  </span>
+                  <h2 className="font-semibold">{p.name}</h2>
+                  <span className="chip">{p.type}</span>
                 </div>
-                <p className="mt-1 text-xs text-neutral-500">
+                <p className="mt-1 text-xs" style={{ color: "var(--text3)" }}>
                   {p.total_tasks} tasks · status: {p.status}
                 </p>
 
-                {/* แถบสัดส่วน task ต่อสถานะ */}
                 {p.total_tasks > 0 && (
-                  <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-neutral-800">
+                  <div className="mt-3 flex h-2 overflow-hidden rounded-full" style={{ background: "#f0f1f8" }}>
                     {STATUS_ORDER.map((s) => {
                       const n = p.task_counts[s] ?? 0;
                       if (!n) return null;
                       return (
                         <div
                           key={s}
-                          className={STATUS_COLORS[s]}
-                          style={{ width: `${(n / p.total_tasks) * 100}%` }}
+                          style={{ width: `${(n / p.total_tasks) * 100}%`, background: STATUS_COLORS[s] }}
                           title={`${s}: ${n}`}
                         />
                       );
@@ -80,19 +76,17 @@ export default function PortfolioPage() {
                   </div>
                 )}
 
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-neutral-400">
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]" style={{ color: "var(--text2)" }}>
                   {STATUS_ORDER.filter((s) => p.task_counts[s]).map((s) => (
-                    <span key={s}>
-                      {s}: {p.task_counts[s]}
-                    </span>
+                    <span key={s}>{s}: {p.task_counts[s]}</span>
                   ))}
                 </div>
 
-                <p className="mt-3 text-xs text-neutral-500">
+                <p className="mt-3 text-xs" style={{ color: "var(--text3)" }}>
                   deploy ล่าสุด:{" "}
                   {p.last_deployment
                     ? `${p.last_deployment.status} (${p.last_deployment.environment ?? "-"})`
-                    : "ยังไม่มี (Sprint 4)"}
+                    : "ยังไม่มี"}
                 </p>
               </Link>
             ))}
@@ -101,26 +95,20 @@ export default function PortfolioPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-400">
-          Agents
+        <h2 className="mb-3 text-xs font-bold uppercase tracking-wide" style={{ color: "var(--text2)" }}>
+          AI Dev Team
         </h2>
         <div className="flex flex-wrap gap-3">
           {data.agents.map((a) => (
-            <div
-              key={a.id}
-              className="flex items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm"
-            >
+            <div key={a.id} className="card flex items-center gap-2 rounded-full px-3 py-1.5 text-sm">
               <span
-                className={`h-2 w-2 rounded-full ${
-                  a.status === "working"
-                    ? "bg-amber-400"
-                    : a.status === "error"
-                      ? "bg-rose-500"
-                      : "bg-emerald-500"
-                }`}
+                className={`status-dot ${a.status === "working" ? "dot-busy" : "dot-idle"}`}
               />
-              {a.name}
-              <span className="text-xs text-neutral-500">
+              <span className="font-medium">{a.name}</span>
+              <span
+                className="rounded-full px-2 py-0.5 text-[10px] text-white"
+                style={{ background: AGENT_COLOR[a.role === "pm" ? "anthropic" : a.role] ?? "var(--claude)" }}
+              >
                 {a.role} · {a.mode}
               </span>
             </div>

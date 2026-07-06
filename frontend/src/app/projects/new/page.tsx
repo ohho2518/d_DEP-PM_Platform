@@ -68,10 +68,10 @@ export default function NewProjectPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-xl font-semibold">New Project</h1>
+      <h1 className="text-xl font-bold">New Project</h1>
 
       {error && (
-        <p className="rounded border border-rose-800 bg-rose-950/40 p-3 text-sm text-rose-300">
+        <p className="card p-3 text-sm" style={{ color: "var(--danger)" }}>
           {error}
         </p>
       )}
@@ -79,12 +79,12 @@ export default function NewProjectPage() {
       {step === "form" && (
         <form onSubmit={submitForm} className="space-y-4">
           <label className="block">
-            <span className="mb-1 block text-sm text-neutral-400">ชื่อโปรเจกต์</span>
+            <span className="mb-1 block text-sm" style={{ color: "var(--text2)" }}>ชื่อโปรเจกต์</span>
             <input
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-emerald-600"
+              className="input"
               placeholder="เช่น dPRO AI Parking v2"
             />
           </label>
@@ -96,7 +96,7 @@ export default function NewProjectPage() {
                   type="radio"
                   checked={type === t}
                   onChange={() => setType(t)}
-                  className="accent-emerald-500"
+                  style={{ accentColor: "var(--claude)" }}
                 />
                 {t === "new" ? "โปรเจกต์ใหม่ (PM Agent แตกงาน)" : "โปรเจกต์เดิม (scan repo — mock)"}
               </label>
@@ -105,7 +105,7 @@ export default function NewProjectPage() {
 
           {type === "new" ? (
             <label className="block">
-              <span className="mb-1 block text-sm text-neutral-400">
+              <span className="mb-1 block text-sm" style={{ color: "var(--text2)" }}>
                 Requirement (PM Agent จะแตกเป็น task plan)
               </span>
               <textarea
@@ -113,19 +113,19 @@ export default function NewProjectPage() {
                 rows={6}
                 value={requirement}
                 onChange={(e) => setRequirement(e.target.value)}
-                className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-emerald-600"
+                className="input"
                 placeholder="อธิบายสิ่งที่ต้องการสร้าง…"
               />
             </label>
           ) : (
             <label className="block">
-              <span className="mb-1 block text-sm text-neutral-400">Repo URL</span>
+              <span className="mb-1 block text-sm" style={{ color: "var(--text2)" }}>Repo URL</span>
               <input
                 required
                 type="url"
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
-                className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-emerald-600"
+                className="input"
                 placeholder="https://github.com/org/repo"
               />
             </label>
@@ -133,7 +133,7 @@ export default function NewProjectPage() {
 
           <button
             disabled={busy}
-            className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
+            className="btn-primary"
           >
             {busy ? "กำลังสร้าง task plan…" : "สร้างโปรเจกต์ + แตกงาน"}
           </button>
@@ -143,33 +143,33 @@ export default function NewProjectPage() {
       {(step === "plan" || step === "confirming") && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-medium">
+            <h2 className="font-semibold">
               Task Plan{" "}
-              <span className="text-xs text-neutral-500">
+              <span className="text-xs" style={{ color: "var(--text3)" }}>
                 (source: {source}
                 {source === "fallback" && " — ไม่มี ANTHROPIC_API_KEY จึงได้ task เดียว"})
               </span>
             </h2>
-            <span className="text-sm text-neutral-400">{plan.length} tasks</span>
+            <span className="text-sm" style={{ color: "var(--text2)" }}>{plan.length} tasks</span>
           </div>
 
           <ul className="space-y-2">
             {plan.map((t) => (
               <li
                 key={t.id}
-                className="rounded border border-neutral-800 bg-neutral-900 p-3 text-sm"
+                className="card p-3 text-sm"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{t.title}</span>
-                  <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-xs text-neutral-400">
+                  <span className="chip">
                     {t.priority}
                     {t.estimate_points ? ` · ${t.estimate_points}pt` : ""}
                   </span>
                 </div>
                 {t.description && (
-                  <p className="mt-1 text-neutral-400">{t.description}</p>
+                  <p className="mt-1" style={{ color: "var(--text2)" }}>{t.description}</p>
                 )}
-                {t.spec && <p className="mt-1 text-xs text-neutral-500">spec: {t.spec}</p>}
+                {t.spec && <p className="mt-1 text-xs" style={{ color: "var(--text3)" }}>spec: {t.spec}</p>}
               </li>
             ))}
           </ul>
@@ -178,14 +178,14 @@ export default function NewProjectPage() {
             <button
               onClick={confirmScope}
               disabled={step === "confirming"}
-              className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
+              className="btn-primary"
             >
               {step === "confirming" ? "กำลังยืนยัน…" : "ยืนยัน scope → เข้าบอร์ด"}
             </button>
             {projectId && (
               <button
                 onClick={() => router.push(`/projects/${projectId}`)}
-                className="rounded border border-neutral-700 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-900"
+                className="btn-ghost"
               >
                 ข้ามไปดูบอร์ด (ยังไม่ยืนยัน)
               </button>

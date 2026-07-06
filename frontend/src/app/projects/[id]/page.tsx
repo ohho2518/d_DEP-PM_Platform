@@ -1,7 +1,8 @@
 "use client";
-// Kanban Board ต่อโปรเจกต์ + Task detail / Message Log Viewer + Run orchestrator
-// สถานะเปลี่ยนด้วยปุ่ม (เรียก PATCH /api/tasks/:id — backend บังคับ State Machine)
+// Kanban Board + Agent Office (การ์ตูน agent แสดงสถานะจริง) + Task detail / Message Log
+// โทนสีตาม ai-dev-team-complete.html
 import { use, useState } from "react";
+import AgentOffice from "@/components/AgentOffice";
 import { api } from "@/lib/api";
 import { usePolling } from "@/lib/usePolling";
 import {
@@ -12,15 +13,15 @@ import {
   type TaskStatus,
 } from "@/lib/types";
 
-const COLUMN_TINT: Record<TaskStatus, string> = {
-  backlog: "border-neutral-700",
-  planned: "border-sky-800",
-  assigned: "border-indigo-800",
-  in_progress: "border-amber-700",
-  review: "border-purple-800",
-  done: "border-emerald-800",
-  deployed: "border-teal-800",
-  escalated: "border-rose-800",
+const COLUMN_ACCENT: Record<TaskStatus, string> = {
+  backlog: "var(--text3)",
+  planned: "var(--gemini)",
+  assigned: "var(--claude)",
+  in_progress: "var(--warn)",
+  review: "#a06010",
+  done: "var(--ok)",
+  deployed: "var(--codex)",
+  escalated: "var(--danger)",
 };
 
 export default function BoardPage({ params }: { params: Promise<{ id: string }> }) {
@@ -63,31 +64,33 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
 
   if (error)
     return (
-      <p className="rounded border border-rose-800 bg-rose-950/40 p-4 text-sm text-rose-300">
+      <p className="card p-4 text-sm" style={{ color: "var(--danger)" }}>
         โหลดบอร์ดไม่ได้: {error}
       </p>
     );
-  if (!data) return <p className="text-neutral-400">กำลังโหลด…</p>;
+  if (!data) return <p style={{ color: "var(--text2)" }}>กำลังโหลด…</p>;
 
   const byStatus = (s: TaskStatus) => data.data.filter((t) => t.status === s);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">
-          Kanban <span className="text-sm text-neutral-500">({data.pagination.total} tasks)</span>
+        <h1 className="text-lg font-bold">
+          Kanban{" "}
+          <span className="text-sm font-normal" style={{ color: "var(--text3)" }}>
+            ({data.pagination.total} tasks)
+          </span>
         </h1>
-        <button
-          onClick={runOrchestrator}
-          disabled={running}
-          className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
-        >
-          {running ? "Agent กำลังทำงาน…" : "▶ Run Agents"}
+        <button onClick={runOrchestrator} disabled={running} className="btn-primary">
+          {running ? "⚙ Agent กำลังทำงาน…" : "▶ Run Agents"}
         </button>
       </div>
 
+      {/* ออฟฟิศจำลอง — agent เดินเมื่อกำลังทำงานจริง (สถานะจาก tasks ที่ poll ทุก 4 วิ) */}
+      <AgentOffice tasks={data.data} />
+
       {notice && (
-        <p className="rounded border border-neutral-700 bg-neutral-900 p-2 text-xs text-neutral-300">
+        <p className="card px-3 py-2 text-xs" style={{ color: "var(--text2)" }}>
           {notice}
         </p>
       )}
@@ -96,13 +99,17 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
         {STATUS_ORDER.map((status) => (
           <div
             key={status}
-            className={`w-60 shrink-0 rounded-lg border-t-2 bg-neutral-900/60 ${COLUMN_TINT[status]}`}
+            className="card w-60 shrink-0"
+            style={{ borderTop: `3px solid ${COLUMN_ACCENT[status]}` }}
           >
             <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+              <span
+                className="text-[11px] font-bold uppercase tracking-wide"
+                style={{ color: "var(--text2)" }}
+              >
                 {status.replace("_", " ")}
               </span>
-              <span className="text-xs text-neutral-500">{byStatus(status).length}</span>
+              <span className="chip">{byStatus(status).length}</span>
             </div>
             <div className="space-y-2 px-2 pb-2">
               {byStatus(status).map((t) => (
@@ -118,9 +125,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
         ))}
       </div>
 
-      {selected && (
-        <TaskDetail task={selected} onClose={() => setSelected(null)} />
-      )}
+      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }
@@ -136,25 +141,31 @@ function TaskCard({
 }) {
   const nexts = ALLOWED_TRANSITIONS[task.status];
   return (
-    <div className="rounded border border-neutral-800 bg-neutral-950 p-2.5 text-sm">
-      <button onClick={onSelect} className="block w-full text-left font-medium hover:text-emerald-400">
+    <div
+      className="rounded-[10px] border p-2.5 text-sm"
+      style={{ borderColor: "var(--border)", background: "#fafbff" }}
+    >
+      <button
+        onClick={onSelect}
+        className="block w-full text-left font-semibold hover:opacity-70"
+        style={{ color: "var(--text)" }}
+      >
         {task.title}
       </button>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-        <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-neutral-400">{task.priority}</span>
+        <span className="chip">{task.priority}</span>
         {task.assignee_type && (
           <span
-            className={`rounded-full px-2 py-0.5 ${
-              task.assignee_type === "agent"
-                ? "bg-emerald-900/60 text-emerald-300"
-                : "bg-sky-900/60 text-sky-300"
-            }`}
+            className="rounded-full px-2 py-0.5 text-white"
+            style={{
+              background: task.assignee_type === "agent" ? "var(--claude)" : "var(--gemini)",
+            }}
           >
             {task.assignee_type === "agent" ? `🤖 ${task.agent_role ?? "agent"}` : "👤 human"}
           </span>
         )}
         {task.revision_count > 0 && (
-          <span className="rounded bg-rose-900/50 px-1.5 py-0.5 text-rose-300">
+          <span className="rounded-full px-2 py-0.5 text-white" style={{ background: "var(--danger)" }}>
             rev {task.revision_count}
           </span>
         )}
@@ -165,7 +176,8 @@ function TaskCard({
             <button
               key={to}
               onClick={() => onMove(to)}
-              className="rounded border border-neutral-700 px-1.5 py-0.5 text-[11px] text-neutral-400 hover:border-emerald-600 hover:text-emerald-300"
+              className="rounded border px-1.5 py-0.5 text-[11px]"
+              style={{ borderColor: "var(--border)", color: "var(--text2)" }}
             >
               → {to.replace("_", " ")}
             </button>
@@ -180,35 +192,38 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
   const { data } = usePolling(() => api.taskMessages(task.id), 5000);
 
   return (
-    <div className="fixed inset-0 z-20 flex justify-end bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-20 flex justify-end bg-black/30" onClick={onClose}>
       <aside
-        className="h-full w-full max-w-md overflow-y-auto border-l border-neutral-800 bg-neutral-950 p-5"
+        className="h-full w-full max-w-md overflow-y-auto border-l p-5"
+        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">
-          <h2 className="pr-4 font-semibold">{task.title}</h2>
-          <button onClick={onClose} className="text-neutral-500 hover:text-neutral-200">
-            ✕
-          </button>
+          <h2 className="pr-4 font-bold">{task.title}</h2>
+          <button onClick={onClose} style={{ color: "var(--text3)" }}>✕</button>
         </div>
 
-        <dl className="space-y-1 text-sm text-neutral-400">
-          <div>status: <span className="text-neutral-200">{task.status}</span></div>
+        <dl className="space-y-1 text-sm" style={{ color: "var(--text2)" }}>
+          <div>status: <span className="font-semibold" style={{ color: "var(--text)" }}>{task.status}</span></div>
           <div>priority: {task.priority} · revisions: {task.revision_count}</div>
           {task.agent_role && <div>agent role: {task.agent_role}</div>}
-          {task.description && <p className="pt-2 text-neutral-300">{task.description}</p>}
+          {task.description && <p className="pt-2" style={{ color: "var(--text)" }}>{task.description}</p>}
           {task.spec && (
-            <p className="rounded bg-neutral-900 p-2 text-xs text-neutral-400">spec: {task.spec}</p>
+            <p className="rounded-lg p-2 text-xs" style={{ background: "#f8f9ff" }}>
+              spec: {task.spec}
+            </p>
           )}
         </dl>
 
-        <h3 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-neutral-400">
+        <h3 className="mb-2 mt-6 text-xs font-bold uppercase tracking-wide" style={{ color: "var(--text2)" }}>
           Agent Conversation
         </h3>
         {!data ? (
-          <p className="text-sm text-neutral-500">กำลังโหลด…</p>
+          <p className="text-sm" style={{ color: "var(--text3)" }}>กำลังโหลด…</p>
         ) : data.data.length === 0 ? (
-          <p className="text-sm text-neutral-500">ยังไม่มีข้อความ — กด “Run Agents” เพื่อเริ่มงาน</p>
+          <p className="text-sm" style={{ color: "var(--text3)" }}>
+            ยังไม่มีข้อความ — กด “Run Agents” เพื่อเริ่มงาน
+          </p>
         ) : (
           <ol className="space-y-2">
             {data.data.map((m) => (
@@ -221,23 +236,30 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
   );
 }
 
-const TYPE_STYLE: Record<AgentMessage["message_type"], string> = {
-  handoff: "border-sky-800",
-  result: "border-neutral-700",
-  review_comment: "border-purple-800",
-  question: "border-rose-800",
+const TYPE_ACCENT: Record<AgentMessage["message_type"], string> = {
+  handoff: "var(--gemini)",
+  result: "var(--text3)",
+  review_comment: "var(--claude)",
+  question: "var(--danger)",
 };
 
 function MessageBubble({ m }: { m: AgentMessage }) {
   return (
-    <li className={`rounded border-l-2 bg-neutral-900 p-2.5 text-xs ${TYPE_STYLE[m.message_type]}`}>
-      <div className="mb-1 flex items-center justify-between text-[11px] text-neutral-500">
+    <li
+      className="rounded-lg border p-2.5 text-xs"
+      style={{
+        borderColor: "var(--border)",
+        borderLeft: `3px solid ${TYPE_ACCENT[m.message_type]}`,
+        background: "#fafbff",
+      }}
+    >
+      <div className="mb-1 flex items-center justify-between text-[11px]" style={{ color: "var(--text3)" }}>
         <span>
           {m.from_agent_id ?? "?"} → {m.to_agent_id ?? "ทุกคน"} · {m.message_type}
         </span>
         <span>{new Date(m.created_at).toLocaleTimeString("th-TH")}</span>
       </div>
-      <pre className="whitespace-pre-wrap break-words font-sans text-neutral-300">
+      <pre className="whitespace-pre-wrap break-words font-sans" style={{ color: "var(--text2)" }}>
         {JSON.stringify(m.payload, null, 2)}
       </pre>
     </li>
