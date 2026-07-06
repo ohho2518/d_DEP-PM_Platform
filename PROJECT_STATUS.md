@@ -4,6 +4,12 @@
 
 ## Completed Work
 
+### Engineering Documentation Set (2026-07-06 — หลัง Sprint 3)
+- สร้าง `docs/` ชุดเต็มตาม MASTER PROMPT: `ARCHITECTURE.md`, `SYSTEM_DOCUMENTATION.md`,
+  `API.md`, `DATABASE.md`, `SECURITY.md`, `AI_AGENT_GUIDE.md`
+- **กติกาใหม่:** อัปเดตเอกสารชุดนี้ท้ายทุก sprint ตามตาราง Documentation Rules ใน
+  `docs/AI_AGENT_GUIDE.md` (เฉพาะส่วนที่เปลี่ยน ไม่ regenerate ทั้งหมด)
+
 ### Sprint 3 — Kanban Dashboard + Message Log + Portfolio (2026-07-06)
 - Backend: `GET /api/portfolio` (counts ต่อสถานะ, agents, deploy ล่าสุด)
 - Frontend: Next.js 16.2.10 + TypeScript + Tailwind (`frontend/`)

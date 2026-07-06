@@ -1,5 +1,22 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-07-06 — Engineering Documentation Set (ตาม MASTER PROMPT)
+
+- สร้างชุดเอกสารวิศวกรรมใน `docs/` ครอบคลุม 25 sections ของ
+  "MASTER PROMPT: Complete Software Engineering Documentation Generator":
+  - `ARCHITECTURE.md` (§1-4) — overview/non-goals/constraints, HLA + Mermaid 3 diagrams,
+    tech stack พร้อม WHY/tradeoffs/ทางเลือกที่ไม่เลือก, folder structure + dependency direction
+  - `SYSTEM_DOCUMENTATION.md` (§5-9, 13-14, 16-22, 24) — วิเคราะห์ทุกโมดูล, algorithms,
+    business logic + state diagram, frontend/backend, performance/testing/deployment/maintenance,
+    technical debt จัดอันดับ, glossary
+  - `API.md` (§12) — 12 endpoints พร้อม request/response ตัวอย่าง + error codes
+  - `DATABASE.md` (§10-11) — ER diagram, ทุกตาราง/index/query pattern, migration history + กติกา
+  - `SECURITY.md` (§15) — threat model, OWASP mapping, สถานะตรงไปตรงมา (ยังไม่มี auth)
+    + security gate ก่อน production
+  - `AI_AGENT_GUIDE.md` (§23) — architecture rules, forbidden changes, safe refactoring,
+    documentation rules, common mistakes จากประสบการณ์จริง
+- อัปเดต `CLAUDE.md` ให้ index เอกสารชุดนี้
+
 ## 2026-07-06 — Sprint 3: Kanban Dashboard + Message Log + Portfolio
 
 - **Backend:** เพิ่ม `GET /api/portfolio` — task counts ต่อสถานะทุกโปรเจกต์, รายชื่อ agents,

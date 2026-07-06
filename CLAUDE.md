@@ -37,6 +37,13 @@ Key reference documents (read-only, ห้ามแก้):
 * `ai-dev-team-complete.html` — Agent Routing Rules + SOW
 * `docs/DEVELOPMENT_PLAN.md` — แผนพัฒนาที่อนุมัติแล้ว (สปรินต์, ADR, Data Model, API Contract)
 
+เอกสารวิศวกรรม (สร้างตาม MASTER PROMPT — อัปเดตท้ายทุก sprint):
+
+* `docs/ARCHITECTURE.md` — overview, HLA + diagrams, tech stack (WHY), folder structure
+* `docs/SYSTEM_DOCUMENTATION.md` — code analysis, business logic/state machine, testing, ops, glossary
+* `docs/API.md` — ทุก endpoint พร้อมตัวอย่าง | `docs/DATABASE.md` — ER + ทุกตาราง + migrations
+* `docs/SECURITY.md` — threat model + posture | `docs/AI_AGENT_GUIDE.md` — กติกาสำหรับ AI agent
+
 ## Actual Tech Stack
 
 **สถานะ: CONFIRMED ทั้ง backend และ frontend** (หมายเหตุ: frontend เป็น Next.js 16.2.10
