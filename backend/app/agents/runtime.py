@@ -69,7 +69,15 @@ class ClaudeExecutor:
             system=system,
             messages=[{"role": "user", "content": prompt}],
         )
-        return "".join(b.text for b in response.content if b.type == "text")
+        text = "".join(b.text for b in response.content if b.type == "text")
+        if not text.strip():
+            # พบจริงใน UAT: adaptive thinking กินโควตา max_tokens จนหมด -> text ว่าง
+            # คืน marker ชัดเจนแทน string ว่าง เพื่อให้ reviewer/audit เห็นสาเหตุ
+            return (
+                f"(no text output — stop_reason={response.stop_reason}; "
+                "เพิ่ม MAX_TOKENS_PER_TASK หรือแตก task ให้เล็กลง)"
+            )
+        return text
 
     def execute(self, task: Task, role: AgentRole, feedback: str | None = None) -> str:
         prompt = (

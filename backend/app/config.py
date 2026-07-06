@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # PM Agent (Solo Mode). Empty key => live agent calls disabled (ADR gracefully degrades).
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-5"
-    max_tokens_per_task: int = 4096
+    max_tokens_per_task: int = 16000
 
     # --- Team Mode (Sprint 4, Blueprint §8-9) -------------------------------
     # 'solo'  = Claude ทุกบทบาท (default) | 'team' = map role -> provider

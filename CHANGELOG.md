@@ -1,5 +1,18 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-07-06 — UAT กับของจริง (Anthropic API + GitHub) + bugfixes
+
+- **UAT ผ่าน 3 รายการ:** (1) PM Agent จริง — requirement ไทย → 16 tasks มี priority/points/deps
+  (2) Solo Mode จริง — escalation ครบวงจร (reviewer ปฏิเสธ 2 → escalated → human takeover →
+  done) + happy path งานออกแบบ schema → done รอบเดียว (3) Deploy dispatch จริง —
+  `repository_dispatch` → workflow รันบน GitHub Actions, Build & Deploy step ผ่าน
+- **Fix:** `MAX_TOKENS_PER_TASK` default 4096 → 16000 — adaptive thinking ของ claude-sonnet-5
+  กินโควตาจนได้ text ว่างในรอบ revision (พบจริงใน UAT); `_call` คืน marker ชัดเจนเมื่อ text ว่าง
+- **Fix:** test suite ไม่ hermetic เมื่อ `.env` มี key จริง — Windows ลบ env var ที่ตั้งเป็นค่าว่าง
+  ทำให้ override ไม่ทำงาน → conftest เพิ่ม autouse fixture monkeypatch Settings (48/48, 0.96s)
+- Push repo ขึ้น GitHub: `ohho2518/d_DEP-PM_Platform` (branch main) + workflow receiver
+- บทเรียน UAT บันทึกใน `docs/runbook.md` §7
+
 ## 2026-07-06 — Sprint 4: Deploy Pipeline + Team Mode + PostgreSQL-ready
 
 - **Deploy pipeline (Blueprint §12):** `services/deploy.py` ยิง GitHub `repository_dispatch`

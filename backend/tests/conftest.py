@@ -13,6 +13,27 @@ import app.models  # noqa: F401 — register tables
 from app.main import app
 
 
+@pytest.fixture(autouse=True)
+def _isolated_settings(monkeypatch):
+    """บังคับ settings สะอาดทุก test — ห้ามให้ .env ของเครื่อง dev (ที่มี key จริง)
+    ทำให้ suite ยิง API จริง/dispatch จริงโดยไม่ตั้งใจ.
+
+    หมายเหตุ: ตั้ง env var เป็น "" ใช้ไม่ได้บน Windows (empty env var = ถูกลบ
+    ตอน spawn process) — จึง monkeypatch ที่ Settings instance ตรง ๆ (พบจาก UAT จริง)
+    """
+    from app.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "anthropic_api_key", "")
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    monkeypatch.setattr(settings, "gemini_api_key", "")
+    monkeypatch.setattr(settings, "agent_mode", "solo")
+    monkeypatch.setattr(settings, "github_token", "")
+    monkeypatch.setattr(settings, "github_repo", "")
+    monkeypatch.setattr(settings, "auto_deploy_enabled", False)
+    yield
+
+
 @pytest.fixture()
 def db_session():
     """Fresh in-memory schema per test (StaticPool keeps one shared connection)."""

@@ -1,9 +1,19 @@
 # PROJECT_STATUS.md — DEP-PM Platform
 
-> อัปเดตล่าสุด: 2026-07-06 | สถานะโดยรวม: **MVP ครบ 4 สปรินต์ (โค้ด) — เหลือ UAT 3 ข้อที่รอ
-> ทรัพยากรภายนอกจากผู้ใช้ (API keys, GitHub repo, PostgreSQL)**
+> อัปเดตล่าสุด: 2026-07-06 (ค่ำ) | สถานะโดยรวม: **MVP ครบ + UAT หลักผ่านกับของจริงแล้ว**
+> (PM Agent จริง ✅, Solo Mode จริง ✅, Deploy dispatch จริง ✅ — เหลือ optional: callback tunnel,
+> Team Mode keys, PostgreSQL)
 
 ## Completed Work
+
+### UAT กับของจริง (2026-07-06 ค่ำ)
+- ANTHROPIC_API_KEY + GITHUB_TOKEN/REPO ใช้งานจริง; push repo ขึ้น
+  `github.com/ohho2518/d_DEP-PM_Platform` (main) พร้อม workflow receiver
+- UAT ผ่าน: PM breakdown จริง (16 tasks) / escalation→takeover→done + happy path /
+  deploy dispatch → GitHub Actions รันจริง (Build & Deploy ผ่าน; callback รอ tunnel)
+- Fix 2 bugs ที่พบจาก UAT: token cap (4096→16000 + empty-text marker),
+  test hermeticity บน Windows (conftest monkeypatch Settings)
+
 
 ### Sprint 4 — Deploy Pipeline + Team Mode + PostgreSQL-ready (2026-07-06)
 - Deploy pipeline: dispatcher (`repository_dispatch` + stub mode), endpoints
