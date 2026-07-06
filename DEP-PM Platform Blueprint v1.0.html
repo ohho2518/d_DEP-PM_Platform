@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEP-PM — AI-Native Project Management Platform | Blueprint v1.0</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        :root {
+            --bg-primary: #fafafa;
+            --bg-secondary: #f1f5f9;
+            --bg-surface: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent-color: #1e40af;
+            --accent-light: #dbeafe;
+            --border-color: #cbd5e1;
+            --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+            --code-bg: #f8fafc;
+            --ok: #059669; --ok-light: #d1fae5;
+            --warn: #d97706; --warn-light: #fef3c7;
+            --agent-claude: #7c6af7; --agent-claude-l: #ede9fe;
+            --agent-codex: #22c08b; --agent-codex-l: #d1fae5;
+            --agent-gemini: #4da6ff; --agent-gemini-l: #dbeafe;
+        }
+        [data-theme="dark"] {
+            --bg-primary: #0f172a; --bg-secondary: #1e293b; --bg-surface: #0f172a;
+            --text-primary: #f8fafc; --text-secondary: #94a3b8;
+            --accent-color: #3b82f6; --accent-light: #1e3a8a;
+            --border-color: #334155; --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+            --code-bg: #1e293b;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: var(--bg-primary); color: var(--text-primary); line-height: 1.6; }
+        .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: 280px; background-color: var(--bg-secondary); border-right: 1px solid var(--border-color); padding: 20px; overflow-y: auto; z-index: 100; }
+        .main-container { margin-left: 280px; padding: 40px; max-width: 1000px; background-color: var(--bg-surface); min-height: 100vh; }
+        .toolbar { display: block; margin-bottom: 30px; border-bottom: 2px solid var(--border-color); padding-bottom: 15px; text-align: right; }
+        .btn { background-color: var(--accent-color); color: #ffffff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; margin-left: 10px; font-size: 14px; }
+        .btn-secondary { background-color: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .search-box { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--bg-primary); color: var(--text-primary); width: 200px; font-size: 14px; }
+        h1 { font-size: 28px; color: var(--accent-color); border-bottom: 3px solid var(--accent-color); padding-bottom: 10px; margin-top: 40px; }
+        h2 { font-size: 22px; color: var(--text-primary); border-left: 5px solid var(--accent-color); padding-left: 12px; margin-top: 35px; margin-bottom: 15px; }
+        h3 { font-size: 18px; color: var(--text-primary); margin-top: 25px; }
+        p, li { font-size: 15px; color: var(--text-secondary); text-align: justify; }
+        .nav-menu { list-style: none; padding: 0; margin: 0; }
+        .nav-item { margin-bottom: 8px; }
+        .nav-link { color: var(--text-primary); text-decoration: none; font-size: 14px; display: block; padding: 6px 10px; border-radius: 4px; transition: all 0.2s; }
+        .nav-link:hover { background-color: var(--accent-light); color: var(--accent-color); }
+        .kpi-row { display: block; margin-bottom: 25px; clear: both; }
+        .kpi-card { display: inline-block; width: 31%; margin-right: 2%; background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; box-shadow: var(--card-shadow); vertical-align: top; margin-bottom: 15px; }
+        .kpi-card:last-child { margin-right: 0; }
+        .kpi-val { font-size: 24px; font-weight: bold; color: var(--accent-color); margin: 5px 0; }
+        .kpi-title { font-size: 13px; color: var(--text-secondary); font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+        th { background-color: var(--accent-color); color: #ffffff; font-weight: bold; text-align: left; padding: 10px; border: 1px solid var(--border-color); }
+        td { padding: 10px; border: 1px solid var(--border-color); color: var(--text-secondary); }
+        tr:nth-child(even) { background-color: var(--bg-secondary); }
+        pre { background-color: var(--code-bg); border: 1px solid var(--border-color); padding: 15px; border-radius: 6px; overflow-x: auto; font-family: Consolas, Monaco, "Courier New", Courier, monospace; font-size: 13px; }
+        .timeline { position: relative; padding-left: 30px; margin: 20px 0; border-left: 3px solid var(--border-color); }
+        .timeline-item { position: relative; margin-bottom: 30px; }
+        .timeline-item::before { content: ""; position: absolute; left: -37px; top: 5px; width: 12px; height: 12px; border-radius: 50%; background-color: var(--accent-color); border: 3px solid var(--bg-surface); }
+        .timeline-badge { display: inline-block; background-color: var(--accent-light); color: var(--accent-color); padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-bottom: 5px; }
+        .metadata-box { background-color: var(--bg-secondary); border-top: 4px solid var(--accent-color); padding: 15px; margin-bottom: 25px; font-size: 13px; }
+        details { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; margin-bottom: 15px; }
+        summary { font-weight: bold; cursor: pointer; color: var(--text-primary); }
+        .agent-pill { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-right: 6px; }
+        .agent-pill.claude { background: var(--agent-claude-l); color: var(--agent-claude); }
+        .agent-pill.codex { background: var(--agent-codex-l); color: var(--agent-codex); }
+        .agent-pill.gemini { background: var(--agent-gemini-l); color: var(--agent-gemini); }
+        .kanban { display: block; margin: 20px 0; }
+        .kanban-col { display: inline-block; width: 23.5%; margin-right: 2%; vertical-align: top; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; }
+        .kanban-col:last-child { margin-right: 0; }
+        .kanban-col h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin: 4px 0 10px; }
+        .kanban-card { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; font-size: 12.5px; box-shadow: var(--card-shadow); }
+        .kanban-card .kc-id { font-family: monospace; font-size: 10px; color: var(--text-secondary); }
+        .msg-log { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin: 16px 0; font-size: 12.5px; font-family: Consolas, Monaco, monospace; }
+        .msg-line { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border-color); }
+        .msg-line:last-child { border-bottom: none; margin-bottom: 0; }
+        .status-badge { padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        .status-badge.ok { background: var(--ok-light); color: var(--ok); }
+        .status-badge.warn { background: var(--warn-light); color: var(--warn); }
+        @media print {
+            .sidebar, .toolbar, .theme-toggle { display: none !important; }
+            .main-container { margin-left: 0 !important; padding: 0 !important; background-color: #ffffff !important; color: #000000 !important; }
+            h1, h2, h3 { color: #000000 !important; page-break-after: avoid; }
+            pre, table, .kpi-card, details, .kanban-col { page-break-inside: avoid; }
+            details { border: none; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h3 style="color: var(--accent-color); margin-top: 0;">DEP-PM Blueprint v1.0</h3>
+        <input type="text" id="searchInput" class="search-box" placeholder="ค้นหาหัวข้อ..." onkeyup="filterContent()" style="width: 100%; margin-bottom: 20px;">
+        <ul class="nav-menu">
+            <li class="nav-item"><a href="#executive-summary" class="nav-link">1. Executive Summary</a></li>
+            <li class="nav-item"><a href="#vision-capabilities" class="nav-link">2. Vision & Core Capabilities</a></li>
+            <li class="nav-item"><a href="#architecture" class="nav-link">3. System Architecture</a></li>
+            <li class="nav-item"><a href="#data-model" class="nav-link">4. Data Model</a></li>
+            <li class="nav-item"><a href="#lifecycle" class="nav-link">5. Project Lifecycle</a></li>
+            <li class="nav-item"><a href="#new-project" class="nav-link">6. New Project Onboarding</a></li>
+            <li class="nav-item"><a href="#existing-project" class="nav-link">7. Existing Project (Brownfield)</a></li>
+            <li class="nav-item"><a href="#agent-modes" class="nav-link">8. Agent Orchestration Modes</a></li>
+            <li class="nav-item"><a href="#routing-rules" class="nav-link">9. Task Routing Rules</a></li>
+            <li class="nav-item"><a href="#agent-comms" class="nav-link">10. Inter-Agent Communication</a></li>
+            <li class="nav-item"><a href="#dashboard" class="nav-link">11. Status Dashboard & Kanban</a></li>
+            <li class="nav-item"><a href="#deploy-automation" class="nav-link">12. Automated Deployment</a></li>
+            <li class="nav-item"><a href="#api-contract" class="nav-link">13. API Contract</a></li>
+            <li class="nav-item"><a href="#tech-stack" class="nav-link">14. Tech Stack</a></li>
+            <li class="nav-item"><a href="#security" class="nav-link">15. Security & Access Control</a></li>
+            <li class="nav-item"><a href="#roadmap-risk" class="nav-link">16. Roadmap, Estimation & Risk</a></li>
+            <li class="nav-item"><a href="#metrics-handover" class="nav-link">17. Success Metrics & Handover</a></li>
+        </ul>
+    </div>
+
+    <div class="main-container">
+
+        <div class="toolbar">
+            <button class="btn btn-secondary" onclick="toggleTheme()">🌓 สลับโหมดโทนสี</button>
+            <button class="btn" onclick="window.print()">🖨️ พิมพ์เป็น PDF / เอกสาร</button>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 50px;">
+            <span style="font-weight: bold; letter-spacing: 2px; color: var(--text-secondary); font-size: 12px;">PRODUCT BLUEPRINT</span>
+            <h1 style="border-bottom: none; margin-top: 10px; margin-bottom: 5px; font-size: 36px;">DEP-PM — AI-Native Project Management Platform</h1>
+            <p style="text-align: center; font-style: italic; font-size: 16px;">"One Platform — From Planning to Deploy — Humans and AI Agents Working the Same Board"</p>
+            <div class="metadata-box" style="display: inline-block; text-align: left; margin-top: 20px; width: 100%; border-radius: 6px;">
+                <strong>Blueprint Version:</strong> v1.0 (Full-Scope, ครอบคลุมทุก Engine ตาม DEP v3.0)<br>
+                <strong>Built On:</strong> DEP v3.0 Engineering Platform (Metadata Platform Engine, Documentation Engine, AI Context Engine, Knowledge Graph)<br>
+                <strong>Agent Model:</strong> Hybrid — Solo Mode (Claude ทำทุก Role) + Team Mode (Claude PM / Codex Dev / Gemini SR)<br>
+                <strong>Target Users:</strong> โปรเจกต์ใหม่ และโปรเจกต์เดิม (Brownfield) ของ dPRO AI Parking, MChat, Farm Lab และโปรเจกต์อนาคต
+            </div>
+        </div>
+
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <div class="kpi-title">SCOPE STATUS</div>
+                <div class="kpi-val">Blueprint Complete</div>
+                <p style="margin:0; font-size:11px;">พร้อมเข้าสู่ Sprint 1 (ดูหัวข้อ 16)</p>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">AGENT MODES</div>
+                <div class="kpi-val">Solo / Team</div>
+                <p style="margin:0; font-size:11px;">เริ่มงานได้ทันทีด้วย Claude คนเดียว</p>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">PROJECT TYPES รองรับ</div>
+                <div class="kpi-val">New + Existing</div>
+                <p style="margin:0; font-size:11px;">Brownfield ingestion ผ่าน Metadata Engine</p>
+            </div>
+        </div>
+
+        <!-- Section 1 -->
+        <div class="section-block" id="executive-summary">
+            <h2>1. Executive Summary (บทสรุปผู้บริหาร)</h2>
+            <p>
+                DEP-PM คือแพลตฟอร์มบริหารจัดการโปรเจกต์ (Project Management Platform) ที่ออกแบบให้ "มนุษย์และ AI Agent ทำงานอยู่บนบอร์ดเดียวกัน" ตั้งแต่ขั้นตอนวางแผน แตกงาน มอบหมายงาน ติดตามสถานะ ไปจนถึง Deploy ขึ้นระบบจริงแบบอัตโนมัติ โดยไม่แยกส่วนเครื่องมือ Planning ออกจากเครื่องมือ Execution เหมือนที่ทีมวิศวกรรมส่วนใหญ่เผชิญอยู่ (Jira วางแผน, GitHub Actions deploy, Slack คุยงาน กระจัดกระจายกันคนละที่)
+            </p>
+            <p>
+                แพลตฟอร์มนี้ต่อยอดจาก <strong>DEP v3.0 Engineering Platform</strong> โดยตรง — ใช้ Metadata Platform Engine เดิมสำหรับสแกนโปรเจกต์ที่มีอยู่แล้ว (Brownfield), ใช้ Documentation Engine และ AI Context Engine เดิมสำหรับให้ AI Agent เข้าใจบริบทของแต่ละโปรเจกต์ และใช้ Knowledge Graph เดิมสำหรับวิเคราะห์ผลกระทบก่อนมอบหมายงาน
+            </p>
+            <p>
+                จุดต่างที่ DEP-PM เพิ่มเข้ามาคือ <strong>Task Orchestration Layer</strong> ที่มอบหมายงานให้ AI Agent ทำจริง (ไม่ใช่แค่ให้ AI ช่วยเขียนเอกสาร) พร้อม Inter-Agent Communication Bus ที่ให้ Agent คุยงานส่งต่อบริบทกันเองได้ และ Automated Deployment Pipeline ที่ทริกเกอร์ทันทีเมื่องานผ่านการ review
+            </p>
+        </div>
+
+        <!-- Section 2 -->
+        <div class="section-block" id="vision-capabilities">
+            <h2>2. Vision & Core Capabilities</h2>
+            <h3>Vision</h3>
+            <p>ลดระยะห่างระหว่าง "การวางแผนงาน" กับ "การลงมือทำงานจริง" ให้เหลือน้อยที่สุด โดยให้ AI Agent เป็นสมาชิกทีมที่รับงาน รายงานสถานะ และส่งมอบงานได้เหมือนวิศวกรมนุษย์คนหนึ่ง</p>
+            <h3>Core Features</h3>
+            <table>
+                <thead><tr><th>#</th><th>Feature</th><th>คำอธิบาย</th><th>Priority</th></tr></thead>
+                <tbody>
+                    <tr><td>1</td><td>Project Intake (New / Existing)</td><td>สร้างโปรเจกต์ใหม่จาก requirement หรือ import repo เดิมเข้ามาสแกน</td><td>P0</td></tr>
+                    <tr><td>2</td><td>AI Task Breakdown</td><td>PM Agent แตก requirement เป็น task พร้อม estimate และ dependency</td><td>P0</td></tr>
+                    <tr><td>3</td><td>Agent Task Assignment</td><td>มอบหมาย task ให้ AI Agent ตาม Routing Rules หรือมอบให้คนก็ได้</td><td>P0</td></tr>
+                    <tr><td>4</td><td>Kanban Status Board</td><td>แสดงสถานะงานแบบ real-time ทั้งของคนและ Agent บนบอร์ดเดียวกัน</td><td>P0</td></tr>
+                    <tr><td>5</td><td>Inter-Agent Communication Log</td><td>บันทึกและแสดงบทสนทนา/การส่งต่องานระหว่าง Agent แบบตรวจสอบย้อนกลับได้</td><td>P0</td></tr>
+                    <tr><td>6</td><td>Automated Deploy on Approval</td><td>ทริกเกอร์ CI/CD ทันทีเมื่องานผ่าน review และเข้าเงื่อนไข merge</td><td>P0</td></tr>
+                    <tr><td>7</td><td>Knowledge Graph Impact Preview</td><td>แสดงผลกระทบของ task ก่อนมอบหมาย โดยดึงจาก DEP Knowledge Graph</td><td>P1</td></tr>
+                    <tr><td>8</td><td>Multi-Project Portfolio View</td><td>ภาพรวมทุกโปรเจกต์ (dPRO Parking, MChat, Farm Lab, ...) ในหน้าเดียว</td><td>P1</td></tr>
+                    <tr><td>9</td><td>Agent Performance Analytics</td><td>สถิติความสำเร็จ/revision rate ของแต่ละ Agent ต่อประเภทงาน</td><td>P2</td></tr>
+                </tbody>
+            </table>
+            <p style="font-size:12px; font-style:italic;">Out of Scope รอบแรก: Billing/Invoicing, Third-party marketplace ของ Agent ภายนอกองค์กร, Mobile native app (ใช้ Responsive Web ก่อน)</p>
+        </div>
+
+        <!-- Section 3 -->
+        <div class="section-block" id="architecture">
+            <h2>3. System Architecture</h2>
+            <p>สถาปัตยกรรมแบ่งเป็น 3 ชั้นหลัก: Intake Layer (รับโปรเจกต์ใหม่/เก่า) → Orchestration Layer (แตกงาน มอบหมาย สื่อสารระหว่าง Agent) → Delivery Layer (สถานะ + Deploy อัตโนมัติ) โดยชั้น Intake และ Context อ้างอิงกับ Engine ของ DEP v3.0 โดยตรงแทนการสร้างซ้ำ</p>
+            <div class="mermaid" style="background: var(--bg-secondary); padding: 15px; border-radius: 8px;">
+            graph TD
+                subgraph Intake["Intake Layer"]
+                    NewReq[New Project: Requirement Text] --> PMAgent
+                    OldRepo[Existing Repo] --> MetaEngine[DEP Metadata Platform Engine]
+                    MetaEngine --> KG[(DEP Knowledge Graph)]
+                end
+                PMAgent[Claude PM Agent] -->|Task Plan JSON| Orchestrator[Task Orchestration Engine]
+                KG -->|Impact Context| Orchestrator
+                Orchestrator -->|assign| AgentPool{Agent Pool}
+                AgentPool -->|Solo Mode| ClaudeAll[Claude: PM+Dev+Review]
+                AgentPool -->|Team Mode| Codex[Codex Dev]
+                AgentPool -->|Team Mode| Gemini[Gemini SR]
+                Codex <-->|Message Bus| Gemini
+                Codex --> StatusEngine[Status & Kanban Engine]
+                Gemini --> StatusEngine
+                ClaudeAll --> StatusEngine
+                StatusEngine --> Dashboard[Portfolio Dashboard]
+                StatusEngine -->|on Done + Approved| DeployPipeline[Automated Deploy Pipeline]
+                DeployPipeline --> Prod[(Production)]
+                style MetaEngine fill:#059669,stroke:#fff,stroke-width:2px,color:#fff
+                style Orchestrator fill:#1e40af,stroke:#fff,stroke-width:2px,color:#fff
+                style DeployPipeline fill:#7c3aed,stroke:#fff,stroke-width:2px,color:#fff
+            </div>
+            <p>Orchestrator เป็นจุดศูนย์กลางเดียวที่รู้สถานะของทุก task — ทั้งงานที่มอบให้คนและงานที่มอบให้ Agent จะผ่าน Engine เดียวกันนี้เสมอ เพื่อให้ Dashboard แสดงภาพรวมได้ถูกต้อง 100% โดยไม่มี blind spot</p>
+        </div>
+
+        <!-- Section 4 -->
+        <div class="section-block" id="data-model">
+            <h2>4. Data Model (DB Schema)</h2>
+            <p>ตารางหลักที่ต้องมีในรอบแรก (PostgreSQL) — ออกแบบตามรูปแบบ B2 ของ System Design Template โดยเพิ่มตารางเฉพาะของ PM/Agent ที่ DEP v3.0 ยังไม่มี</p>
+            <pre>projects
+  id (uuid, pk), name, type ('new'|'existing'), repo_url,
+  status ('planning'|'active'|'paused'|'archived'),
+  metadata_registry_ref (fk -> DEP Metadata Registry), created_at
+
+tasks
+  id (uuid, pk), project_id (fk), title, description,
+  status ('backlog'|'planned'|'assigned'|'in_progress'|'review'|'done'|'deployed'),
+  assignee_type ('human'|'agent'), assignee_id,
+  agent_role ('pm'|'dev'|'senior_architect'), priority ('P0'|'P1'|'P2'|'P3'),
+  depends_on (uuid[]), spec (text), estimate_points (int), created_at, updated_at
+
+agents
+  id (uuid, pk), name, role, provider ('anthropic'|'openai'|'google'),
+  mode ('solo'|'team'), status ('idle'|'working'|'error'), last_active_at
+
+agent_messages
+  id (uuid, pk), project_id (fk), task_id (fk), from_agent_id, to_agent_id,
+  message_type ('handoff'|'question'|'result'|'review_comment'),
+  payload (jsonb), created_at
+
+deployments
+  id (uuid, pk), project_id (fk), task_id (fk), triggered_by ('auto'|'manual'),
+  status ('queued'|'running'|'success'|'failed'), environment, commit_sha, created_at
+
+audit_log
+  id (uuid, pk), actor_type ('human'|'agent'), actor_id, action,
+  entity_type, entity_id, diff (jsonb), created_at</pre>
+        </div>
+
+        <!-- Section 5 -->
+        <div class="section-block" id="lifecycle">
+            <h2>5. Project Lifecycle (Task State Machine)</h2>
+            <p>ทุก task ไม่ว่าจะมอบให้คนหรือ Agent ต้องไหลผ่าน state เดียวกันนี้เสมอ เพื่อให้ Dashboard และ Deploy Pipeline ทำงานร่วมกันได้แบบคาดเดาได้</p>
+            <div class="mermaid" style="background: var(--bg-secondary); padding: 15px; border-radius: 8px;">
+            stateDiagram-v2
+                [*] --> Backlog
+                Backlog --> Planned: PM Agent breaks down requirement
+                Planned --> Assigned: Orchestrator routes to Agent/Human
+                Assigned --> InProgress: Agent/Human starts work
+                InProgress --> Review: Output submitted
+                Review --> InProgress: Revision requested (max 2 รอบ)
+                Review --> Escalated: Revision fail 2 ครั้ง
+                Escalated --> InProgress: Human/Senior Agent takes over
+                Review --> Done: Approved
+                Done --> Deployed: Auto-deploy triggered
+                Deployed --> [*]
+            </div>
+            <p><span class="status-badge warn">Escalation Rule</span> ตรงกับ Max Revision = 2 ที่กำหนดไว้ใน AI Dev Team Guide เดิม — ถ้า Agent แก้ไม่ผ่าน 2 รอบ งานจะถูกยกระดับให้ Agent ที่สูงกว่า (Gemini SR) หรือมนุษย์เข้ามาดูแทนโดยอัตโนมัติ</p>
+        </div>
+
+        <!-- Section 6 -->
+        <div class="section-block" id="new-project">
+            <h2>6. New Project Onboarding Workflow</h2>
+            <div class="timeline">
+                <div class="timeline-item"><span class="timeline-badge">STEP 1</span><p style="margin:5px 0 0;">ผู้ใช้กรอก Requirement เป็นข้อความอิสระ (เหมือน preset ใน AI Dev Team Orchestrator) ผ่านหน้า "New Project"</p></div>
+                <div class="timeline-item"><span class="timeline-badge">STEP 2</span><p style="margin:5px 0 0;">Claude PM Agent วิเคราะห์และสร้าง Task Plan (JSON) พร้อม estimate และ dependency ตาม Template A2/A3 ของ Section Planning</p></div>
+                <div class="timeline-item"><span class="timeline-badge">STEP 3</span><p style="margin:5px 0 0;">ระบบสร้าง Project record + Task record ทั้งหมดใน status <code>backlog</code> แล้วแสดงให้ผู้ใช้ยืนยัน scope ก่อนเริ่มงานจริง</p></div>
+                <div class="timeline-item"><span class="timeline-badge">STEP 4</span><p style="margin:5px 0 0;">เมื่อยืนยัน — Orchestrator เปลี่ยนสถานะเป็น <code>planned</code> แล้วเริ่ม routing ไปยัง Agent/คนตาม Routing Rules (หัวข้อ 9)</p></div>
+            </div>
+        </div>
+
+        <!-- Section 7 -->
+        <div class="section-block" id="existing-project">
+            <h2>7. Existing Project Onboarding (Brownfield)</h2>
+            <p>
+                สำหรับโปรเจกต์ที่มีอยู่แล้ว (dPRO AI Parking, MChat, Farm Lab หรือ repo ภายนอก) DEP-PM จะไม่เริ่มจากศูนย์ แต่เรียกใช้ <strong>DEP Metadata Platform Engine</strong> (DEP v3.0 หัวข้อ 5) สแกน Codebase ก่อน เพื่อให้ Task ที่สร้างขึ้นใหม่ "รู้จัก" ระบบเดิมจริงๆ ไม่ใช่แค่เดาจากชื่อไฟล์
+            </p>
+            <div class="timeline">
+                <div class="timeline-item"><span class="timeline-badge">STEP 1</span><p style="margin:5px 0 0;">ผู้ใช้เชื่อม Repository เข้าระบบ (Git URL / local path)</p></div>
+                <div class="timeline-item"><span class="timeline-badge">STEP 2</span><p style="margin:5px 0 0;">Metadata Platform Engine สแกนและสร้าง Metadata Record + อัปเดต Knowledge Graph ของโปรเจกต์นั้น</p></div>
+                <div class="timeline-item"><span class="timeline-badge">STEP 3</span><p style="margin:5px 0 0;">Gemini SR Agent วิเคราะห์ Metadata + Graph แล้วสร้าง "Baseline Report" — tech debt, missing tests, doc coverage ที่ขาด</p></div>
+                <div class="timeline-item"><span class="timeline-badge">STEP 4</span><p style="margin:5px 0 0;">Baseline Report ถูกแปลงเป็น Task เริ่มต้นใน Backlog โดยอัตโนมัติ ผู้ใช้เลือกได้ว่าจะทำ task ไหนก่อน หรือเพิ่ม requirement ใหม่ทับเข้าไป</p></div>
+            </div>
+            <p style="font-size:12px; font-style:italic;">ผลลัพธ์คือ Backlog ที่ผสมกันระหว่าง "หนี้เทคนิคที่ AI เจอเอง" กับ "งานใหม่ที่มนุษย์อยากทำ" อยู่บนบอร์ดเดียวกัน</p>
+        </div>
+
+        <!-- Section 8 -->
+        <div class="section-block" id="agent-modes">
+            <h2>8. Agent Orchestration Modes</h2>
+            <p>ออกแบบเป็น 2 โหมดที่สลับได้ต่อโปรเจกต์ ไม่ผูกมัดกับ provider ใดตายตัว — เริ่มงานได้ทันทีด้วย Solo Mode แล้วอัปเกรดเป็น Team Mode เมื่อพร้อม</p>
+            <table>
+                <thead><tr><th>โหมด</th><th>วิธีทำงาน</th><th>ต้องมี API Key</th><th>เหมาะกับ</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="agent-pill claude">SOLO</span></td>
+                        <td>Claude ตัวเดียวสวมบทบาททั้ง PM, Developer และ Senior Reviewer ผ่าน system prompt ต่างชุดกันในแต่ละ task</td>
+                        <td>Anthropic เท่านั้น</td>
+                        <td>เริ่มต้นใช้งาน / โปรเจกต์เล็ก / ทีมที่ยังไม่มี budget หลาย provider</td>
+                    </tr>
+                    <tr>
+                        <td><span class="agent-pill claude">TEAM</span> <span class="agent-pill codex">+</span> <span class="agent-pill gemini">+</span></td>
+                        <td>Claude PM + Codex Dev + Gemini SR ทำงานแยกจริงตาม SOW ที่กำหนดไว้ใน AI Dev Team Guide</td>
+                        <td>Anthropic + OpenAI + Google</td>
+                        <td>โปรเจกต์ที่ต้องการ code review อิสระจากคนละโมเดล / งาน production</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>กติกาสำคัญ: <strong>Task Orchestration Engine ไม่รู้ความต่างของโหมด</strong> — มันเห็นแค่ "Agent Role" (pm/dev/senior_architect) เท่านั้น ทำให้สลับโหมดได้โดยไม่ต้องแก้ logic การมอบหมายงานเลย เปลี่ยนแค่ config ว่า role ไหน map ไป provider ไหน</p>
+        </div>
+
+        <!-- Section 9 -->
+        <div class="section-block" id="routing-rules">
+            <h2>9. Task Routing Rules</h2>
+            <p>สืบทอด Routing Rules ชุดเดิมจาก AI Dev Team Guide ตรงๆ แล้วเพิ่มคอลัมน์ Escalation ให้ผูกกับ State Machine ในหัวข้อ 5</p>
+            <table>
+                <thead><tr><th>Task Type</th><th>Assign To (Team Mode)</th><th>Assign To (Solo Mode)</th><th>Escalate เมื่อ</th></tr></thead>
+                <tbody>
+                    <tr><td>Requirements Analysis</td><td>Claude PM</td><td>Claude (persona: PM)</td><td>Requirement คลุมเครือเกิน 2 รอบ → ถาม user</td></tr>
+                    <tr><td>System Architecture</td><td>Gemini SR</td><td>Claude (persona: Architect)</td><td>ไม่มี — เป็นจุดเริ่ม pipeline</td></tr>
+                    <tr><td>CRUD / Boilerplate / Auth</td><td>Codex Dev</td><td>Claude (persona: Developer)</td><td>Fail 2 ครั้ง → Gemini SR / Claude Architect แก้แทน</td></tr>
+                    <tr><td>Code Review / Security Audit</td><td>Gemini SR</td><td>Claude (persona: Reviewer)</td><td>Severity HIGH → หยุด pipeline แจ้ง user ทันที</td></tr>
+                    <tr><td>Final Report / Deploy Approval</td><td>Claude PM</td><td>Claude (persona: PM)</td><td>—</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section 10 -->
+        <div class="section-block" id="agent-comms">
+            <h2>10. Inter-Agent Communication Protocol</h2>
+            <p>Agent ทุกตัวสื่อสารผ่าน <strong>Message Bus</strong> เดียวกัน ไม่คุยกันตรงๆ นอกระบบ — ทุกข้อความถูกบันทึกลงตาราง <code>agent_messages</code> (หัวข้อ 4) เพื่อให้ Dashboard และ Audit Log เห็นบทสนทนาทั้งหมดแบบย้อนดูได้</p>
+            <details>
+                <summary>ตัวอย่าง Message Schema (JSON)</summary>
+                <pre>{
+  "id": "msg_8841",
+  "project_id": "proj_mchat",
+  "task_id": "T003",
+  "from_agent": "codex-dev",
+  "to_agent": "gemini-sr",
+  "message_type": "handoff",
+  "payload": {
+    "summary": "Implemented POST /v1/invoices endpoint",
+    "files_changed": ["apps/mchat/api/invoice.py"],
+    "request": "โปรด review security ก่อน merge"
+  },
+  "created_at": "2026-07-02T10:14:02Z"
+}</pre>
+            </details>
+            <p>ตัวอย่างการไหลของบทสนทนาจริงในหนึ่ง task:</p>
+            <div class="msg-log">
+                <div class="msg-line"><span class="agent-pill claude">PM</span> → Orchestrator: "T003 พร้อม assign ให้ Codex — spec แนบแล้ว"</div>
+                <div class="msg-line"><span class="agent-pill codex">DEV</span> → Gemini SR: "เขียน endpoint เสร็จแล้ว ขอ review security"</div>
+                <div class="msg-line"><span class="agent-pill gemini">SR</span> → Codex Dev: "พบ SQL injection เสี่ยงที่ query filter, แก้บรรทัด 42 แล้วส่งกลับ"</div>
+                <div class="msg-line"><span class="agent-pill codex">DEV</span> → Gemini SR: "แก้แล้ว ส่ง revision รอบ 2"</div>
+                <div class="msg-line"><span class="agent-pill gemini">SR</span> → PM: "Approved — rating 9/10, พร้อม deploy"</div>
+                <div class="msg-line"><span class="agent-pill claude">PM</span> → Deploy Pipeline: "T003 done, trigger auto-deploy"</div>
+            </div>
+        </div>
+
+        <!-- Section 11 -->
+        <div class="section-block" id="dashboard">
+            <h2>11. Status Dashboard & Kanban Board</h2>
+            <p>บอร์ดเดียวแสดงทั้งงานของคนและ Agent — ไม่มีบอร์ดแยก เพื่อไม่ให้เกิด blind spot ระหว่าง "งานที่มนุษย์ทำ" กับ "งานที่ AI ทำ"</p>
+            <div class="kanban">
+                <div class="kanban-col">
+                    <h4>Backlog</h4>
+                    <div class="kanban-card"><div class="kc-id">T005</div>Solar ROI calculator</div>
+                    <div class="kanban-card"><div class="kc-id">T006</div>Farm Lab pH alert rule</div>
+                </div>
+                <div class="kanban-col">
+                    <h4>In Progress</h4>
+                    <div class="kanban-card"><div class="kc-id">T003</div>Invoice API <span class="agent-pill codex" style="margin:0;">Codex</span></div>
+                </div>
+                <div class="kanban-col">
+                    <h4>Review</h4>
+                    <div class="kanban-card"><div class="kc-id">T002</div>DB Schema <span class="agent-pill gemini" style="margin:0;">Gemini</span></div>
+                </div>
+                <div class="kanban-col">
+                    <h4>Done / Deployed</h4>
+                    <div class="kanban-card"><div class="kc-id">T001</div>Architecture Design <span class="status-badge ok">✓ deployed</span></div>
+                </div>
+            </div>
+            <p>Dashboard ระดับ Portfolio (ข้ามหลายโปรเจกต์) แสดงจำนวน task ต่อสถานะ, Agent ที่กำลังทำงานอยู่ real-time, และ deploy ล่าสุดของแต่ละโปรเจกต์ — ใช้ component เดียวกับ DEP v3.0 หัวข้อ 13 (Platform Dashboard) แต่ join ข้อมูลจากตาราง <code>tasks</code>/<code>deployments</code> ของ DEP-PM เพิ่มเข้ามา</p>
+        </div>
+
+        <!-- Section 12 -->
+        <div class="section-block" id="deploy-automation">
+            <h2>12. Automated Deployment Workflow</h2>
+            <p>เมื่อ task เข้าสถานะ <code>done</code> (ผ่าน review แล้ว) Orchestrator จะ trigger CI/CD ทันทีโดยไม่ต้องรอคนกดปุ่ม เว้นแต่โปรเจกต์นั้นตั้งค่า "Manual Approval Gate" ไว้</p>
+            <pre># .github/workflows/dep-pm-deploy.yml (ย่อ)
+on:
+  repository_dispatch:
+    types: [task-done]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: dep-pm-cli verify --task ${{ github.event.client_payload.task_id }}
+      - run: dep-pm-cli build
+      - run: dep-pm-cli deploy --env staging
+      - run: dep-pm-cli smoke-test --env staging
+      - run: dep-pm-cli deploy --env production --if-approved</pre>
+            <table>
+                <thead><tr><th>Environment</th><th>Trigger</th><th>Approval</th></tr></thead>
+                <tbody>
+                    <tr><td>Staging</td><td>Task เข้าสถานะ Done ทันที</td><td>ไม่ต้อง — อัตโนมัติเต็มรูปแบบ</td></tr>
+                    <tr><td>Production</td><td>Staging smoke test ผ่าน</td><td>ตาม config ต่อโปรเจกต์ — Manual gate ได้ถ้าต้องการ</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section 13 -->
+        <div class="section-block" id="api-contract">
+            <h2>13. API Contract</h2>
+            <p>REST API หลักที่ Orchestrator เปิดให้ทั้ง Frontend Dashboard และ Agent เรียกใช้งาน</p>
+            <pre>POST   /api/projects                    → { id, name, type, status }
+POST   /api/projects/:id/scan            → เริ่ม Metadata Engine scan (existing project)
+GET    /api/projects/:id/tasks           → { data: [Task], pagination }
+POST   /api/projects/:id/tasks           → สร้าง task ใหม่ (มนุษย์เพิ่มเอง หรือ PM Agent เรียก)
+PATCH  /api/tasks/:id                    → เปลี่ยนสถานะ / assignee
+POST   /api/tasks/:id/assign             → { assignee_type, assignee_id, agent_role }
+GET    /api/tasks/:id/messages           → ประวัติ Inter-Agent Communication ของ task นั้น
+POST   /api/agent-messages               → Agent ส่งข้อความ/handoff เข้า Message Bus
+POST   /api/deployments                  → trigger deploy (manual หรือเรียกจาก Orchestrator)
+GET    /api/deployments/:id              → สถานะ deploy real-time
+GET    /api/portfolio                    → ภาพรวมทุกโปรเจกต์สำหรับ Dashboard</pre>
+        </div>
+
+        <!-- Section 14 -->
+        <div class="section-block" id="tech-stack">
+            <h2>14. Tech Stack</h2>
+            <table>
+                <thead><tr><th>Layer</th><th>เลือกใช้</th><th>เหตุผล</th></tr></thead>
+                <tbody>
+                    <tr><td>Frontend</td><td>Next.js + TypeScript</td><td>Dashboard/Kanban แบบ real-time, SSR สำหรับ SEO ของหน้า public report</td></tr>
+                    <tr><td>Backend</td><td>FastAPI (Python)</td><td>ตรงกับ Stack เดิมของ AI Dev Team Orchestrator, รองรับ Async I/O สำหรับเรียก AI API หลายตัวพร้อมกัน</td></tr>
+                    <tr><td>Database</td><td>PostgreSQL + JSONB</td><td>ใช้ฐานข้อมูลเดียวกับ DEP Metadata Registry เพื่อ join ข้ามระบบได้ตรงๆ</td></tr>
+                    <tr><td>Realtime</td><td>WebSocket / Redis Pub-Sub</td><td>อัปเดต Kanban และ Agent status แบบ real-time โดยไม่ poll</td></tr>
+                    <tr><td>Message Bus</td><td>Redis Streams (เริ่มต้น) → upgrade เป็น Kafka เมื่อ scale</td><td>เพียงพอสำหรับ throughput ระดับทีมเล็ก-กลาง</td></tr>
+                    <tr><td>CI/CD</td><td>GitHub Actions</td><td>ต่อยอดจาก workflow ที่ DEP v3.0 หัวข้อ 11 มีอยู่แล้ว</td></tr>
+                    <tr><td>Hosting</td><td>Vercel (FE) + Render/Railway (BE)</td><td>ตรงกับ Handover Template มาตรฐานของทีม</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section 15 -->
+        <div class="section-block" id="security">
+            <h2>15. Security & Access Control</h2>
+            <table>
+                <thead><tr><th>ประเด็น</th><th>มาตรการ</th></tr></thead>
+                <tbody>
+                    <tr><td>Agent Sandboxing</td><td>Agent ไม่มีสิทธิ์ push ตรงเข้า main — ทุก commit ผ่าน PR ที่ Gemini SR review ก่อนเสมอ</td></tr>
+                    <tr><td>Secrets</td><td>API key ของทุก provider เก็บใน Secret Manager ไม่ผ่าน Task spec หรือ Message Bus เด็ดขาด</td></tr>
+                    <tr><td>RBAC</td><td>สิทธิ์ระดับ Project: Owner / Contributor / Viewer — Agent นับเป็น Contributor เสมอ ไม่มีสิทธิ์ Owner</td></tr>
+                    <tr><td>Audit Trail</td><td>ทุก action (assign, status change, deploy, agent message) บันทึกลง <code>audit_log</code> พร้อม actor จริง</td></tr>
+                    <tr><td>PDPA / Data Boundary</td><td>Task spec ที่พาดพิงข้อมูลลูกค้า (เช่น MChat) ต้อง mask ฟิลด์อ่อนไหวก่อนส่งเข้า prompt ของ Agent</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section 16 -->
+        <div class="section-block" id="roadmap-risk">
+            <h2>16. Roadmap, Estimation & Risk Register</h2>
+            <h3>Sprint Plan (MVP — Solo Mode ก่อน)</h3>
+            <div class="timeline">
+                <div class="timeline-item"><span class="timeline-badge">SPRINT 1 (W1-2)</span><p style="margin:5px 0 0;">Data Model + Project Intake (New/Existing) + เชื่อม Metadata Platform Engine</p></div>
+                <div class="timeline-item"><span class="timeline-badge">SPRINT 2 (W3-4)</span><p style="margin:5px 0 0;">Task Orchestration Engine + Solo Mode Agent (Claude ทุก role) + State Machine</p></div>
+                <div class="timeline-item"><span class="timeline-badge">SPRINT 3 (W5-6)</span><p style="margin:5px 0 0;">Kanban Dashboard + Message Bus + Audit Log</p></div>
+                <div class="timeline-item"><span class="timeline-badge">SPRINT 4 (W7-8)</span><p style="margin:5px 0 0;">Automated Deploy Pipeline + Team Mode (Codex/Gemini) + UAT + Handover</p></div>
+            </div>
+            <h3>Estimation Summary</h3>
+            <table>
+                <thead><tr><th>Module</th><th>Backend</th><th>Frontend</th><th>Test</th><th>รวม</th></tr></thead>
+                <tbody>
+                    <tr><td>Project Intake + Metadata Integration</td><td>4d</td><td>2d</td><td>1d</td><td>7d</td></tr>
+                    <tr><td>Task Orchestration + State Machine</td><td>5d</td><td>2d</td><td>2d</td><td>9d</td></tr>
+                    <tr><td>Agent Runtime (Solo + Team Mode)</td><td>6d</td><td>1d</td><td>2d</td><td>9d</td></tr>
+                    <tr><td>Kanban Dashboard + Realtime</td><td>2d</td><td>5d</td><td>1d</td><td>8d</td></tr>
+                    <tr><td>Deploy Pipeline Integration</td><td>3d</td><td>1d</td><td>1d</td><td>5d</td></tr>
+                    <tr><td>Sub-total</td><td></td><td></td><td></td><td>38d</td></tr>
+                    <tr><td>Buffer (+20%)</td><td></td><td></td><td></td><td>+8d</td></tr>
+                    <tr><td>Deploy + Handover</td><td></td><td></td><td></td><td>+3d</td></tr>
+                    <tr><td><strong>รวมทั้งหมด</strong></td><td></td><td></td><td></td><td><strong>~49d (~8 สัปดาห์)</strong></td></tr>
+                </tbody>
+            </table>
+            <h3>Risk Register</h3>
+            <table>
+                <thead><tr><th>#</th><th>ความเสี่ยง</th><th>โอกาส</th><th>ผลกระทบ</th><th>ระดับ</th><th>แผนรับมือ</th></tr></thead>
+                <tbody>
+                    <tr><td>1</td><td>Agent มอบหมายงานผิดประเภทบ่อย</td><td>กลาง</td><td>กลาง</td><td>🟡</td><td>Log routing decision ทุกครั้ง + ปรับ Routing Rules รายสัปดาห์</td></tr>
+                    <tr><td>2</td><td>ต้นทุน API เกินงบเมื่อสลับเป็น Team Mode</td><td>กลาง</td><td>สูง</td><td>🔴</td><td>ตั้ง budget threshold auto-switch กลับ Solo Mode</td></tr>
+                    <tr><td>3</td><td>Auto-deploy พังหน้า production</td><td>ต่ำ</td><td>สูง</td><td>🔴</td><td>บังคับผ่าน staging + smoke test ก่อนเสมอ, มี rollback อัตโนมัติ</td></tr>
+                    <tr><td>4</td><td>ข้อมูลลูกค้าหลุดเข้า prompt ของ Agent</td><td>ต่ำ</td><td>สูง</td><td>🔴</td><td>Field masking layer ก่อนส่งเข้า Message Bus/Prompt เสมอ</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section 17 -->
+        <div class="section-block" id="metrics-handover">
+            <h2>17. Success Metrics & Handover</h2>
+            <table>
+                <thead><tr><th>KPI</th><th>เป้าหมาย</th></tr></thead>
+                <tbody>
+                    <tr><td>Time from Requirement → First Deploy</td><td>ลดลง 50% เทียบกับ workflow เดิม (แยกเครื่องมือ)</td></tr>
+                    <tr><td>Task Auto-routing Accuracy</td><td>&gt; 90% ไม่ต้อง reassign มือ</td></tr>
+                    <tr><td>Escalation Rate (revision fail 2 ครั้ง)</td><td>&lt; 10% ของ task ทั้งหมด</td></tr>
+                    <tr><td>Deploy Success Rate (staging → prod)</td><td>&gt; 95%</td></tr>
+                </tbody>
+            </table>
+            <h3>Handover Checklist (เมื่อ MVP เสร็จ)</h3>
+            <pre># DEP-PM MVP Handover
+URLs: Production Dashboard / API Docs / GitHub Repository
+Infra: Vercel (FE) | Render (BE) | PostgreSQL | Redis
+Agent Config: Solo Mode default, Team Mode ต้องเติม OPENAI_API_KEY + GEMINI_API_KEY
+Support: SLA 24h | Warranty 3 เดือน | Runbook แนบใน /docs/runbook.md</pre>
+        </div>
+
+    </div><!-- /main-container -->
+
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme') || 'light';
+            const next = current === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', next);
+            try { localStorage.setItem('dep-pm-theme', next); } catch (e) {}
+        }
+        (function initTheme() {
+            try {
+                const saved = localStorage.getItem('dep-pm-theme');
+                if (saved) document.documentElement.setAttribute('data-theme', saved);
+            } catch (e) {}
+        })();
+        function filterContent() {
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            document.querySelectorAll('.nav-item').forEach(function (item) {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(q) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>

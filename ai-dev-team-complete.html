@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Dev Team — Complete Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f5fb;
+  --surface: #ffffff;
+  --border: #e6e8f0;
+  --border-active: #cdd0e8;
+  --claude: #7c6af7; --claude-p: #edeaff; --claude-m: #c4b8fd;
+  --codex:  #22c08b; --codex-p:  #e0faf2; --codex-m:  #93dfc4;
+  --gemini: #4da6ff; --gemini-p: #e1f1ff; --gemini-m: #94caff;
+  --warn: #f5a623; --warn-p: #fff5e0;
+  --ok: #17b978; --ok-p: #e0faf3;
+  --text: #1c2033; --text2: #6a7390; --text3: #aab0c8;
+  --shadow: 0 1px 4px rgba(90,100,150,0.08);
+  --shadow-md: 0 4px 18px rgba(90,100,150,0.11);
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+  --r: 14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;z-index:0;background-image:radial-gradient(circle,#c8cce0 1px,transparent 1px);background-size:26px 26px;opacity:.3;pointer-events:none}
+.wrap{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:32px 22px}
+
+/* ── NAV TABS ── */
+.nav-tabs{display:flex;gap:6px;margin-bottom:28px;flex-wrap:wrap;background:var(--surface);padding:6px;border-radius:16px;border:1px solid var(--border);box-shadow:var(--shadow)}
+.tab-btn{padding:8px 18px;border-radius:10px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--sans);background:transparent;color:var(--text2);transition:all .2s;white-space:nowrap}
+.tab-btn:hover{background:var(--bg);color:var(--text)}
+.tab-btn.active{background:var(--claude);color:#fff;box-shadow:0 2px 10px rgba(124,106,247,.3)}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* ── HEADER ── */
+header{text-align:center;margin-bottom:36px}
+.eyebrow{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--text3);background:var(--surface);border:1px solid var(--border);padding:5px 14px;border-radius:20px;margin-bottom:14px;box-shadow:var(--shadow)}
+h1{font-size:clamp(24px,3.5vw,38px);font-weight:700;letter-spacing:-.6px;margin-bottom:8px}
+h1 .ac{color:var(--claude)}
+header p{font-size:14px;color:var(--text2)}
+
+/* ── SECTION ── */
+.section-title{font-size:18px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.section-sub{font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);margin-bottom:16px}
+.card-title{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.card p,.card li{font-size:13px;color:var(--text2);line-height:1.7}
+.card ul{padding-left:18px;margin-top:6px}
+.card ul li{margin-bottom:4px}
+
+/* ── GRID LAYOUTS ── */
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+
+/* ── AGENT CARD (in knowledge) ── */
+.agent-k{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:20px;box-shadow:var(--shadow)}
+.agent-k-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.aicon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.aicon.c{background:var(--claude-p)} .aicon.d{background:var(--codex-p)} .aicon.g{background:var(--gemini-p)}
+.aname{font-size:14px;font-weight:700}
+.arole{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.abadge{margin-left:auto;padding:3px 10px;border-radius:8px;font-size:10px;font-family:var(--mono);font-weight:700}
+.abadge.c{background:var(--claude-p);color:var(--claude)}
+.abadge.d{background:var(--codex-p);color:var(--codex)}
+.abadge.g{background:var(--gemini-p);color:var(--gemini)}
+.adesc{font-size:12px;color:var(--text2);line-height:1.65;margin-bottom:10px}
+.atags{display:flex;flex-wrap:wrap;gap:6px}
+.atag{padding:3px 10px;border-radius:20px;font-size:10px;font-family:var(--mono);background:var(--bg);color:var(--text3);border:1px solid var(--border)}
+
+/* ── FLOW DIAGRAM ── */
+.flow-box{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:20px;box-shadow:var(--shadow)}
+.flow-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.fnode{padding:10px 18px;border-radius:10px;font-size:12px;font-weight:600;text-align:center;flex-shrink:0}
+.fnode.pm{background:var(--claude-p);color:var(--claude);border:1.5px solid var(--claude-m)}
+.fnode.dev{background:var(--codex-p);color:var(--codex);border:1.5px solid var(--codex-m)}
+.fnode.sr{background:var(--gemini-p);color:var(--gemini);border:1.5px solid var(--gemini-m)}
+.fnode.usr{background:var(--warn-p);color:var(--warn);border:1.5px solid #f5c98a}
+.fnode.out{background:var(--ok-p);color:var(--ok);border:1.5px solid #93dfc4}
+.farrow{font-size:18px;color:var(--text3)}
+.fstep{font-size:11px;color:var(--text2);padding:4px 10px;background:var(--bg);border-radius:6px;border:1px solid var(--border)}
+
+/* ── ROUTING TABLE ── */
+.route-table{width:100%;border-collapse:collapse;margin-top:12px}
+.route-table th{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:1px;color:var(--text3);padding:8px 14px;background:var(--bg);border:1px solid var(--border);text-align:left;font-weight:600}
+.route-table td{font-size:12px;padding:10px 14px;border:1px solid var(--border);color:var(--text2);vertical-align:top}
+.route-table tr:hover td{background:#fafbff}
+.badge-c{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;background:var(--claude-p);color:var(--claude)}
+.badge-d{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;background:var(--codex-p);color:var(--codex)}
+.badge-g{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;background:var(--gemini-p);color:var(--gemini)}
+
+/* ── CODE BLOCK ── */
+.code-block{background:#f8f9ff;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.code-header{background:var(--bg);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.code-lang{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;font-weight:600}
+.copy-btn{padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:10px;cursor:pointer;font-family:var(--mono);transition:all .15s}
+.copy-btn:hover{background:var(--claude-p);color:var(--claude);border-color:var(--claude-m)}
+pre{padding:16px;font-family:var(--mono);font-size:11.5px;line-height:1.8;color:#384167;overflow-x:auto;white-space:pre}
+pre .kw{color:#7c6af7;font-weight:600} pre .str{color:#22a87a} pre .cmt{color:#aab0c8;font-style:italic}
+pre .fn{color:#4da6ff;font-weight:600} pre .num{color:#f5a623}
+
+/* ── TIMELINE ── */
+.timeline{padding-left:24px;border-left:2px solid var(--border);margin-bottom:20px}
+.titem{position:relative;padding-left:20px;margin-bottom:18px}
+.titem::before{content:'';position:absolute;left:-27px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--claude);border:2px solid var(--surface);box-shadow:0 0 0 2px var(--claude-m)}
+.titem.codex::before{background:var(--codex);box-shadow:0 0 0 2px var(--codex-m)}
+.titem.gemini::before{background:var(--gemini);box-shadow:0 0 0 2px var(--gemini-m)}
+.titem.done::before{background:var(--ok);box-shadow:0 0 0 2px #93dfc4}
+.t-phase{font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:3px}
+.t-title{font-size:13px;font-weight:600;margin-bottom:4px}
+.t-desc{font-size:12px;color:var(--text2);line-height:1.6}
+
+/* ── SOW ── */
+.sow-header{background:linear-gradient(135deg,var(--claude-p),var(--gemini-p));border:1.5px solid var(--border);border-radius:var(--r);padding:22px;margin-bottom:16px;text-align:center}
+.sow-header h2{font-size:20px;font-weight:700;margin-bottom:6px}
+.sow-header p{font-size:13px;color:var(--text2)}
+.sow-section{margin-bottom:20px}
+.sow-section h3{font-size:14px;font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:6px}
+.sow-list{list-style:none;display:flex;flex-direction:column;gap:6px}
+.sow-list li{font-size:12px;color:var(--text2);padding:8px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);display:flex;align-items:flex-start;gap:8px;line-height:1.5}
+.sow-list li::before{content:'✦';color:var(--claude);flex-shrink:0;margin-top:1px}
+.sow-list.codex li::before{color:var(--codex)}
+.sow-list.gemini li::before{color:var(--gemini)}
+.accept-box{background:var(--warn-p);border:1.5px solid #f5c98a;border-radius:10px;padding:14px;margin-top:10px;font-size:12px;color:#a06010}
+
+/* ── ORCHESTRATOR ── */
+.stats-bar{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.stat{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:14px 18px;flex:1;min-width:100px;box-shadow:var(--shadow)}
+.stat-val{font-family:var(--mono);font-size:22px;font-weight:600}
+.stat-lbl{font-size:11px;color:var(--text3);margin-top:3px;font-weight:500}
+.stat.vc .stat-val{color:var(--claude)} .stat.vd .stat-val{color:var(--codex)} .stat.vg .stat-val{color:var(--gemini)} .stat.vo .stat-val{color:var(--ok)}
+
+.agents-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
+.agent-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:18px;box-shadow:var(--shadow);transition:all .25s}
+.agent-card.active-claude{border-color:var(--claude-m);box-shadow:0 0 0 3px var(--claude-p),var(--shadow-md);transform:translateY(-2px)}
+.agent-card.active-codex{border-color:var(--codex-m);box-shadow:0 0 0 3px var(--codex-p),var(--shadow-md);transform:translateY(-2px)}
+.agent-card.active-gemini{border-color:var(--gemini-m);box-shadow:0 0 0 3px var(--gemini-p),var(--shadow-md);transform:translateY(-2px)}
+.agent-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.agent-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.icon-claude{background:var(--claude-p)} .icon-codex{background:var(--codex-p)} .icon-gemini{background:var(--gemini-p)}
+.agent-name{font-size:14px;font-weight:700} .agent-role{font-size:10px;color:var(--text3);font-family:var(--mono)}
+.agent-badge{margin-left:auto;padding:3px 9px;border-radius:7px;font-size:10px;font-family:var(--mono);font-weight:700}
+.badge-claude{background:var(--claude-p);color:var(--claude)} .badge-codex{background:var(--codex-p);color:var(--codex)} .badge-gemini{background:var(--gemini-p);color:var(--gemini)}
+.agent-desc{font-size:11.5px;color:var(--text2);line-height:1.6;margin-bottom:10px}
+.agent-skills{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+.skill-tag{padding:3px 9px;border-radius:20px;font-size:10px;font-family:var(--mono);background:var(--bg);color:var(--text3);border:1px solid var(--border)}
+.agent-status{padding:8px 12px;border-radius:9px;background:var(--bg);border:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--text3);display:flex;align-items:center;gap:8px;min-height:36px}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--border-active);flex-shrink:0;transition:all .3s}
+.agent-card.active-claude .sdot{background:var(--claude);box-shadow:0 0 0 3px var(--claude-p);animation:pulse 1.2s infinite}
+.agent-card.active-codex  .sdot{background:var(--codex);box-shadow:0 0 0 3px var(--codex-p);animation:pulse 1.2s infinite}
+.agent-card.active-gemini .sdot{background:var(--gemini);box-shadow:0 0 0 3px var(--gemini-p);animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+.flow-connectors{display:flex;align-items:center;justify-content:center;padding:0 80px;margin-bottom:16px}
+.conn-line{height:2px;flex:1;background:var(--border);position:relative;overflow:hidden;border-radius:2px}
+.conn-line.flowing::after{content:'';position:absolute;top:-1px;left:-20%;width:20%;height:4px;border-radius:2px;animation:flow 1.4s linear infinite}
+.conn-line.flow-right::after{background:linear-gradient(90deg,transparent,var(--codex),transparent)}
+.conn-line.flow-left::after{background:linear-gradient(90deg,transparent,var(--gemini),transparent)}
+@keyframes flow{from{left:-20%}to{left:120%}}
+.conn-arrow{font-size:14px;color:var(--border-active);margin:0 2px}
+
+.slabel{font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:var(--mono);color:var(--text3);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.slabel::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.input-section{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:14px;box-shadow:var(--shadow)}
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.preset-btn{padding:6px 14px;border-radius:20px;cursor:pointer;font-size:11px;font-family:var(--mono);background:var(--bg);color:var(--text2);border:1.5px solid var(--border);transition:all .2s;font-weight:500}
+.preset-btn:hover{border-color:var(--claude-m);color:var(--claude);background:var(--claude-p)}
+textarea{width:100%;min-height:80px;padding:12px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:12px;line-height:1.65;resize:vertical;outline:none;transition:all .2s}
+textarea:focus{border-color:var(--claude-m);box-shadow:0 0 0 3px var(--claude-p)}
+textarea::placeholder{color:var(--text3)}
+.run-btn{margin-top:12px;padding:11px 26px;background:var(--claude);border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);display:inline-flex;align-items:center;gap:7px;box-shadow:0 2px 12px rgba(124,106,247,.3);transition:all .2s}
+.run-btn:hover{background:#6958e8;box-shadow:0 4px 18px rgba(124,106,247,.4)}
+.run-btn:active{transform:scale(.98)}
+.run-btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+
+.task-section{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.task-panel{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;box-shadow:var(--shadow)}
+.task-list{display:flex;flex-direction:column;gap:7px;min-height:50px}
+.task-item{padding:9px 12px;border-radius:9px;background:var(--bg);border:1.5px solid var(--border);display:flex;align-items:flex-start;gap:9px;transition:all .25s;animation:slideIn .3s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.task-item.done{opacity:.5}
+.task-item.running-codex{border-color:var(--codex-m);background:var(--codex-p)}
+.task-item.running-gemini{border-color:var(--gemini-m);background:var(--gemini-p)}
+.task-id{font-family:var(--mono);font-size:10px;color:var(--text3);flex-shrink:0;margin-top:2px}
+.task-info{flex:1} .task-title{font-size:12px;font-weight:500;margin-bottom:2px}
+.task-assign{font-size:10px;font-family:var(--mono)}
+.assign-codex{color:var(--codex)} .assign-gemini{color:var(--gemini)}
+.task-icon{font-size:14px;flex-shrink:0}
+
+.empty-state{text-align:center;padding:20px;color:var(--text3);font-size:12px;font-family:var(--mono);line-height:1.8}
+
+.output-section{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow)}
+.term-header{background:var(--bg);padding:9px 14px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)}
+.tdots{display:flex;gap:6px} .tdots span{width:10px;height:10px;border-radius:50%}
+.dot-r{background:#ff6b6b} .dot-y{background:#ffd166} .dot-g{background:#06d6a0}
+.term-title{font-family:var(--mono);font-size:11px;color:var(--text3)}
+.term-body{padding:14px;font-family:var(--mono);font-size:11.5px;line-height:1.8;min-height:160px;max-height:300px;overflow-y:auto;background:#fafbff}
+.term-body::-webkit-scrollbar{width:4px} .term-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.lline{margin-bottom:1px;display:flex;gap:8px}
+.ltime{color:var(--text3);flex-shrink:0} .lpm{color:var(--claude)} .ldev{color:var(--codex)} .lsr{color:var(--gemini)} .lsys{color:var(--text2)} .lok{color:#00a87a;font-weight:500} .lres{color:var(--warn);font-weight:600}
+.cur{display:inline-block;width:7px;height:14px;background:var(--claude);vertical-align:middle;animation:blink 1s step-end infinite;border-radius:1px;opacity:.6}
+@keyframes blink{0%,100%{opacity:.6}50%{opacity:0}}
+
+.results-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.result-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:18px;display:none;box-shadow:var(--shadow);animation:fadeIn .4s ease}
+.result-card.visible{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+#result-arch{border-top:3px solid var(--gemini-m)} #result-code{border-top:3px solid var(--codex-m)} #result-review{border-top:3px solid var(--gemini-m)} #result-final{border-top:3px solid var(--claude-m)}
+.result-header{display:flex;align-items:center;gap:7px;margin-bottom:10px}
+.result-title{font-size:13px;font-weight:700}
+.result-body{font-family:var(--mono);font-size:11px;line-height:1.75;color:var(--text2);white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:12px;border:1px solid var(--border)}
+
+@media(max-width:768px){
+  .grid-3,.agents-row{grid-template-columns:1fr}
+  .grid-2,.task-section,.results-grid{grid-template-columns:1fr}
+  .flow-connectors{display:none}
+  .stats-bar{gap:8px}
+  .nav-tabs{gap:4px}
+  .tab-btn{padding:7px 12px;font-size:11px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">⬡ Multi-AI Orchestration System</div>
+  <h1>AI <span class="ac">Dev Team</span> Guide</h1>
+  <p>Claude Code เป็น PM · OpenAI Codex เป็น Developer · Gemini เป็น Senior Architect</p>
+</header>
+
+<!-- NAV -->
+<div class="nav-tabs">
+  <button class="tab-btn active" onclick="switchTab('arch')">🏗️ Architecture</button>
+  <button class="tab-btn" onclick="switchTab('workflow')">🔄 Workflow</button>
+  <button class="tab-btn" onclick="switchTab('routing')">🎯 Routing Rules</button>
+  <button class="tab-btn" onclick="switchTab('impl')">🛠️ Implementation</button>
+  <button class="tab-btn" onclick="switchTab('scripts')">📜 Working Scripts</button>
+  <button class="tab-btn" onclick="switchTab('sow')">📋 SOW</button>
+  <button class="tab-btn" onclick="switchTab('orchestrator')">▶ Run Team</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 1 — ARCHITECTURE
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-arch" class="tab-pane active">
+  <div class="section-title">🏗️ Multi-AI Dev Team Architecture</div>
+  <div class="section-sub">ระบบที่ใช้ AI หลายตัวในบทบาทเฉพาะ — Claude เป็น PM วางแผนและกำกับงาน, Codex เขียนโค้ดตาม spec, Gemini ออกแบบ architecture และ review ความถูกต้อง</div>
+
+  <div class="grid-3">
+    <div class="agent-k">
+      <div class="agent-k-head">
+        <div class="aicon c">🤖</div>
+        <div><div class="aname">Claude Code</div><div class="arole">project_manager.ai</div></div>
+        <div class="abadge c">PM</div>
+      </div>
+      <div class="adesc">วิเคราะห์ requirement จาก user แตกเป็น tasks พร้อม routing rules ส่งงานให้ทีม รอรับผล แล้วรวม output เป็น final deliverable</div>
+      <div class="atags">
+        <span class="atag">Requirement Analysis</span><span class="atag">Task Breakdown</span>
+        <span class="atag">Sprint Planning</span><span class="atag">Final Integration</span>
+      </div>
+    </div>
+    <div class="agent-k">
+      <div class="agent-k-head">
+        <div class="aicon d">💻</div>
+        <div><div class="aname">OpenAI Codex</div><div class="arole">developer.ai</div></div>
+        <div class="abadge d">DEV</div>
+      </div>
+      <div class="adesc">รับ task spec จาก PM เขียนโค้ดที่ production-ready — CRUD API, UI components, database migration, boilerplate ทุกประเภท</div>
+      <div class="atags">
+        <span class="atag">CRUD API</span><span class="atag">Components</span>
+        <span class="atag">Auth</span><span class="atag">DB Migration</span>
+      </div>
+    </div>
+    <div class="agent-k">
+      <div class="agent-k-head">
+        <div class="aicon g">🎓</div>
+        <div><div class="aname">Gemini Pro</div><div class="arole">senior_architect.ai</div></div>
+        <div class="abadge g">SR</div>
+      </div>
+      <div class="adesc">ออกแบบ system architecture, review โค้ดจาก Codex, ตรวจ security, แก้ bug ซับซ้อน, แนะนำ performance optimization</div>
+      <div class="atags">
+        <span class="atag">Architecture</span><span class="atag">Code Review</span>
+        <span class="atag">Security Audit</span><span class="atag">Performance</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚡ หลักการสำคัญ</div>
+    <ul>
+      <li><strong>Context Passing</strong> — Gemini ออกแบบ Schema ก่อน → ส่ง context ให้ Codex เขียน CRUD ต่อ → Codex ส่งโค้ดให้ Gemini review</li>
+      <li><strong>Specialization</strong> — แต่ละ AI ทำงานที่ถนัดที่สุด ไม่ต้องให้ AI เดียวรับผิดชอบทุกอย่าง</li>
+      <li><strong>PM as Glue</strong> — Claude เป็นตัวกลางรับรู้ทุก output สามารถปรับ task ได้ทันทีถ้า requirement เปลี่ยน</li>
+      <li><strong>Cost Control</strong> — Codex ใช้ GPT-4o-mini สำหรับ simple tasks, Gemini Flash สำหรับ quick review, escalate เฉพาะเมื่อจำเป็น</li>
+    </ul>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">🎯 เหมาะกับโปรเจกต์แบบใด</div>
+      <ul>
+        <li>โปรเจกต์ที่มีทั้ง design + coding + review</li>
+        <li>ทีมเล็กต้องการ output เทียบเท่าทีมใหญ่</li>
+        <li>งานที่ต้องทำซ้ำหลายรอบ (boilerplate, CRUD)</li>
+        <li>ต้องการ code quality ที่สม่ำเสมอ</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">💡 Model Selection</div>
+      <ul>
+        <li><span style="color:var(--codex);font-weight:600">Codex (GPT-4o)</span> — Fast CRUD, Boilerplate, Forms</li>
+        <li><span style="color:var(--gemini);font-weight:600">Gemini 2.5 Pro</span> — Architecture, Complex Logic</li>
+        <li><span style="color:var(--gemini);font-weight:600">Gemini 2.5 Flash</span> — Quick Review, ประหยัดค่าใช้จ่าย</li>
+        <li><span style="color:var(--claude);font-weight:600">Claude Opus</span> — PM logic ซับซ้อน, Final Integration</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 2 — WORKFLOW
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-workflow" class="tab-pane">
+  <div class="section-title">🔄 Workflow Design</div>
+  <div class="section-sub">การไหลของงานตั้งแต่รับ requirement จนถึง final output — 3 phases หลักที่ทำงานต่อเนื่องกัน</div>
+
+  <div class="flow-box">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:16px;font-family:var(--mono);text-transform:uppercase;letter-spacing:1px">Phase 1 — Planning</div>
+    <div class="flow-row">
+      <div class="fnode usr">👤 User</div>
+      <div class="farrow">→</div>
+      <div class="fstep">ส่ง Requirement</div>
+      <div class="farrow">→</div>
+      <div class="fnode pm">🤖 Claude PM</div>
+      <div class="farrow">→</div>
+      <div class="fstep">วิเคราะห์ + แตก Tasks</div>
+      <div class="farrow">→</div>
+      <div class="fstep">กำหนด assign_to สำหรับแต่ละ task</div>
+    </div>
+  </div>
+
+  <div class="flow-box">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:16px;font-family:var(--mono);text-transform:uppercase;letter-spacing:1px">Phase 2 — Execution (ทำ parallel หรือ sequential ตาม dependency)</div>
+    <div class="flow-row" style="margin-bottom:10px">
+      <div class="fnode pm">🤖 Claude PM</div>
+      <div class="farrow">→</div>
+      <div class="fstep">Task Type: Architecture / Review</div>
+      <div class="farrow">→</div>
+      <div class="fnode sr">🎓 Gemini SR</div>
+      <div class="farrow">→</div>
+      <div class="fstep">Design Doc / Review Report</div>
+    </div>
+    <div class="flow-row">
+      <div class="fnode pm">🤖 Claude PM</div>
+      <div class="farrow">→</div>
+      <div class="fstep">Task Type: Code / Boilerplate</div>
+      <div class="farrow">→</div>
+      <div class="fnode dev">💻 Codex Dev</div>
+      <div class="farrow">→</div>
+      <div class="fstep">Source Code Files</div>
+    </div>
+  </div>
+
+  <div class="flow-box">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:16px;font-family:var(--mono);text-transform:uppercase;letter-spacing:1px">Phase 3 — Integration & Delivery</div>
+    <div class="flow-row">
+      <div class="fnode sr">🎓 Gemini</div>
+      <div class="farrow">+</div>
+      <div class="fnode dev">💻 Codex</div>
+      <div class="farrow">→</div>
+      <div class="fnode pm">🤖 Claude PM</div>
+      <div class="farrow">→</div>
+      <div class="fstep">รวม output + validate</div>
+      <div class="farrow">→</div>
+      <div class="fnode out">✅ Final Output</div>
+      <div class="farrow">→</div>
+      <div class="fnode usr">👤 User</div>
+    </div>
+  </div>
+
+  <div class="timeline">
+    <div class="titem">
+      <div class="t-phase">Step 1 — Claude PM</div>
+      <div class="t-title">Requirement Analysis</div>
+      <div class="t-desc">รับ user requirement → สร้าง JSON task plan → กำหนด assign_to, type, spec สำหรับแต่ละ task → เรียงลำดับตาม dependency</div>
+    </div>
+    <div class="titem gemini">
+      <div class="t-phase">Step 2 — Gemini SR</div>
+      <div class="t-title">Architecture Design</div>
+      <div class="t-desc">รับ architecture task → ออกแบบ Tech Stack, DB Schema, API Contract, Folder Structure → ส่ง design doc กลับให้ PM</div>
+    </div>
+    <div class="titem codex">
+      <div class="t-phase">Step 3 — Codex Dev</div>
+      <div class="t-title">Code Implementation</div>
+      <div class="t-desc">รับ code tasks พร้อม architecture context → เขียน models, schemas, endpoints, components → commit เป็น file structure</div>
+    </div>
+    <div class="titem gemini">
+      <div class="t-phase">Step 4 — Gemini SR</div>
+      <div class="t-title">Code Review</div>
+      <div class="t-desc">รับโค้ดจาก Codex → ตรวจ correctness, security, performance → ให้ rating + improvement suggestions</div>
+    </div>
+    <div class="titem done">
+      <div class="t-phase">Step 5 — Claude PM</div>
+      <div class="t-title">Final Report</div>
+      <div class="t-desc">รวมทุก output → สร้าง project completion report → deliverables list + next steps + risk assessment</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🛡️ Error Handling & Guardrails</div>
+    <ul>
+      <li><strong>Max Revision = 2</strong> — ถ้า review fail 2 รอบ ให้ escalate to human</li>
+      <li><strong>Dependency Lock</strong> — task ที่ depend on ผู้อื่นต้องรอ context ก่อนรัน</li>
+      <li><strong>Fallback Plan</strong> — ถ้า Gemini ไม่ตอบ ให้ PM Claude ทำ architecture แทน</li>
+      <li><strong>Token Budget</strong> — กำหนด max_tokens ต่อ task เพื่อควบคุมค่าใช้จ่าย</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 3 — ROUTING RULES
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-routing" class="tab-pane">
+  <div class="section-title">🎯 Task Routing Rules</div>
+  <div class="section-sub">PM Claude ใช้ rules เหล่านี้ตัดสินใจว่า task ไหนควรส่งให้ใคร — ยึดหลัก "ให้แต่ละ AI ทำสิ่งที่ถนัดที่สุด"</div>
+
+  <div class="card" style="margin-bottom:16px">
+    <table class="route-table">
+      <thead>
+        <tr><th>Task Type</th><th>คำอธิบาย</th><th>Assign To</th><th>Model</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>System Architecture</td><td>วางโครงสร้างระบบ, เลือก tech stack, DB schema design</td><td><span class="badge-g">🎓 Gemini SR</span></td><td>Gemini 2.5 Pro</td></tr>
+        <tr><td>Code Review</td><td>ตรวจ code quality, security, performance bottleneck</td><td><span class="badge-g">🎓 Gemini SR</span></td><td>Gemini 2.5 Flash</td></tr>
+        <tr><td>Security Audit</td><td>ตรวจ OWASP, injection, auth flaws</td><td><span class="badge-g">🎓 Gemini SR</span></td><td>Gemini 2.5 Pro</td></tr>
+        <tr><td>Performance Optimization</td><td>Query optimization, caching strategy, profiling</td><td><span class="badge-g">🎓 Gemini SR</span></td><td>Gemini 2.5 Pro</td></tr>
+        <tr><td>Complex Bug Fix</td><td>Logic errors หลายชั้น, race conditions, memory leaks</td><td><span class="badge-g">🎓 Gemini SR</span></td><td>Gemini 2.5 Pro</td></tr>
+        <tr><td>CRUD API</td><td>REST endpoints, CRUD operations, request/response</td><td><span class="badge-d">💻 Codex Dev</span></td><td>GPT-4o</td></tr>
+        <tr><td>Database Schema</td><td>SQL DDL, indexes, foreign keys, migration scripts</td><td><span class="badge-d">💻 Codex Dev</span></td><td>GPT-4o</td></tr>
+        <tr><td>UI Components</td><td>React/Flutter widgets, forms, data tables</td><td><span class="badge-d">💻 Codex Dev</span></td><td>GPT-4o</td></tr>
+        <tr><td>Authentication</td><td>JWT, OAuth2, session management, middleware</td><td><span class="badge-d">💻 Codex Dev</span></td><td>GPT-4o</td></tr>
+        <tr><td>Boilerplate / Scaffold</td><td>Project structure, config files, CI/CD templates</td><td><span class="badge-d">💻 Codex Dev</span></td><td>GPT-4o-mini</td></tr>
+        <tr><td>Unit Tests</td><td>pytest, Jest unit tests สำหรับ function เดียว</td><td><span class="badge-d">💻 Codex Dev</span></td><td>GPT-4o-mini</td></tr>
+        <tr><td>Requirements Analysis</td><td>วิเคราะห์ user story, แตก task, priority</td><td><span class="badge-c">🤖 Claude PM</span></td><td>Claude Sonnet</td></tr>
+        <tr><td>Final Report</td><td>รวม output, project summary, next steps</td><td><span class="badge-c">🤖 Claude PM</span></td><td>Claude Sonnet</td></tr>
+        <tr><td>Integration Test Design</td><td>ออกแบบ E2E test scenarios, test plan</td><td><span class="badge-c">🤖 Claude PM</span></td><td>Claude Sonnet</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">🔢 Priority Scoring (PM ใช้)</div>
+      <p style="margin-bottom:10px">เมื่อมีหลาย task รอรัน PM จะเรียงลำดับตาม:</p>
+      <ul>
+        <li><strong>P0 (รันก่อน)</strong> — Architecture tasks ที่ tasks อื่น depend on</li>
+        <li><strong>P1</strong> — Core feature implementation</li>
+        <li><strong>P2</strong> — Supporting features, helpers</li>
+        <li><strong>P3 (รันหลังสุด)</strong> — Tests, documentation, review</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">⚠️ Escalation Rules</div>
+      <ul>
+        <li>Task ที่ Codex fail 2 ครั้ง → ส่งให้ Gemini แก้แทน</li>
+        <li>Architecture ที่ Gemini ตอบคลุมเครือ → Claude PM สรุป + ถาม user</li>
+        <li>Security issue severity HIGH → หยุด pipeline + แจ้ง user ทันที</li>
+        <li>Cost เกิน budget threshold → switch ไป mini/flash models</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 4 — IMPLEMENTATION
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-impl" class="tab-pane">
+  <div class="section-title">🛠️ Implementation Options</div>
+  <div class="section-sub">3 แนวทางที่เลือกได้ตามความถนัดและ infrastructure ที่มีอยู่</div>
+
+  <div class="card" style="border-top:3px solid var(--claude-m)">
+    <div class="card-title" style="color:var(--claude)">Option A — Python Orchestrator Script (แนะนำสำหรับเริ่มต้น)</div>
+    <p style="margin-bottom:8px">script เดี่ยว run ได้เลย ไม่ต้องติดตั้งอะไรเพิ่ม เหมาะสำหรับทดสอบ concept</p>
+    <ul>
+      <li>✅ Setup ง่าย — แค่ pip install 3 packages</li>
+      <li>✅ Debug ง่าย — เห็น log ทุก step</li>
+      <li>✅ Flexible — แก้ routing logic ได้ทันที</li>
+      <li>⚠️ ไม่มี UI — ต้องดูผ่าน terminal</li>
+    </ul>
+  </div>
+
+  <div class="card" style="border-top:3px solid var(--warn)">
+    <div class="card-title" style="color:var(--warn)">Option B — n8n Workflow (เหมาะกับ Vinit ที่ใช้ n8n อยู่)</div>
+    <p style="margin-bottom:8px">สร้าง visual workflow ใน n8n เชื่อม API ต่างๆ ผ่าน drag & drop</p>
+    <ul>
+      <li>✅ Visual flow — เห็นการทำงานแต่ละ node ชัดเจน</li>
+      <li>✅ Error handling built-in — retry, webhook, notification</li>
+      <li>✅ Schedule ได้ — ตั้งเวลารัน workflow อัตโนมัติ</li>
+      <li>⚠️ ต้องมี n8n server — self-hosted หรือ cloud</li>
+    </ul>
+  </div>
+
+  <div class="card" style="border-top:3px solid var(--codex-m)">
+    <div class="card-title" style="color:var(--codex)">Option C — FastAPI Service (Production-ready)</div>
+    <p style="margin-bottom:8px">สร้าง microservice ที่ expose REST API รับ requirement และ return output</p>
+    <ul>
+      <li>✅ Scalable — deploy บน Render/Railway ได้เลย</li>
+      <li>✅ Async — handle หลาย request พร้อมกัน</li>
+      <li>✅ UI Integration — เชื่อมกับ React frontend ได้</li>
+      <li>⚠️ Setup ซับซ้อนกว่า — ต้องมี backend knowledge</li>
+    </ul>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">📁 Project Structure (Option A)</div>
+      <pre style="padding:12px;font-size:11px;line-height:1.7;background:var(--bg);border-radius:8px;border:1px solid var(--border);color:#384167;margin-top:8px">ai_team/
+├── main.py           <span style="color:var(--text3)"># Entry point</span>
+├── pm_claude.py      <span style="color:var(--text3)"># PM logic</span>
+├── dev_codex.py      <span style="color:var(--text3)"># Codex caller</span>
+├── sr_gemini.py      <span style="color:var(--text3)"># Gemini caller</span>
+├── routing.py        <span style="color:var(--text3)"># Routing rules</span>
+├── models.py         <span style="color:var(--text3)"># Pydantic schemas</span>
+└── .env              <span style="color:var(--text3)"># API keys</span></pre>
+    </div>
+    <div class="card">
+      <div class="card-title">💰 ค่าใช้จ่ายประมาณการ (ต่อ project)</div>
+      <ul>
+        <li><strong>Simple project</strong> (4 tasks) — ~$0.05-0.15</li>
+        <li><strong>Medium project</strong> (10 tasks) — ~$0.30-0.80</li>
+        <li><strong>Large project</strong> (20+ tasks) — ~$1.50-4.00</li>
+        <li>ลดได้ 40-60% ด้วย Flash/mini models</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 5 — SCRIPTS
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-scripts" class="tab-pane">
+  <div class="section-title">📜 Working Scripts</div>
+  <div class="section-sub">โค้ดพร้อมใช้ — copy ไปใส่ใน project ได้เลย แก้ API keys ใน .env</div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python · main.py — Entry Point</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cmt"># main.py — AI Dev Team Orchestrator</span>
+<span class="cmt"># pip install anthropic openai google-generativeai python-dotenv</span>
+
+<span class="kw">import</span> asyncio, json, os
+<span class="kw">from</span> dotenv <span class="kw">import</span> load_dotenv
+<span class="kw">from</span> pm_claude <span class="kw">import</span> PMClaude
+<span class="kw">from</span> dev_codex <span class="kw">import</span> CodexDev
+<span class="kw">from</span> sr_gemini <span class="kw">import</span> GeminiSR
+
+load_dotenv()
+
+<span class="kw">async def</span> <span class="fn">run_team</span>(requirement: str):
+    pm     = PMClaude()
+    codex  = CodexDev()
+    gemini = GeminiSR()
+    results = {}
+
+    <span class="cmt"># Phase 1: PM วิเคราะห์และวางแผน</span>
+    print(<span class="str">"🤖 PM Claude: Analyzing requirement..."</span>)
+    plan = await pm.analyze(requirement)
+    print(<span class="str">f"📋 Project: {plan['project_name']} | {len(plan['tasks'])} tasks"</span>)
+
+    <span class="cmt"># Phase 2: Execute tasks ตาม execution_order</span>
+    <span class="kw">for</span> task <span class="kw">in</span> plan[<span class="str">"tasks"</span>]:
+        <span class="cmt"># Inject context from dependencies</span>
+        spec = task[<span class="str">"spec"</span>]
+        <span class="kw">for</span> dep_id <span class="kw">in</span> task.get(<span class="str">"depends_on"</span>, []):
+            <span class="kw">if</span> dep_id <span class="kw">in</span> results:
+                spec += <span class="str">f"\n\nContext:\n{results[dep_id]}"</span>
+
+        <span class="kw">if</span> task[<span class="str">"assign_to"</span>] == <span class="str">"codex"</span>:
+            print(<span class="str">f"💻 Codex: {task['title']}"</span>)
+            results[task[<span class="str">"id"</span>]] = await codex.implement(spec)
+        <span class="kw">else</span>:
+            print(<span class="str">f"🎓 Gemini: {task['title']}"</span>)
+            results[task[<span class="str">"id"</span>]] = await gemini.work(spec, task[<span class="str">"type"</span>])
+
+    <span class="cmt"># Phase 3: PM สร้าง final report</span>
+    report = await pm.final_report(plan, results)
+    <span class="kw">return</span> report
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    req = <span class="str">"""สร้าง FastAPI backend สำหรับ SmartReceipt AI
+    - OCR endpoint รับ PDF/Image
+    - บันทึก PostgreSQL + JWT auth"""</span>
+    result = asyncio.run(run_team(req))
+    print(result)</pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python · pm_claude.py — PM Agent</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cmt"># pm_claude.py</span>
+<span class="kw">import</span> json
+<span class="kw">import</span> anthropic
+
+<span class="kw">class</span> <span class="fn">PMClaude</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.client = anthropic.Anthropic()
+        self.model  = <span class="str">"claude-sonnet-4-6"</span>
+
+    <span class="kw">async def</span> <span class="fn">analyze</span>(self, requirement: str) -> dict:
+        res = self.client.messages.create(
+            model=self.model, max_tokens=<span class="num">2000</span>,
+            system=<span class="str">"""You are a PM. Return ONLY valid JSON:
+{
+  "project_name": "...",
+  "tasks": [{
+    "id": "T001", "title": "...",
+    "assign_to": "gemini|codex",
+    "type": "architecture|code_gen|review",
+    "spec": "detailed spec",
+    "depends_on": []
+  }]
+}
+Order: T001=gemini/architecture, T002-T003=codex/code_gen, T004=gemini/review"""</span>,
+            messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: requirement}]
+        )
+        text = res.content[<span class="num">0</span>].text.replace(<span class="str">"```json"</span>,<span class="str">""</span>).replace(<span class="str">"```"</span>,<span class="str">""</span>).strip()
+        <span class="kw">return</span> json.loads(text)
+
+    <span class="kw">async def</span> <span class="fn">final_report</span>(self, plan: dict, results: dict) -> str:
+        ctx = <span class="str">"\n"</span>.join(<span class="str">f"{k}: {v[:300]}"</span> <span class="kw">for</span> k, v <span class="kw">in</span> results.items())
+        res = self.client.messages.create(
+            model=self.model, max_tokens=<span class="num">1000</span>,
+            system=<span class="str">"You are a PM. Write a concise completion report in Thai/English."</span>,
+            messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>,
+                       <span class="str">"content"</span>: <span class="str">f"Project: {plan['project_name']}\nResults: {ctx}"</span>}]
+        )
+        <span class="kw">return</span> res.content[<span class="num">0</span>].text</pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python · dev_codex.py — Codex Developer</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cmt"># dev_codex.py</span>
+<span class="kw">import</span> openai
+
+<span class="kw">class</span> <span class="fn">CodexDev</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.client = openai.AsyncOpenAI()
+
+    <span class="kw">async def</span> <span class="fn">implement</span>(self, task_spec: str,
+                          model: str = <span class="str">"gpt-4o"</span>) -> str:
+        res = await self.client.chat.completions.create(
+            model=model,
+            messages=[
+                {<span class="str">"role"</span>: <span class="str">"system"</span>,
+                 <span class="str">"content"</span>: <span class="str">"You are a Senior Developer. Write "
+                           "production-ready code only. Include docstrings "
+                           "and type hints. Max 60 lines per file."</span>},
+                {<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: task_spec}
+            ],
+            max_tokens=<span class="num">2000</span>, temperature=<span class="num">0.2</span>
+        )
+        <span class="kw">return</span> res.choices[<span class="num">0</span>].message.content
+
+    <span class="kw">async def</span> <span class="fn">implement_simple</span>(self, task_spec: str) -> str:
+        <span class="cmt"># ใช้ mini model สำหรับ boilerplate ประหยัด cost</span>
+        <span class="kw">return</span> await self.implement(task_spec, model=<span class="str">"gpt-4o-mini"</span>)</pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python · sr_gemini.py — Gemini Senior</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cmt"># sr_gemini.py</span>
+<span class="kw">import</span> google.generativeai <span class="kw">as</span> genai
+<span class="kw">import</span> os
+
+<span class="kw">class</span> <span class="fn">GeminiSR</span>:
+    PROMPTS = {
+        <span class="str">"architecture"</span>: <span class="str">"You are a Senior Architect. Design: "
+            "Tech Stack, DB Schema, API structure, 2 recommendations."</span>,
+        <span class="str">"review"</span>: <span class="str">"You are a Code Reviewer. Provide: "
+            "3 strengths, 3 issues, 2 security notes, rating/10."</span>,
+        <span class="str">"security"</span>: <span class="str">"You are a Security Engineer. Audit for "
+            "OWASP Top 10, injection, broken auth, sensitive data."</span>,
+        <span class="str">"performance"</span>: <span class="str">"You are a Performance Engineer. "
+            "Identify bottlenecks and suggest optimizations."</span>
+    }
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        genai.configure(api_key=os.environ[<span class="str">"GEMINI_API_KEY"</span>])
+        self.pro   = genai.GenerativeModel(<span class="str">"gemini-2.5-pro"</span>)
+        self.flash = genai.GenerativeModel(<span class="str">"gemini-2.5-flash"</span>)
+
+    <span class="kw">async def</span> <span class="fn">work</span>(self, spec: str, task_type: str) -> str:
+        system = self.PROMPTS.get(task_type, self.PROMPTS[<span class="str">"review"</span>])
+        <span class="cmt"># Flash สำหรับ review, Pro สำหรับ architecture</span>
+        model = self.flash <span class="kw">if</span> task_type == <span class="str">"review"</span> <span class="kw">else</span> self.pro
+        res = model.generate_content(<span class="str">f"{system}\n\nTask: {spec}"</span>)
+        <span class="kw">return</span> res.text</pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Shell · .env — Configuration</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cmt"># .env — ใส่ API keys ตรงนี้ (อย่า commit ขึ้น git)</span>
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=AIza...
+
+<span class="cmt"># Model overrides (optional)</span>
+CLAUDE_MODEL=claude-sonnet-4-6
+CODEX_MODEL=gpt-4o
+GEMINI_ARCH_MODEL=gemini-2.5-pro
+GEMINI_REVIEW_MODEL=gemini-2.5-flash
+
+<span class="cmt"># Cost control</span>
+MAX_TOKENS_PER_TASK=2000
+MAX_REVISIONS=2</pre>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 6 — SOW
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-sow" class="tab-pane">
+  <div class="section-title">📋 Statement of Work (SOW)</div>
+  <div class="section-sub">ขอบเขตงานและเงื่อนไขสำหรับแต่ละ AI agent — ใช้เป็น system prompt หรือ contract specification</div>
+
+  <!-- Claude PM SOW -->
+  <div class="card" style="border-top:3px solid var(--claude-m);margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div class="aicon c" style="width:36px;height:36px;font-size:18px">🤖</div>
+      <div>
+        <div style="font-size:15px;font-weight:700">SOW — Claude Code (PM)</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">project_manager · orchestrator</div>
+      </div>
+      <div class="abadge c" style="margin-left:auto">PM</div>
+    </div>
+
+    <div class="sow-section">
+      <h3 style="color:var(--claude)">📌 Scope of Work</h3>
+      <ul class="sow-list">
+        <li>รับ requirement จาก user และวิเคราะห์ให้เป็น structured task plan (JSON)</li>
+        <li>แตก requirement เป็น tasks ไม่เกิน 8 tasks ต่อ session พร้อม priority และ dependency</li>
+        <li>กำหนด assign_to (codex/gemini) สำหรับแต่ละ task ตาม routing rules</li>
+        <li>เขียน spec ที่ชัดเจนสำหรับแต่ละ task พร้อม context ที่จำเป็น</li>
+        <li>รอรับ output จากทุก agent และรวมเป็น final report</li>
+        <li>ตรวจสอบว่า output ครบถ้วนตาม requirement เริ่มต้น</li>
+        <li>แจ้ง user หากพบ blocker หรือ requirement ไม่ชัดเจน</li>
+      </ul>
+    </div>
+
+    <div class="sow-section">
+      <h3 style="color:var(--claude)">🚫 Out of Scope</h3>
+      <ul class="sow-list">
+        <li>เขียนโค้ด implementation (ยกเว้น final integration)</li>
+        <li>ออกแบบ architecture ด้านเทคนิค (มอบหมายให้ Gemini SR)</li>
+        <li>Deploy หรือ run โค้ดบน server จริง</li>
+      </ul>
+    </div>
+
+    <div class="sow-section">
+      <h3 style="color:var(--claude)">✅ Acceptance Criteria</h3>
+      <ul class="sow-list">
+        <li>Task plan ที่ valid JSON parse ได้ทุกครั้ง</li>
+        <li>แต่ละ task มี id, title, assign_to, type, spec ครบ</li>
+        <li>Final report ระบุ deliverables, next steps, risks ได้ชัดเจน</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Codex DEV SOW -->
+  <div class="card" style="border-top:3px solid var(--codex-m);margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div class="aicon d" style="width:36px;height:36px;font-size:18px">💻</div>
+      <div>
+        <div style="font-size:15px;font-weight:700">SOW — OpenAI Codex (Developer)</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">developer · code_gen specialist</div>
+      </div>
+      <div class="abadge d" style="margin-left:auto">DEV</div>
+    </div>
+
+    <div class="sow-section">
+      <h3 style="color:var(--codex)">📌 Scope of Work</h3>
+      <ul class="sow-list codex">
+        <li>รับ task spec จาก PM และเขียนโค้ดที่ production-ready ตาม spec ทุกรายการ</li>
+        <li>เขียน FastAPI endpoints พร้อม type hints, docstrings, error handling</li>
+        <li>สร้าง SQLAlchemy models, Pydantic schemas, Alembic migration</li>
+        <li>เขียน React/Next.js components พร้อม TypeScript และ loading/error states</li>
+        <li>ติดตั้ง JWT auth middleware, OAuth2 flow, refresh token logic</li>
+        <li>สร้าง unit tests (pytest/Jest) ที่ cover happy path และ edge cases</li>
+        <li>เขียน Dockerfile, docker-compose.yml, GitHub Actions CI/CD</li>
+        <li>ส่ง output เป็น code blocks พร้อม filename และ brief explanation</li>
+      </ul>
+    </div>
+
+    <div class="sow-section">
+      <h3 style="color:var(--codex)">📏 Code Standards</h3>
+      <ul class="sow-list codex">
+        <li>PEP8 สำหรับ Python / ESLint standard สำหรับ JavaScript</li>
+        <li>ไม่มี hardcoded credentials — ใช้ environment variables เสมอ</li>
+        <li>แต่ละ file ไม่เกิน 150 lines — refactor เป็น modules ถ้าเกิน</li>
+        <li>ทุก public function ต้องมี docstring อธิบาย params และ return</li>
+      </ul>
+    </div>
+
+    <div class="sow-section">
+      <h3 style="color:var(--codex)">✅ Acceptance Criteria</h3>
+      <ul class="sow-list codex">
+        <li>โค้ด syntax ถูกต้อง — ไม่มี SyntaxError เมื่อ parse</li>
+        <li>ครบตาม spec ที่ PM กำหนด — ไม่ขาด feature ที่ระบุ</li>
+        <li>Import statements ครบ — ไม่มี undefined import</li>
+      </ul>
+    </div>
+
+    <div class="accept-box">
+      ⚠️ <strong>Revision Policy:</strong> ถ้า output ไม่ผ่าน acceptance criteria ให้ retry สูงสุด 2 ครั้ง หลังจากนั้น escalate to Gemini SR
+    </div>
+  </div>
+
+  <!-- Gemini SR SOW -->
+  <div class="card" style="border-top:3px solid var(--gemini-m);margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div class="aicon g" style="width:36px;height:36px;font-size:18px">🎓</div>
+      <div>
+        <div style="font-size:15px;font-weight:700">SOW — Gemini Pro (Senior Architect)</div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">senior_architect · reviewer · security</div>
+      </div>
+      <div class="abadge g" style="margin-left:auto">SR</div>
+    </div>
+
+    <div class="sow-section">
+      <h3 style="color:var(--gemini)">📌 Scope of Work — Architecture</h3>
+      <ul class="sow-list gemini">
+        <li>ออกแบบ system architecture ที่ scalable, maintainable, secure</li>
+        <li>เลือก tech stack พร้อมเหตุผลที่ชัดเจน (performance, cost, team skill)</li>
+        <li>ออกแบบ database schema — tables, indexes, foreign keys, constraints</li>
+        <li>กำหนด API contract — endpoints, request/response format, error codes</li>
+        <li>วาง folder structure ที่ follow best practices ของ framework ที่เลือก</li>
+        <li>ระบุ potential bottlenecks และ วิธี scale ในอนาคต</li>
+      </ul>
+    </div>
+
+    <div class="sow-section">
+      <h3 style="color:var(--gemini)">🔍 Scope of Work — Code Review</h3>
+      <ul class="sow-list gemini">
+        <li>ตรวจ correctness — logic errors, off-by-one, null pointer, edge cases</li>
+        <li>ตรวจ security — SQL injection, XSS, CSRF, broken auth, sensitive data exposure</li>
+        <li>ตรวจ performance — N+1 queries, missing indexes, inefficient loops</li>
+        <li>ตรวจ maintainability — code duplication, naming, complexity</li>
+        <li>ให้ rating 1-10 พร้อม justification</li>
+        <li>ระบุ critical issues (ต้องแก้) vs suggestions (ควรแก้)</li>
+      </ul>
+    </div>
+
+    <div class="sow-section">
+      <h3 style="color:var(--gemini)">✅ Acceptance Criteria</h3>
+      <ul class="sow-list gemini">
+        <li>Architecture doc มี Tech Stack, Schema, API Contract, Recommendations ครบ</li>
+        <li>Review report ระบุ severity level (Critical/High/Medium/Low) ทุก issue</li>
+        <li>ข้อเสนอแนะเป็น actionable — ระบุว่าแก้อย่างไร ไม่ใช่แค่บอกว่ามีปัญหา</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB 7 — ORCHESTRATOR
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-orchestrator" class="tab-pane">
+  <div class="section-title">▶ Run AI Dev Team</div>
+  <div class="section-sub">ทดสอบ orchestrator จริง — Claude PM จะวิเคราะห์ requirement และมอบหมายงานจำลองให้ทีม</div>
+
+  <div class="stats-bar">
+    <div class="stat vc"><div class="stat-val" id="stat-tasks">0</div><div class="stat-lbl">Total Tasks</div></div>
+    <div class="stat vd"><div class="stat-val" id="stat-codex">0</div><div class="stat-lbl">Codex Tasks</div></div>
+    <div class="stat vg"><div class="stat-val" id="stat-gemini">0</div><div class="stat-lbl">Gemini Tasks</div></div>
+    <div class="stat vo"><div class="stat-val" id="stat-done">0</div><div class="stat-lbl">Completed</div></div>
+  </div>
+
+  <div class="agents-row">
+    <div class="agent-card" id="card-claude">
+      <div class="agent-header">
+        <div class="agent-icon icon-claude">🤖</div>
+        <div><div class="agent-name">Claude Code</div><div class="agent-role">project_manager.ai</div></div>
+        <div class="agent-badge badge-claude">PM</div>
+      </div>
+      <div class="agent-desc">วิเคราะห์ Requirement · แตก Task · routing · รวม output</div>
+      <div class="agent-skills"><span class="skill-tag">Requirements</span><span class="skill-tag">Task Routing</span><span class="skill-tag">Integration</span></div>
+      <div class="agent-status"><div class="sdot"></div><span id="st-claude">Idle — รอ Requirement</span></div>
+    </div>
+    <div class="agent-card" id="card-codex">
+      <div class="agent-header">
+        <div class="agent-icon icon-codex">💻</div>
+        <div><div class="agent-name">OpenAI Codex</div><div class="agent-role">developer.ai</div></div>
+        <div class="agent-badge badge-codex">DEV</div>
+      </div>
+      <div class="agent-desc">รับ Task Spec · เขียน CRUD / Components / Auth</div>
+      <div class="agent-skills"><span class="skill-tag">CRUD API</span><span class="skill-tag">Components</span><span class="skill-tag">Auth</span></div>
+      <div class="agent-status"><div class="sdot"></div><span id="st-codex">Idle — รอ Task จาก PM</span></div>
+    </div>
+    <div class="agent-card" id="card-gemini">
+      <div class="agent-header">
+        <div class="agent-icon icon-gemini">🎓</div>
+        <div><div class="agent-name">Gemini Pro</div><div class="agent-role">senior_architect.ai</div></div>
+        <div class="agent-badge badge-gemini">SR</div>
+      </div>
+      <div class="agent-desc">ออกแบบ Architecture · Review · Security Audit</div>
+      <div class="agent-skills"><span class="skill-tag">Architecture</span><span class="skill-tag">Code Review</span><span class="skill-tag">Security</span></div>
+      <div class="agent-status"><div class="sdot"></div><span id="st-gemini">Idle — รอ Task จาก PM</span></div>
+    </div>
+  </div>
+
+  <div class="flow-connectors">
+    <div style="width:70px"></div>
+    <div class="conn-line" id="cline-l"></div>
+    <div class="conn-arrow">◆</div>
+    <div class="conn-line" id="cline-r"></div>
+    <div style="width:70px"></div>
+  </div>
+
+  <div class="input-section">
+    <div class="slabel">Requirement Input</div>
+    <div class="presets">
+      <button class="preset-btn" onclick="loadPreset(0)">🛒 SmartReceipt OCR</button>
+      <button class="preset-btn" onclick="loadPreset(1)">☀️ Solar Plan Pro</button>
+      <button class="preset-btn" onclick="loadPreset(2)">🌿 Wolfareen IoT</button>
+      <button class="preset-btn" onclick="loadPreset(3)">🔐 Auth System</button>
+    </div>
+    <textarea id="req-input" placeholder="พิมพ์ Requirement เช่น: สร้าง FastAPI backend สำหรับ SmartReceipt AI พร้อม OCR endpoint, JWT auth และ PostgreSQL..."></textarea>
+    <button class="run-btn" id="run-btn" onclick="runTeam()"><span>▶</span> Run Dev Team</button>
+  </div>
+
+  <div class="task-section">
+    <div class="task-panel">
+      <div class="slabel">Task Queue — PM Claude</div>
+      <div class="task-list" id="task-queue"><div class="empty-state">ยังไม่มี tasks<br>ใส่ Requirement แล้วกด Run</div></div>
+    </div>
+    <div class="task-panel">
+      <div class="slabel">Completed Tasks</div>
+      <div class="task-list" id="task-done"><div class="empty-state">Tasks ที่เสร็จแล้วจะปรากฏที่นี่</div></div>
+    </div>
+  </div>
+
+  <div class="output-section">
+    <div class="term-header">
+      <div class="tdots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div>
+      <div class="term-title">activity.log — AI Dev Team Orchestrator</div>
+    </div>
+    <div class="term-body" id="terminal">
+      <div class="lline"><span class="ltime">[00:00]</span><span class="lsys">System initialized. Agents ready.</span></div>
+      <div class="lline"><span class="ltime">[00:00]</span><span class="lsys">Claude PM ✓ | Codex Dev ✓ | Gemini SR ✓</span></div>
+      <span class="cur" id="cursor"></span>
+    </div>
+  </div>
+
+  <div class="results-grid">
+    <div class="result-card" id="result-arch"><div class="result-header"><span>🎓</span><span class="result-title" style="color:var(--gemini)">Gemini — Architecture Design</span></div><div class="result-body" id="result-arch-body"></div></div>
+    <div class="result-card" id="result-code"><div class="result-header"><span>💻</span><span class="result-title" style="color:var(--codex)">Codex — Implementation</span></div><div class="result-body" id="result-code-body"></div></div>
+    <div class="result-card" id="result-review"><div class="result-header"><span>🔍</span><span class="result-title" style="color:var(--gemini)">Gemini — Code Review</span></div><div class="result-body" id="result-review-body"></div></div>
+    <div class="result-card" id="result-final"><div class="result-header"><span>🤖</span><span class="result-title" style="color:var(--claude)">Claude PM — Final Report</span></div><div class="result-body" id="result-final-body"></div></div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+<script>
+function switchTab(id) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelector(`#tab-${id}`).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  navigator.clipboard.writeText(pre.innerText).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+
+const API = 'https://api.anthropic.com/v1/messages';
+const MODEL = 'claude-sonnet-4-6';
+
+const presets = [
+  `สร้าง FastAPI backend สำหรับ SmartReceipt AI\n- OCR endpoint รับ PDF/Image → JSON\n- บันทึก PostgreSQL + JWT auth\n- Rate limiting 100 req/min`,
+  `พัฒนา Solar Plan Pro\n- คำนวณ ROI / payback period\n- PDF report export\n- Google Sheets integration\n- Energy savings dashboard`,
+  `สร้าง Wolfareen IoT Dashboard\n- Real-time pH, temp, light via WebSocket\n- ESP32 MQTT + alert system\n- Historical chart 30 วัน`,
+  `Auth System สำหรับ dPRO Platform\n- Multi-tenant + OAuth2 + JWT\n- Device fingerprint SHA-256\n- Brute force protection`
+];
+
+let logT = 0, stats = {total:0,codex:0,gemini:0,done:0};
+
+function loadPreset(i){ document.getElementById('req-input').value = presets[i]; }
+
+function ts(){logT+=Math.floor(Math.random()*3)+1;const s=logT%60,m=Math.floor(logT/60)%60;return`[${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}]`}
+
+function log(txt,cls='lsys'){
+  const cur=document.getElementById('cursor');
+  const d=document.createElement('div');d.className='lline';
+  d.innerHTML=`<span class="ltime">${ts()}</span><span class="${cls}">${txt}</span>`;
+  cur.before(d);
+  const t=document.getElementById('terminal');t.scrollTop=t.scrollHeight;
+}
+
+function setActive(who,on,txt){
+  const c=document.getElementById(`card-${who}`);
+  if(on)c.classList.add(`active-${who}`);else c.classList.remove(`active-${who}`);
+  document.getElementById(`st-${who}`).textContent=txt;
+}
+
+function setFlow(who){
+  const l=document.getElementById('cline-l'),r=document.getElementById('cline-r');
+  l.className='conn-line';r.className='conn-line';
+  if(who==='codex'){l.classList.add('flowing','flow-right');r.classList.add('flowing','flow-right')}
+  if(who==='gemini'){l.classList.add('flowing','flow-left');r.classList.add('flowing','flow-left')}
+}
+
+function addTask(id,title,to){
+  const q=document.getElementById('task-queue');
+  const e=q.querySelector('.empty-state');if(e)e.remove();
+  const d=document.createElement('div');d.id=`task-${id}`;d.className='task-item';
+  d.innerHTML=`<div class="task-id">${id}</div><div class="task-info"><div class="task-title">${title}</div><div class="task-assign assign-${to==='codex'?'codex':'gemini'}">→ ${to==='codex'?'💻 Codex Dev':'🎓 Gemini SR'}</div></div><div class="task-icon" id="icon-${id}">⏳</div>`;
+  q.appendChild(d);
+}
+
+function updateTask(id,st){
+  const item=document.getElementById(`task-${id}`),icon=document.getElementById(`icon-${id}`);
+  if(!item)return;item.className='task-item';
+  if(st==='running-codex'){item.classList.add('running-codex');icon.textContent='⚡'}
+  if(st==='running-gemini'){item.classList.add('running-gemini');icon.textContent='⚡'}
+  if(st==='done'){item.classList.add('done');icon.textContent='✅'}
+}
+
+function moveDone(id,title,to){
+  const item=document.getElementById(`task-${id}`);if(item)item.remove();
+  const done=document.getElementById('task-done');
+  const e=done.querySelector('.empty-state');if(e)e.remove();
+  const d=document.createElement('div');d.className='task-item done';
+  d.innerHTML=`<div class="task-id">${id}</div><div class="task-info"><div class="task-title">${title}</div><div class="task-assign assign-${to==='codex'?'codex':'gemini'}">✓ ${to==='codex'?'Codex Dev':'Gemini SR'}</div></div><div class="task-icon">✅</div>`;
+  done.appendChild(d);stats.done++;
+  document.getElementById('stat-done').textContent=stats.done;
+}
+
+function showResult(id,html){
+  document.getElementById(id).classList.add('visible');
+  document.getElementById(id+'-body').innerHTML=html;
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+
+async function callClaude(sys,msg){
+  const res=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:MODEL,max_tokens:1000,system:sys,messages:[{role:'user',content:msg}]})});
+  const data=await res.json();
+  if(data.error)throw new Error(data.error.message);
+  return data.content[0].text;
+}
+
+async function runTeam(){
+  const req=document.getElementById('req-input').value.trim();
+  if(!req){alert('กรุณาใส่ Requirement ก่อนครับ');return}
+  const btn=document.getElementById('run-btn');
+  btn.disabled=true;btn.innerHTML='<span>⏳</span> Running...';logT=0;
+
+  document.getElementById('task-queue').innerHTML='<div class="empty-state">กำลังวิเคราะห์...</div>';
+  document.getElementById('task-done').innerHTML='<div class="empty-state">รอ tasks สำเร็จ</div>';
+  ['result-arch','result-code','result-review','result-final'].forEach(id=>document.getElementById(id).classList.remove('visible'));
+  stats={total:0,codex:0,gemini:0,done:0};
+  ['stat-tasks','stat-codex','stat-gemini','stat-done'].forEach(id=>document.getElementById(id).textContent='0');
+
+  try{
+    log('PM Claude: กำลังวิเคราะห์ Requirement...','lpm');
+    setActive('claude',true,'🔍 Analyzing...');
+    await sleep(500);
+
+    const raw=await callClaude(
+      `You are a PM. Return ONLY valid JSON (no markdown):
+{"project_name":"...","tasks":[{"id":"T001","title":"...","assign_to":"gemini","type":"architecture","spec":"..."},{"id":"T002","title":"...","assign_to":"codex","type":"code_gen","spec":"..."},{"id":"T003","title":"...","assign_to":"codex","type":"code_gen","spec":"..."},{"id":"T004","title":"...","assign_to":"gemini","type":"review","spec":"..."}]}
+Rules: T001=gemini/architecture, T002-T003=codex/code_gen, T004=gemini/review. Return pure JSON only.`,
+      req);
+
+    let plan;
+    try{plan=JSON.parse(raw.replace(/```json|```/g,'').trim())}
+    catch{plan={project_name:"Project",tasks:[
+      {id:"T001",title:"ออกแบบ System Architecture",assign_to:"gemini",type:"architecture",spec:`Design for: ${req}`},
+      {id:"T002",title:"สร้าง API Endpoints",assign_to:"codex",type:"code_gen",spec:`FastAPI for: ${req}`},
+      {id:"T003",title:"สร้าง Database Schema",assign_to:"codex",type:"code_gen",spec:`PostgreSQL for: ${req}`},
+      {id:"T004",title:"Code Review & Security",assign_to:"gemini",type:"review",spec:`Review for: ${req}`}
+    ]}}
+
+    log(`PM Claude: "${plan.project_name}" — ${plan.tasks.length} tasks ready`,'lpm');
+    stats.total=plan.tasks.length;
+    stats.codex=plan.tasks.filter(t=>t.assign_to==='codex').length;
+    stats.gemini=plan.tasks.filter(t=>t.assign_to==='gemini').length;
+    document.getElementById('stat-tasks').textContent=stats.total;
+    document.getElementById('stat-codex').textContent=stats.codex;
+    document.getElementById('stat-gemini').textContent=stats.gemini;
+
+    plan.tasks.forEach(t=>addTask(t.id,t.title,t.assign_to));
+    setActive('claude',false,'✓ Planning complete');
+    await sleep(400);
+
+    for(const task of plan.tasks){
+      await sleep(400);
+      const isg=task.assign_to==='gemini';
+      log(`PM → ${isg?'Gemini SR':'Codex Dev'}: "${task.title}"`,'lpm');
+      updateTask(task.id,`running-${isg?'gemini':'codex'}`);
+      setFlow(isg?'gemini':'codex');
+
+      if(isg){setActive('gemini',true,`⚡ ${task.title}`);log(`Gemini SR: ${task.type==='architecture'?'Designing...':'Reviewing...'}`,'lsr')}
+      else{setActive('codex',true,`⚡ ${task.title}`);log(`Codex Dev: Implementing...`,'ldev')}
+
+      const sys=isg
+        ?(task.type==='architecture'
+          ?`You are a Senior Architect. Design: Tech Stack, DB Schema, API Contract, 2 recommendations. Max 25 lines.`
+          :`You are a Code Reviewer. Rate /10, 3 strengths, 3 issues, 2 security notes. Max 20 lines.`)
+        :`You are a Senior Developer. Write production code, most important file only, include comments. Max 30 lines.`;
+
+      const result=await callClaude(sys,task.spec);
+      await sleep(200);
+
+      if(isg){
+        setActive('gemini',false,`✓ Done`);log(`Gemini SR: ✓ เสร็จแล้ว`,'lok');
+        if(task.type==='architecture')showResult('result-arch',esc(result));
+        else showResult('result-review',esc(result));
+      }else{
+        setActive('codex',false,`✓ Done`);log(`Codex Dev: ✓ commit สำเร็จ`,'lok');
+        if(!document.getElementById('result-code').classList.contains('visible'))showResult('result-code',esc(result));
+      }
+
+      moveDone(task.id,task.title,task.assign_to);
+      setFlow(null);await sleep(200);
+    }
+
+    await sleep(400);
+    log('PM Claude: กำลังสร้าง Final Report...','lpm');
+    setActive('claude',true,'📋 Final report...');
+
+    const report=await callClaude(
+      `You are a PM. Write concise project report in Thai/English: ✅ completed tasks, 📦 deliverables, 🚀 next steps (3), ⚠️ risks (2). Max 18 lines.`,
+      `Project: ${plan.project_name}\nRequirement: ${req}\nTasks: ${plan.tasks.map(t=>t.title).join(', ')}`);
+
+    showResult('result-final',esc(report));
+    setActive('claude',false,'✅ Complete');
+    log('──────────────────────────────────','lsys');
+    log(`🎉 "${plan.project_name}" เสร็จสมบูรณ์! ${stats.total} tasks`,'lres');
+
+  }catch(err){
+    log(`❌ Error: ${err.message}`,'lsys');
+    ['claude','codex','gemini'].forEach(a=>setActive(a,false,'❌ Error'));
+  }
+
+  btn.disabled=false;btn.innerHTML='<span>▶</span> Run Dev Team';
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+</script>
+</body>
+</html>

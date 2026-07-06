@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEP v3.0 Master Plan - dPRO Engineering Platform</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'neutral',
+            securityLevel: 'loose'
+        });
+    </script>
+    <style>
+        :root {
+            --bg-primary: #fafafa;
+            --bg-secondary: #f1f5f9;
+            --bg-surface: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent-color: #1e40af;
+            --accent-light: #dbeafe;
+            --border-color: #cbd5e1;
+            --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+            --code-bg: #f8fafc;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-surface: #0f172a;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-color: #3b82f6;
+            --accent-light: #1e3a8a;
+            --border-color: #334155;
+            --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+            --code-bg: #1e293b;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        /* Layout Structure without flex/grid for absolute print safety */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: 280px;
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .main-container {
+            margin-left: 280px;
+            padding: 40px;
+            max-width: 1000px;
+            background-color: var(--bg-surface);
+            min-height: 100vh;
+        }
+
+        /* Top Toolbar */
+        .toolbar {
+            display: block;
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 15px;
+            text-align: right;
+        }
+
+        .btn {
+            background-color: var(--accent-color);
+            color: #ffffff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-left: 10px;
+            font-size: 14px;
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .search-box {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            width: 200px;
+            font-size: 14px;
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 28px;
+            color: var(--accent-color);
+            border-bottom: 3px solid var(--accent-color);
+            padding-bottom: 10px;
+            margin-top: 40px;
+        }
+
+        h2 {
+            font-size: 22px;
+            color: var(--text-primary);
+            border-left: 5px solid var(--accent-color);
+            padding-left: 12px;
+            margin-top: 35px;
+            margin-bottom: 15px;
+        }
+
+        h3 {
+            font-size: 18px;
+            color: var(--text-primary);
+            margin-top: 25px;
+        }
+
+        p, li {
+            font-size: 15px;
+            color: var(--text-secondary);
+            text-align: justify;
+        }
+
+        /* Navigation Menu */
+        .nav-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .nav-item {
+            margin-bottom: 8px;
+        }
+
+        .nav-link {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 14px;
+            display: block;
+            padding: 6px 10px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background-color: var(--accent-light);
+            color: var(--accent-color);
+        }
+
+        /* KPI Cards Layout */
+        .kpi-row {
+            display: block;
+            margin-bottom: 25px;
+            clear: both;
+        }
+
+        .kpi-card {
+            display: inline-block;
+            width: 31%;
+            margin-right: 2%;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: var(--card-shadow);
+            vertical-align: top;
+            margin-bottom: 15px;
+        }
+
+        .kpi-card:last-child {
+            margin-right: 0;
+        }
+
+        .kpi-val {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin: 5px 0;
+        }
+
+        .kpi-title {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        th {
+            background-color: var(--accent-color);
+            color: #ffffff;
+            font-weight: bold;
+            text-align: left;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        tr:nth-child(even) {
+            background-color: var(--bg-secondary);
+        }
+
+        /* Code Blocks */
+        pre {
+            background-color: var(--code-bg);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: Consolas, Monaco, "Courier New", Courier, monospace;
+            font-size: 13px;
+        }
+
+        /* Timeline Pattern */
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+            margin: 20px 0;
+            border-left: 3px solid var(--border-color);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .timeline-item::before {
+            content: "";
+            position: absolute;
+            left: -37px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            border: 3px solid var(--bg-surface);
+        }
+
+        .timeline-badge {
+            display: inline-block;
+            background-color: var(--accent-light);
+            color: var(--accent-color);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        /* Metadata & Frontmatter Visualizer */
+        .metadata-box {
+            background-color: var(--bg-secondary);
+            border-top: 4px solid var(--accent-color);
+            padding: 15px;
+            margin-bottom: 25px;
+            font-size: 13px;
+        }
+
+        /* Expand / Collapse Section */
+        details {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+
+        summary {
+            font-weight: bold;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+
+        /* Print Override */
+        @media print {
+            .sidebar, .toolbar, .theme-toggle {
+                display: none !important;
+            }
+            .main-container {
+                margin-left: 0 !important;
+                padding: 0 !important;
+                background-color: #ffffff !important;
+                color: #000000 !important;
+            }
+            h1, h2, h3 {
+                color: #000000 !important;
+                page-break-after: avoid;
+            }
+            pre, table, .kpi-card, details {
+                page-break-inside: avoid;
+            }
+            details {
+                border: none;
+                padding: 0;
+            }
+            details[open] summary, details summary {
+                font-size: 16px;
+                border-bottom: 1px solid #000;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+        <h3 style="color: var(--accent-color); margin-top: 0;">DEP v3.0 Master Plan</h3>
+        <input type="text" id="searchInput" class="search-box" placeholder="ค้นหาหัวข้อ..." onkeyup="filterContent()" style="width: 100%; margin-bottom: 20px;">
+        <ul class="nav-menu">
+            <li class="nav-item"><a href="#executive-summary" class="nav-link">1. Executive Summary</a></li>
+            <li class="nav-item"><a href="#vision-mission" class="nav-link">2. Vision & Mission</a></li>
+            <li class="nav-item"><a href="#architecture" class="nav-link">3. Architecture Diagram</a></li>
+            <li class="nav-item"><a href="#engineering-standards" class="nav-link">4. Engineering Standards</a></li>
+            <li class="nav-item"><a href="#metadata-platform" class="nav-link">5. Metadata Platform</a></li>
+            <li class="nav-item"><a href="#documentation-engine" class="nav-link">6. Documentation Engine</a></li>
+            <li class="nav-item"><a href="#ai-context-engine" class="nav-link">7. AI Context Engine</a></li>
+            <li class="nav-item"><a href="#generator-engine" class="nav-link">8. Generator Engine</a></li>
+            <li class="nav-item"><a href="#knowledge-graph" class="nav-link">9. Knowledge Graph Integration</a></li>
+            <li class="nav-item"><a href="#ai-agents" class="nav-link">10. Multi-Agent System</a></li>
+            <li class="nav-item"><a href="#automation-devops" class="nav-link">11. Automation & DevOps</a></li>
+            <li class="nav-item"><a href="#security-privacy" class="nav-link">12. Security & Compliance</a></li>
+            <li class="nav-item"><a href="#enterprise-dashboard" class="nav-link">13. Platform Dashboard</a></li>
+            <li class="nav-item"><a href="#roadmap-sprints" class="nav-link">14. Roadmap & Sprints</a></li>
+            <li class="nav-item"><a href="#success-metrics" class="nav-link">15. Success Metrics (KPIs)</a></li>
+            <li class="nav-item"><a href="#adr-strategy" class="nav-link">16. ADR Strategy</a></li>
+            <li class="nav-item"><a href="#repository-structure" class="nav-link">17. Repository Blueprint</a></li>
+        </ul>
+    </div>
+
+    <!-- Main Content Container -->
+    <div class="main-container">
+        
+        <!-- Interactive Toolbar -->
+        <div class="toolbar">
+            <button class="btn btn-secondary" onclick="toggleTheme()">🌓 สลับโหมดโทนสี</button>
+            <button class="btn" onclick="window.print()">🖨️พิมพ์เป็น PDF / เอกสาร</button>
+        </div>
+
+        <!-- Document Header Section -->
+        <div style="text-align: center; margin-bottom: 50px;">
+            <span style="font-weight: bold; letter-spacing: 2px; color: var(--text-secondary); font-size: 12px;">ENGINEERING MASTER BLUEPRINT</span>
+            <h1 style="border-bottom: none; margin-top: 10px; margin-bottom: 5px; font-size: 36px;">dPRO Engineering Platform (DEP) v3.0</h1>
+            <p style="text-align: center; font-style: italic; font-size: 16px;">"The Self-Documenting AI-Native Development Platform Core Ecosystem"</p>
+            <div class="metadata-box" style="display: inline-block; text-align: left; margin-top: 20px; width: 100%; border-radius: 6px;">
+                <strong>Platform Level:</strong> V3.0 (AI-Ready Foundation for V4.0)<br>
+                <strong>Single Source of Truth Targets:</strong> dPRO AI Parking, MChat, Farm Lab Ecosytem<br>
+                <strong>Core Strategy:</strong> Semantic Metadata Extraction, Automated Knowledge Graph Synthesis, RAG-Optimized Modular Chunking
+            </div>
+        </div>
+
+        <!-- Progress Dashboard Quickview -->
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <div class="kpi-title">PROJECT READINESS</div>
+                <div class="kpi-val">Phase 0 Complete</div>
+                <p style="margin:0; font-size:11px;">Moving to Phase 1 (Standards)</p>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">DOCUMENT ARTIFACTS</div>
+                <div class="kpi-val">Self-Syncing</div>
+                <p style="margin:0; font-size:11px;">AI Frontmatter Enforced</p>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">KNOWLEDGE REUSE</div>
+                <div class="kpi-val">100% Shared</div>
+                <p style="margin:0; font-size:11px;">Cross-Domain Schema Active</p>
+            </div>
+        </div>
+
+        <!-- Section 1 -->
+        <div class="section-block" id="executive-summary">
+            <h2>1. Executive Summary (บทสรุปผู้บริหาร)</h2>
+            <p>
+                dPRO Engineering Platform (DEP) เวอร์ชัน 3.0 ได้ถูกกำหนดขึ้นเพื่อแก้ปัญหาคลาสสิกในอุตสาหกรรมการพัฒนาซอฟต์แวร์ นั่นคือ <strong>"การที่เอกสารระบบ สถาปัตยกรรม และบริบทการทำงานขาดการปรับปรุงให้สอดคล้องกับซอร์สโค้ดที่เกิดขึ้นจริง"</strong> ซึ่งก่อให้เกิดหนี้ทางเทคนิค (Technical Debt) และขัดขวางการนำระบบปัญญาประดิษฐ์ (AI Generative Tools) เข้ามาช่วยเหลือนักพัฒนาได้อย่างเต็มประสิทธิภาพ
+            </p>
+            <p>
+                วัตถุประสงค์หลักของ DEP v3.0 คือการปฏิวัติโครงสร้างวิศวกรรมให้เป็น <strong>Self-Documenting AI-Native Platform</strong> โดยสถาปัตยกรรมเทคโนโลยีทุกส่วนจะถูกควบคุมผ่าน <em>Single Source of Truth</em> ซึ่งก็คือการเปลี่ยนแปลงของ Codebase ระบบจะทำการดึงข้อมูล แปลงสภาพ และอัปเดตเอกสารสถาปัตยกรรม ผังการไหลข้อมูล API Docs แผนผังความรู้ (Knowledge Graph) ตลอดจนการตัดสินใจทางสถาปัตยกรรม (ADR) โดยอัตโนมัติ
+            </p>
+            <p>
+                การเปลี่ยนแปลงครั้งสำคัญในเวอร์ชัน 3.0 นี้ ถือเป็น <strong>"จุดเริ่มต้นและรากฐานที่สำคัญที่สุดสำหรับ เวอร์ชัน 4.0"</strong> โดยทุกเอกสารและโมดูลโครงสร้างจะถูกติดตั้งระบบฝัง Metadata, Cross-reference และแท็กความสัมพันธ์เชิงลึกที่เรียกว่า Semantic Anchor เพื่อพร้อมแปลงสภาพเข้าสู่ฐานข้อมูลความรู้ทางวิศวกรรม (Engineering Knowledge Base) และโมเดล RAG (Retrieval-Augmented Generation) ได้ทันทีในอนาคต ช่วยลดต้นทุนในการทำข้อมูลซ้ำซ้อน และเปลี่ยนองค์ความรู้ขององค์กรให้กลายเป็นระบบปัญญาประดิษฐ์อัจฉริยะ (Internal AI Assistant) ที่เข้าใจบริบททั้งในอดีต ปัจจุบัน และอนาคตอย่างสมบูรณ์แบบ
+            </p>
+        </div>
+
+        <!-- Section 2 -->
+        <div class="section-block" id="vision-mission">
+            <h2>2. Vision & Mission (วิสัยทัศน์และพันธกิจ)</h2>
+            <h3>Vision (วิสัยทัศน์)</h3>
+            <p>
+                มุ่งมั่นสร้างมาตรฐานวิศวกรรมซอฟต์แวร์สายพันธุ์ใหม่ที่โค้ดและองค์ความรู้ทำงานหลอมรวมเป็นหนึ่งเดียว เพื่อให้ระบบนิเวศน์ทางเทคโนโลยีทั้งหมดขององค์กรสามารถพัฒนา ตรวจสอบ และอัปเดตตัวเองได้อย่างอัตโนมัติ (Autonomous Core) ปราศจากช่องว่างของข้อมูล และพร้อมรับการขยายตัวอย่างไร้ขีดจำกัด
+            </p>
+            <h3>Mission (พันธกิจ)</h3>
+            <ul>
+                <li><strong>Unified Engine:</strong> สร้างแพลตฟอร์มวิศวกรรมกลางที่เป็นมาตรฐานร่วมสำหรับโปรเจกต์เชิงพาณิชย์หลัก ได้แก่ <em>dPRO AI Parking</em> (ระบบจัดการที่จอดรถอัจฉริยะ), <em>MChat</em> (แอปพลิเคชันบัญชีและการเงินขับเคลื่อนด้วยเสียงสำหรับผู้ประกอบการรายย่อย) และ <em>Farm Lab</em> (ระบบเกษตรกรรมแม่นยำและการผลิต Wolffia เชิงพาณิชย์) รวมถึงระบบใหม่ๆ ที่เกิดขึ้นในอนาคต</li>
+                <li><strong>Eradicate Desynchronization:</strong> ขจัดปัญหาเอกสารไม่ตรงกับโค้ดจริง (Out-of-sync Documentation) โดยการบังคับใช้กลไก Auto-Generation จากระดับโค้ดขึ้นมาเป็นเอกสาร</li>
+                <li><strong>AI-First Structuring:</strong> ออกแบบและควบคุมโครงสร้างเนื้อหาของระบบวิศวกรรมทั้งหมดให้อยู่ในรูปแบบที่ AI สามารถตีความและทำความเข้าใจความสัมพันธ์ได้ทันทีแบบ Machine-Readable</li>
+            </ul>
+        </div>
+
+        <!-- Section 3 -->
+        <div class="section-block" id="architecture">
+            <h2>3. Architecture Diagram (โครงสร้างและสถาปัตยกรรมระบบ)</h2>
+            <p>
+                สถาปัตยกรรมของ DEP v3.0 ออกแบบในลักษณะ Modular Core ที่แยกส่วนงานประมวลผลชัดเจน แต่ทำงานร่วมกันผ่าน Metadata Registry กลาง เพื่อให้สามารถวิเคราะห์ซอร์สโค้ดและสร้างชุดข้อมูลความรู้ที่เชื่อมโยงกันอย่างเป็นระบบ
+            </p>
+            
+            <div class="mermaid" style="background: var(--bg-secondary); padding: 15px; border-radius: 8px;">
+            graph TD
+                Codebase[Codebase: Scripts / Config / DB Schema] -->|AST & Static Code Analysis| MetadataExtractor[Metadata Platform Engine]
+                MetadataExtractor -->|Generate Frontmatter & Tags| MetadataRegistry[(Unified Metadata Registry)]
+                
+                MetadataRegistry --> DocEngine[Documentation Engine]
+                MetadataRegistry --> AIContextEngine[AI Context Engine]
+                MetadataRegistry --> KGProcessor[Knowledge Graph Synthesis]
+                
+                DocEngine -->|Interactive Elements| MasterPlanHTML[DEP_MASTER_PLAN.html]
+                DocEngine -->|Static Documentation| MasterPlanMD[DEP_MASTER_PLAN.md]
+                
+                AIContextEngine -->|RAG-Optimized Chunks| ContextStore[(AI Context Vector Store)]
+                KGProcessor -->|Nodes & Edges Schema| GraphDB[(Internal Engineering Knowledge Graph)]
+                
+                ContextStore --> AIAssistant[V4.0 Internal AI Assistant]
+                GraphDB --> AIAssistant
+                
+                style Codebase fill:#2563eb,stroke:#fff,stroke-width:2px,color:#fff
+                style MetadataRegistry fill:#059669,stroke:#fff,stroke-width:2px,color:#fff
+                style AIAssistant fill:#7c3aed,stroke:#fff,stroke-width:2px,color:#fff
+            </div>
+            <p style="font-size: 13px; text-align: center; font-style: italic;">แผนผังกระบวนการดึงข้อมูลจาก Source Code สู่ระบบโครงข่ายองค์ความรู้ AI-Ready</p>
+        </div>
+
+        <!-- Section 4 -->
+        <div class="section-block" id="engineering-standards">
+            <h2>4. Engineering Standards (มาตรฐานทางวิศวกรรมและการควบคุม RAG)</h2>
+            <p>
+                เพื่อรองรับระบบสืบค้นข้อมูลเชิงความหมาย (Retrieval-Augmented Generation - RAG) เอกสารและโครงสร้างทางเทคนิคทั้งหมดจำเป็นต้องถูกเขียนขึ้นภายใต้การล็อกโครงสร้าง (Strict Chunking Constraints) โดยไฟล์รูปแบบ Markdown ทั้งหมดในแพลตฟอร์มต้องถูกควบคุมด้วยโครงสร้างหัวข้อและระดับความลึกที่เป็นแบบแผนเดียวกัน เพื่ออำนวยความสะดวกให้ข้อความมี Context ห้อมล้อมที่สมบูรณ์เมื่อถูกตัดแบ่ง (Split) ลงสากลข้อมูล Vector Storage
+            </p>
+
+            <details>
+                <summary>ดูตัวอย่าง Markdown Template มาตรฐานที่มีระบบ YAML Frontmatter สำหรับ AI V4.0</summary>
+                <pre>---
+id: DEP-STD-API-01
+title: "Global API Response Structure Specification"
+description: "มาตรฐานการกำหนดรูปแบบ JSON Response สำหรับทุกไมโครเซอร์วิสในเครือ V-ECO"
+type: standard
+status: active
+version: 3.0.0
+last_updated: 2026-07-02
+tags: [api, core, standard, backend]
+domain: shared
+relationships:
+  depends_on: ["DEP-ARC-NETWORK-02"]
+  used_by: ["dpro-parking", "mchat", "farm-lab"]
+  implements: ["ADR-023"]
+---
+
+# Global API Response Structure Specification
+
+> **Status:** active | **Version:** 3.0.0 | **Domain:** shared
+
+## 1. Context & Overview
+กำหนดโครงสร้างข้อมูลการตอบกลับ (Response Body) ของ API ทั้งหมด เพื่อให้โปรเจกต์ภายในสามารถสื่อสารข้ามระบบกันได้อย่างมีเสถียรภาพสูงสุด...
+
+## 2. Scope & System Boundaries
+ครอบคลุมโครงสร้างระดับ HTTP RESTful API ของ dPRO AI Parking, MChat และ Farm Lab ไม่รวมสัญญาระหว่างคิวข้อความ (MQTT/gRPC)...
+
+## 3. Architecture & Data Flow
+```mermaid
+graph LR
+    Gateway --> Microservice --> ResponseFormatter --> Client
+    Microservice --> Database[(PostgreSQL)]
+```
+
+## 4. Related Standards & Compliance
+อ้างอิงมาตรฐานเครือข่ายภายใน `DEP-ARC-NETWORK-02` และการตัดสินใจสถาปัตยกรรม `ADR-023` (RESTful Envelope Pattern) เอกสารฉบับนี้ต้องผ่าน CI Schema Validation ก่อน merge ทุกครั้ง</pre>
+            </details>
+
+            <p>
+                มาตรฐาน Frontmatter ข้างต้นเป็นแกนหลักที่ทำให้ Metadata Platform Engine (หัวข้อถัดไป) สามารถดึงข้อมูลออกจากเอกสารทุกฉบับได้แบบอัตโนมัติ โดยไม่ต้องอาศัยการตีความเนื้อหาด้วย NLP เพียงอย่างเดียว ระบบ CI จะปฏิเสธ Pull Request ทันทีหากไฟล์ Markdown ในโฟลเดอร์ <code>/docs</code> ไม่มี Frontmatter ที่ถูกต้องตาม Schema ที่กำหนด
+            </p>
+        </div>
+
+        <!-- Section 5 -->
+        <div class="section-block" id="metadata-platform">
+            <h2>5. Metadata Platform Engine (แพลตฟอร์มสกัดเมทาดาทา)</h2>
+            <p>
+                Metadata Platform Engine คือหัวใจของ DEP v3.0 ทำหน้าที่อ่าน Codebase จริงของทั้ง 3 โปรเจกต์หลัก แล้วสกัด (Extract) โครงสร้างเชิงความหมายออกมาโดยอัตโนมัติผ่านเทคนิค AST (Abstract Syntax Tree) Parsing และ Static Code Analysis เฉพาะภาษา แทนที่จะพึ่งพาการเขียนเอกสารด้วยมือซึ่งมักจะ "หลุด sync" กับโค้ดจริงเมื่อเวลาผ่านไป
+            </p>
+            <table>
+                <thead>
+                    <tr><th>Source Type</th><th>Extraction Method</th><th>Output Schema</th><th>ใช้ในโปรเจกต์</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Python (FastAPI / SQLAlchemy)</td><td>ast module + docstring parser</td><td>Service / Endpoint Schema</td><td>dPRO AI Parking, MChat</td></tr>
+                    <tr><td>TypeScript / React</td><td>ts-morph AST traversal</td><td>Component Prop Schema</td><td>MChat, Platform Dashboard</td></tr>
+                    <tr><td>SQL DDL</td><td>sqlglot parser</td><td>Table / Column / FK Schema</td><td>ทั้ง 3 โปรเจกต์</td></tr>
+                    <tr><td>IoT Config (YAML / MQTT Topic)</td><td>Custom topic-tree parser</td><td>Device / Sensor Schema</td><td>Farm Lab</td></tr>
+                </tbody>
+            </table>
+            <p>
+                ผลลัพธ์จากทุก Extractor จะถูกรวมและ Normalize เข้าสู่ <strong>Unified Metadata Registry</strong> ซึ่งเป็นฐานข้อมูลกลาง (PostgreSQL + JSONB) — กติกาสำคัญคือ ห้ามแก้ไข Registry ด้วยมือโดยเด็ดขาด (Write-Only-By-Engine) เพื่อรับประกันว่าข้อมูลใน Registry สะท้อนสถานะจริงของ Codebase เสมอ
+            </p>
+            <details>
+                <summary>ตัวอย่าง Metadata Record ที่ถูกสกัดออกมาโดยอัตโนมัติ (JSON)</summary>
+                <pre>{
+  "entity_id": "svc-mchat-invoice-api",
+  "source_file": "apps/mchat/api/invoice.py",
+  "type": "fastapi_endpoint",
+  "extracted_at": "2026-07-01T09:12:03Z",
+  "signature": "POST /v1/invoices",
+  "depends_on": ["db-mchat-invoices", "svc-mchat-auth"],
+  "confidence": 0.98
+}</pre>
+            </details>
+        </div>
+
+        <!-- Section 6 -->
+        <div class="section-block" id="documentation-engine">
+            <h2>6. Documentation Engine</h2>
+            <p>
+                Documentation Engine อ่านข้อมูลจาก Metadata Registry แล้ว Render ออกมาเป็นเอกสาร 2 รูปแบบคู่ขนานกันเสมอ (Dual Output) เพื่อให้ตอบโจทย์ทั้งฝั่งมนุษย์และฝั่ง AI ไปพร้อมกัน — คุณสมบัติ "Self-Syncing" ที่ปรากฏใน Dashboard ด้านบนของเอกสารนี้มาจากกลไกของ Engine ตัวนี้โดยตรง
+            </p>
+            <table>
+                <thead>
+                    <tr><th>Output Format</th><th>วัตถุประสงค์</th><th>Trigger การอัปเดต</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Interactive HTML (เช่นไฟล์นี้)</td><td>Human review, onboarding, print-to-PDF</td><td>Manual publish หรือ Merge เข้า main</td></tr>
+                    <tr><td>Static Markdown + Frontmatter</td><td>Git-tracked Source of Truth, RAG ingestion</td><td>ทุก commit ที่แก้ Metadata Registry</td></tr>
+                </tbody>
+            </table>
+            <p>
+                ระบบ Templating ใช้โครงสร้างหัวข้อคงที่ (ตามมาตรฐานในหัวข้อที่ 4) ผสานเข้ากับ Component ที่ Reusable เช่น <code>.kpi-card</code>, <code>.timeline</code> และ <code>mermaid</code> diagram เพื่อให้เอกสารทุกฉบับในองค์กรมีหน้าตาและโครงสร้างการอ่านที่สอดคล้องกัน ลดภาระการทำความเข้าใจเอกสารใหม่ของทีมวิศวกรและของ AI Assistant เอง
+            </p>
+        </div>
+
+        <!-- Section 7 -->
+        <div class="section-block" id="ai-context-engine">
+            <h2>7. AI Context Engine</h2>
+            <p>
+                เพื่อให้เอกสารทั้งหมดพร้อมใช้งานกับโมเดล AI ในลักษณะ Retrieval-Augmented Generation (RAG) ระบบจะทำ <strong>Modular Chunking</strong> โดยใช้ขอบเขตของหัวข้อระดับ H2 และ YAML Frontmatter เป็นตัวกำหนดขนาด Chunk (ประมาณ 512-800 tokens ต่อ chunk พร้อม overlap 10-15%) เพื่อรักษาบริบทให้ครบถ้วนเมื่อถูกดึงไปใช้แยกส่วน
+            </p>
+            <div class="mermaid" style="background: var(--bg-secondary); padding: 15px; border-radius: 8px;">
+            graph LR
+                MD[Markdown + Frontmatter] -->|Split by H2 + Overlap| Chunker[Chunking Service]
+                Chunker -->|Embed| Embedding[Embedding Model]
+                Embedding --> VectorStore[(AI Context Vector Store)]
+                VectorStore -->|Similarity Search| Retriever[Context Retriever API]
+                Retriever --> Assistant[V4.0 Internal AI Assistant]
+                style VectorStore fill:#7c3aed,stroke:#fff,stroke-width:2px,color:#fff
+            </div>
+            <p>
+                เมื่อ Assistant ได้รับคำถาม ระบบจะไม่ได้ใช้ Similarity Search อย่างเดียว แต่จะนำผลลัพธ์ไป Re-rank ร่วมกับความสัมพันธ์ใน Knowledge Graph (หัวข้อที่ 9) เพื่อให้บริบทที่ตอบกลับมีทั้งความเกี่ยวข้องเชิงความหมายและความถูกต้องเชิงโครงสร้างของระบบจริง
+            </p>
+        </div>
+
+        <!-- Section 8 -->
+        <div class="section-block" id="generator-engine">
+            <h2>8. Generator Engine</h2>
+            <p>
+                Generator Engine ใช้ข้อมูลจาก Metadata Registry ร่วมกับ Template Library เพื่อสร้าง Boilerplate และเอกสารตั้งต้นโดยอัตโนมัติ ลดงานที่ทำซ้ำๆ ของวิศวกร และบังคับให้โค้ด/เอกสารใหม่ทุกชิ้นเกิดขึ้นภายใต้มาตรฐานเดียวกันตั้งแต่ต้น
+            </p>
+            <table>
+                <thead>
+                    <tr><th>Generator Type</th><th>Input</th><th>Output</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>CRUD Scaffold Generator</td><td>DB Schema จาก Metadata Registry</td><td>FastAPI endpoint + Pydantic schema + Alembic migration</td></tr>
+                    <tr><td>ADR Stub Generator</td><td>คำอธิบายการตัดสินใจสั้นๆ</td><td>ไฟล์ ADR พร้อม Frontmatter (ดูหัวข้อ 16)</td></tr>
+                    <tr><td>API Client SDK Generator</td><td>OpenAPI spec ที่สกัดจาก Endpoint metadata</td><td>TypeScript client library</td></tr>
+                </tbody>
+            </table>
+            <p>
+                งานสร้างโค้ดที่ซับซ้อนกว่า Boilerplate ทั่วไป (เช่น business logic เฉพาะโปรเจกต์) จะถูกส่งต่อให้ <strong>Multi-Agent System</strong> (หัวข้อที่ 10) เข้ามาช่วยดำเนินการแทน โดย Generator Engine ทำหน้าที่เตรียม Context และ Spec ที่ครบถ้วนให้ล่วงหน้า
+            </p>
+        </div>
+
+        <!-- Section 9 -->
+        <div class="section-block" id="knowledge-graph">
+            <h2>9. Knowledge Graph Integration</h2>
+            <p>
+                ความสัมพันธ์ที่ประกาศไว้ใน Frontmatter ของทุกเอกสาร (<code>depends_on</code>, <code>used_by</code>, <code>implements</code>) จะถูก Knowledge Graph Synthesis ดึงไปสร้างเป็นกราฟ Node-Edge ที่เชื่อมโยง Service, API, Table, Standard และ ADR เข้าด้วยกันทั้งระบบนิเวศ
+            </p>
+            <div class="mermaid" style="background: var(--bg-secondary); padding: 15px; border-radius: 8px;">
+            graph TD
+                Std[Standard: DEP-STD-API-01] -->|implements| ADR23[ADR-023]
+                Std -->|used_by| Parking[dpro-parking]
+                Std -->|used_by| MChatNode[mchat]
+                Std -->|used_by| FarmLab[farm-lab]
+                Std -->|depends_on| Net[DEP-ARC-NETWORK-02]
+            </div>
+            <table>
+                <thead>
+                    <tr><th>Use Case</th><th>คำอธิบาย</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Impact Analysis</td><td>ก่อนแก้ Schema ตาราง ระบบตอบได้ทันทีว่ามี Service ใดบ้างที่จะได้รับผลกระทบ</td></tr>
+                    <tr><td>Onboarding Query</td><td>วิศวกรใหม่ถาม "อะไร depends on API นี้บ้าง" ได้คำตอบจาก Graph โดยตรง ไม่ต้องไล่อ่านโค้ด</td></tr>
+                    <tr><td>Architecture Drift Detection</td><td>เทียบ Graph ปัจจุบันกับ ADR ที่ accepted ไว้ เพื่อตรวจจับการออกแบบที่เบี่ยงเบนจากมติเดิม</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section 10 -->
+        <div class="section-block" id="ai-agents">
+            <h2>10. Multi-Agent System</h2>
+            <p>
+                DEP v3.0 นำรูปแบบทีมพัฒนา AI หลายตัว (Multi-AI Dev Team) มาใช้เป็นมาตรฐานกลางสำหรับงานสร้างและตรวจสอบทั้งโค้ดและเอกสาร โดยแบ่งบทบาทตามความถนัดของแต่ละโมเดล (รายละเอียด Workflow, Routing Rules และ Working Scripts ฉบับเต็มถูกจัดทำแยกไว้ในเอกสาร <em>AI Dev Team — Complete Guide</em>)
+            </p>
+            <table>
+                <thead>
+                    <tr><th>Agent</th><th>บทบาทใน DEP</th><th>ตัวอย่างงาน</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>🤖 Claude — Project Manager</td><td>วิเคราะห์ requirement ของแต่ละ task และสรุปรายงานคุณภาพเอกสาร</td><td>Final Report ของแต่ละรอบ Sprint</td></tr>
+                    <tr><td>💻 Codex — Developer</td><td>เขียน Boilerplate / Migration script ตาม Spec จาก Generator Engine</td><td>CRUD endpoint, Alembic migration</td></tr>
+                    <tr><td>🎓 Gemini — Senior Architect</td><td>Review Architecture ของ Service ใหม่ก่อน merge และ Security Audit ของ API Contract</td><td>Pull Request review comment อัตโนมัติ</td></tr>
+                </tbody>
+            </table>
+            <p>
+                ทุกครั้งที่ Agent ตัวใดตัวหนึ่งสร้างหรือแก้ไขเอกสาร/โค้ด ระบบจะบันทึก <code>agent_id</code>, timestamp และ prompt/spec ที่ใช้ ลงใน Audit Log (ดูหัวข้อที่ 12) เพื่อให้ทุกการเปลี่ยนแปลงสามารถตรวจสอบย้อนกลับได้เสมอ
+            </p>
+        </div>
+
+        <!-- Section 11 -->
+        <div class="section-block" id="automation-devops">
+            <h2>11. Automation & DevOps</h2>
+            <p>
+                ทุกขั้นตอนตั้งแต่ commit จนถึง publish เอกสารถูกร้อยเข้ากับ CI/CD Pipeline เพื่อไม่ให้ Engineering Standards (หัวข้อที่ 4) เป็นเพียงแนวปฏิบัติที่ไม่มีการบังคับใช้จริง
+            </p>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <span class="timeline-badge">STEP 1</span>
+                    <p style="margin:5px 0 0;"><strong>Pre-commit Hook</strong> — ตรวจสอบ YAML Frontmatter Schema ของไฟล์ที่แก้ไขก่อนอนุญาตให้ commit</p>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-badge">STEP 2</span>
+                    <p style="margin:5px 0 0;"><strong>Pull Request</strong> — GitHub Actions รัน Metadata Diff และ Preview เอกสารที่จะถูก regenerate</p>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-badge">STEP 3</span>
+                    <p style="margin:5px 0 0;"><strong>Automated Review</strong> — Gemini SR Agent คอมเมนต์ผลตรวจ Architecture/Security ลงใน PR โดยอัตโนมัติ</p>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-badge">STEP 4</span>
+                    <p style="margin:5px 0 0;"><strong>Merge & Publish</strong> — Documentation Engine regenerate เอกสาร และ Knowledge Graph Sync ทันทีที่ merge เข้า main</p>
+                </div>
+            </div>
+            <pre># .github/workflows/dep-sync.yml (ย่อ)
+on:
+  push:
+    branches: [main]
+jobs:
+  sync-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: dep-cli extract --scope changed
+      - run: dep-cli docs:generate --dual-output
+      - run: dep-cli graph:sync</pre>
+        </div>
+
+        <!-- Section 12 -->
+        <div class="section-block" id="security-privacy">
+            <h2>12. Security & Compliance</h2>
+            <p>
+                เนื่องจาก MChat จัดการข้อมูลทางการเงินของผู้ประกอบการรายย่อย และ Farm Lab เก็บข้อมูลตำแหน่ง/เซนเซอร์ของฟาร์ม แพลตฟอร์มจึงต้องออกแบบให้สอดคล้องกับพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล (PDPA) ควบคู่กับมาตรฐานความปลอดภัยของโค้ดเอง
+            </p>
+            <table>
+                <thead>
+                    <tr><th>ชั้นข้อมูล (Layer)</th><th>ข้อกำหนด</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Secrets & Credentials</td><td>ห้าม hardcode ในโค้ดหรือเอกสารเด็ดขาด — ใช้ Environment Variable / Secret Manager เท่านั้น</td></tr>
+                    <tr><td>Metadata Registry Access</td><td>Role-Based Access Control (RBAC) แยกสิทธิ์ Read/Write ตามทีมและ Service</td></tr>
+                    <tr><td>Personal & Financial Data</td><td>Data classification tier ตาม PDPA พร้อม field-level encryption สำหรับข้อมูลอ่อนไหวของ MChat</td></tr>
+                    <tr><td>Audit Trail</td><td>บันทึกทุกการเปลี่ยนแปลงที่เกิดจาก AI Agent หรือมนุษย์ พร้อม timestamp และ actor</td></tr>
+                </tbody>
+            </table>
+            <p>
+                Security Audit ของทุก API Contract ใหม่จะถูกส่งให้ Gemini SR Agent ตรวจตาม OWASP Top 10 เป็นด่านแรก ก่อนที่จะเข้าสู่กระบวนการ Human Review ขั้นสุดท้าย
+            </p>
+        </div>
+
+        <!-- Section 13 -->
+        <div class="section-block" id="enterprise-dashboard">
+            <h2>13. Platform Dashboard</h2>
+            <p>
+                ภาพรวมสถานะของแพลตฟอร์ม ณ ปัจจุบัน แสดงความครอบคลุมของเอกสารและสุขภาพของระบบ Metadata แบบเรียลไทม์ต่อโปรเจกต์
+            </p>
+            <div class="kpi-row">
+                <div class="kpi-card">
+                    <div class="kpi-title">DOC COVERAGE (ภาพรวม)</div>
+                    <div class="kpi-val">—</div>
+                    <p style="margin:0; font-size:11px;">รอ Metadata Platform Engine เริ่มทำงาน (Phase 2)</p>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">KNOWLEDGE GRAPH NODES</div>
+                    <div class="kpi-val">—</div>
+                    <p style="margin:0; font-size:11px;">จะเริ่มนับหลัง Phase 4</p>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">ACTIVE ADRs</div>
+                    <div class="kpi-val">1</div>
+                    <p style="margin:0; font-size:11px;">ADR-023 (ดูหัวข้อ 16)</p>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>โปรเจกต์</th><th>Doc Coverage</th><th>Last Metadata Sync</th><th>สถานะ</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>dPRO AI Parking</td><td>TBD</td><td>TBD</td><td>รอ Phase 2</td></tr>
+                    <tr><td>MChat</td><td>TBD</td><td>TBD</td><td>รอ Phase 2</td></tr>
+                    <tr><td>Farm Lab</td><td>TBD</td><td>TBD</td><td>รอ Phase 2</td></tr>
+                </tbody>
+            </table>
+            <p style="font-size:12px; font-style:italic;">หมายเหตุ: ตัวเลขจะเริ่มเก็บและอัปเดตอัตโนมัติเมื่อ Metadata Platform Engine (หัวข้อที่ 5) ถูก deploy เข้าสู่ทั้ง 3 repository จริงใน Phase 2</p>
+        </div>
+
+        <!-- Section 14 -->
+        <div class="section-block" id="roadmap-sprints">
+            <h2>14. Roadmap & Sprints</h2>
+            <p>เส้นทางการพัฒนา DEP ตั้งแต่ v3.0 จนถึงจุดที่พร้อมส่งต่อให้ v4.0 (Internal AI Assistant)</p>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <span class="timeline-badge">PHASE 0 — เสร็จสมบูรณ์</span>
+                    <p style="margin:5px 0 0;"><strong>Foundation & Vision</strong> — กำหนด Vision, Mission, Architecture Diagram และ Engineering Standards ตั้งต้น</p>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-badge">PHASE 1 — กำลังดำเนินการ</span>
+                    <p style="margin:5px 0 0;"><strong>Standards Rollout</strong> — บังคับใช้ YAML Frontmatter มาตรฐานทั่วทั้ง 3 repository พร้อม CI validation</p>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-badge">PHASE 2</span>
+                    <p style="margin:5px 0 0;"><strong>Metadata Platform Engine</strong> — เปิดใช้งาน Extractor ทุกภาษาและ Unified Metadata Registry</p>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-badge">PHASE 3</span>
+                    <p style="margin:5px 0 0;"><strong>Documentation + AI Context Engine</strong> — เปิด Dual Output (HTML/MD) และ RAG Chunking พร้อม Vector Store</p>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-badge">PHASE 4</span>
+                    <p style="margin:5px 0 0;"><strong>Knowledge Graph + Multi-Agent System</strong> — เชื่อม Graph DB และเปิดใช้ Automated Review Agent ใน CI</p>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-badge">PHASE 5</span>
+                    <p style="margin:5px 0 0;"><strong>V4.0 Internal AI Assistant</strong> — เปิดใช้งาน Assistant ที่เข้าใจบริบทของทั้ง 3 โปรเจกต์แบบ Real-time</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 15 -->
+        <div class="section-block" id="success-metrics">
+            <h2>15. Success Metrics (KPIs)</h2>
+            <p>ตัวชี้วัดความสำเร็จของแพลตฟอร์ม แบ่งตามมิติที่ DEP v3.0 ตั้งใจแก้ปัญหา</p>
+            <table>
+                <thead>
+                    <tr><th>KPI</th><th>เป้าหมาย</th><th>วิธีวัด</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Documentation-Code Sync Freshness</td><td>&lt; 24 ชั่วโมง</td><td>เวลาระหว่าง commit กับการ regenerate เอกสารสำเร็จ</td></tr>
+                    <tr><td>Documentation Coverage</td><td>&gt; 90% ของ Service ทั้งหมด</td><td>จำนวน Entity ที่มี Metadata Record / จำนวน Entity ทั้งหมด</td></tr>
+                    <tr><td>AI Context Retrieval Precision@5</td><td>&gt; 85%</td><td>Manual eval ชุดคำถามมาตรฐานรายไตรมาส</td></tr>
+                    <tr><td>Time-to-Onboard วิศวกรใหม่</td><td>ลดลง 40%</td><td>เปรียบเทียบก่อน/หลังใช้ Documentation + Knowledge Graph</td></tr>
+                    <tr><td>ADR Compliance Rate</td><td>100% ของ PR สถาปัตยกรรม</td><td>อัตราส่วน PR ที่อ้างอิง ADR ที่ accepted แล้ว</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section 16 -->
+        <div class="section-block" id="adr-strategy">
+            <h2>16. ADR Strategy</h2>
+            <p>
+                Architecture Decision Record (ADR) คือบันทึกการตัดสินใจเชิงสถาปัตยกรรมที่สำคัญ พร้อมเหตุผลและทางเลือกที่พิจารณา เพื่อให้ทีมในอนาคต (รวมถึง AI Assistant) เข้าใจ "ทำไม" ไม่ใช่แค่ "ทำอะไร"
+            </p>
+            <h3>Lifecycle</h3>
+            <p>Proposed → Accepted → (Deprecated | Superseded) — ทุกสถานะถูกบันทึกไว้ใน Frontmatter ของไฟล์ ADR เอง และสะท้อนเข้า Knowledge Graph ทันที</p>
+            <table>
+                <thead>
+                    <tr><th>ADR ID</th><th>หัวข้อ</th><th>สถานะ</th><th>Implements/Used By</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>ADR-023</td><td>Adoption of RESTful Envelope Pattern for Cross-Service Communication</td><td>Accepted</td><td>DEP-STD-API-01</td></tr>
+                </tbody>
+            </table>
+            <p style="font-size:12px; font-style:italic;">รายการ ADR ฉบับเต็มจะถูกเพิ่มเข้าตารางนี้อัตโนมัติโดย Generator Engine (หัวข้อที่ 8) ทุกครั้งที่มีการสร้าง ADR ใหม่ผ่านกระบวนการมาตรฐาน</p>
+        </div>
+
+        <!-- Section 17 -->
+        <div class="section-block" id="repository-structure">
+            <h2>17. Repository Blueprint</h2>
+            <p>โครงสร้าง Monorepo ที่รองรับทั้ง 3 โปรเจกต์และ Core Engine ของ DEP ไว้ในที่เดียว เพื่อให้ Metadata Platform Engine สแกนได้ครบในรอบเดียว</p>
+            <pre>dep-platform/
+├── apps/
+│   ├── dpro-parking/        # dPRO AI Parking
+│   ├── mchat/                # MChat — Voice Accounting App
+│   └── farm-lab/             # Farm Lab — Precision Agri / Wolffia
+├── packages/
+│   ├── metadata-engine/      # หัวข้อ 5
+│   ├── doc-engine/           # หัวข้อ 6
+│   ├── ai-context-engine/    # หัวข้อ 7
+│   ├── generator-engine/     # หัวข้อ 8
+│   └── knowledge-graph/      # หัวข้อ 9
+├── docs/
+│   ├── standards/            # เอกสารมาตรฐาน (หัวข้อ 4)
+│   ├── adr/                  # Architecture Decision Records
+│   └── architecture/         # Diagram & Design Docs
+├── .github/workflows/        # CI/CD (หัวข้อ 11)
+└── dep.config.yaml           # Global platform configuration</pre>
+        </div>
+
+    </div><!-- /main-container -->
+
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme') || 'light';
+            const next = current === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', next);
+            try { localStorage.setItem('dep-theme', next); } catch (e) {}
+        }
+
+        (function initTheme() {
+            try {
+                const saved = localStorage.getItem('dep-theme');
+                if (saved) document.documentElement.setAttribute('data-theme', saved);
+            } catch (e) {}
+        })();
+
+        function filterContent() {
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            document.querySelectorAll('.nav-item').forEach(function (item) {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(q) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>

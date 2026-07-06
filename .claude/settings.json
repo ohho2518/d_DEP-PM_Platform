@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(python -c \"import fastapi, sqlalchemy, alembic, pydantic_settings; print\\('core deps OK'\\)\")",
+      "Bash(python -m venv .venv)",
+      "Bash(./.venv/Scripts/python.exe -m pip install --quiet --upgrade pip)",
+      "Bash(./.venv/Scripts/python.exe -m pip install --quiet -r requirements.txt)",
+      "Bash(./.venv/Scripts/python.exe -c \"import fastapi, sqlalchemy, alembic, anthropic, pytest, httpx; print\\('all deps OK'\\)\")",
+      "Bash(mkdir -p alembic/versions)",
+      "Bash(ANTHROPIC_API_KEY=\"\" ./.venv/Scripts/python.exe -m alembic revision --autogenerate -m \"initial 6 tables\")",
+      "Bash(DATABASE_URL=\"sqlite:///./dep_pm.db\" ANTHROPIC_API_KEY=\"\" ./.venv/Scripts/python.exe -m alembic upgrade head)",
+      "Bash(DATABASE_URL=\"sqlite:///./dep_pm.db\" ./.venv/Scripts/python.exe -c \"import sqlite3; c=sqlite3.connect\\('dep_pm.db'\\); print\\('tables:', sorted\\(r[0] for r in c.execute\\(\\\\\"select name from sqlite_master where type='table'\\\\\"\\)\\)\\); print\\('agents:', c.execute\\('select name,role,mode from agents'\\).fetchall\\(\\)\\)\")"
+    ]
+  }
+}

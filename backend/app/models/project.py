@@ -1,0 +1,33 @@
+"""Project ORM model (Blueprint §4)."""
+from __future__ import annotations
+
+import uuid
+from typing import TYPE_CHECKING
+
+from sqlalchemy import String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.constants import ProjectStatus, ProjectType
+from app.db.base import Base, TimestampMixin
+from app.db.types import GUID, new_uuid
+
+if TYPE_CHECKING:
+    from app.models.task import Task
+
+
+class Project(Base, TimestampMixin):
+    __tablename__ = "projects"
+
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    type: Mapped[str] = mapped_column(String(20), nullable=False, default=ProjectType.NEW.value)
+    repo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=ProjectStatus.PLANNING.value
+    )
+    # Reference into the DEP Engine metadata registry — null until a real scan exists (ADR-02).
+    metadata_registry_ref: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    tasks: Mapped[list["Task"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
