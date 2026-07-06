@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import projects_router, tasks_router
+from app.api import agent_messages_router, projects_router, tasks_router
 from app.config import get_settings
 
 settings = get_settings()
@@ -25,6 +25,7 @@ app.add_middleware(
 
 app.include_router(projects_router)
 app.include_router(tasks_router)
+app.include_router(agent_messages_router)
 
 
 @app.get("/health", tags=["meta"])

@@ -1,68 +1,68 @@
 # PROJECT_STATUS.md — DEP-PM Platform
 
-> อัปเดตล่าสุด: 2026-07-06 | สถานะโดยรวม: **Sprint 1 (Foundation) เสร็จ — รอเริ่ม Sprint 2**
+> อัปเดตล่าสุด: 2026-07-06 | สถานะโดยรวม: **Sprint 2 (Orchestration Engine) เสร็จ — รอเริ่ม Sprint 3**
 
 ## Completed Work
 
+### Sprint 2 — Task Orchestration Engine + Solo Mode Runtime (2026-07-06)
+- State Machine บังคับ transition (ผิด → 409) + audit_log ทุก state change
+- Routing Rules (keyword → Architect/Dev) + log ทุก decision
+- Solo Mode Runtime: ClaudeExecutor (persona ตาม role) + FallbackExecutor (deterministic)
+- Orchestrator: planned → … → done | revision (สูงสุด 2) | escalated; เคารพ dependency
+- Message Bus in-process (ADR-03) — ทุกข้อความลง `agent_messages` เสมอ
+- Endpoints: `POST /api/projects/:id/run`, `POST /api/agent-messages`
+- E2E DoD ผ่าน: requirement → breakdown → confirm → run → done ครบโดยไม่มี manual intervention
+
 ### Sprint 1 — Backend Foundation (2026-07-06)
-- Scaffold `backend/` (FastAPI + SQLAlchemy 2.x + Alembic บน SQLite) รันได้จริง
-- ORM 6 ตารางครบ + portable `GUID`/`JSON` types (ADR-01) + Alembic 2 migrations (schema + seed agent)
-- PM Agent Task Breakdown (persona PM, Claude API + fallback) → backlog tasks → confirm → planned
-- `MetadataProvider` interface + `StubMetadataProvider` + `POST /scan` (mock baseline → backlog)
-- Endpoints: projects CRUD, tasks CRUD, breakdown, confirm, scan, PATCH task, task messages
-- audit_log บันทึกทุก state change; pytest 15 เคสผ่าน
+- Scaffold FastAPI + SQLAlchemy + Alembic (SQLite), ORM 6 ตาราง, PM Agent breakdown,
+  Metadata Stub, intake endpoints, seed Claude Solo agent
 
-### Planning (2026-07-02)
-- `docs/DEVELOPMENT_PLAN.md` (4 สปรินต์, ADR, Data Model, API Contract, Risk Register)
+## Files Changed (Sprint 2)
 
-## Files Changed (Sprint 1 — ใหม่ทั้งหมด)
-
-- `backend/app/` — `main.py`, `config.py`, `constants.py`
-- `backend/app/db/` — `base.py`, `session.py`, `types.py` (GUID + JSON)
-- `backend/app/models/` — 6 ORM models
-- `backend/app/schemas/` — `project.py`, `task.py`, `scan.py`
-- `backend/app/api/` — `projects.py`, `tasks.py`
-- `backend/app/agents/` — `pm.py`, `personas.py`
-- `backend/app/metadata/` — `provider.py`, `stub.py`
-- `backend/app/services/` — `tasks.py`, `audit.py`
-- `backend/alembic/` — env + 2 migrations
-- `backend/tests/` — conftest + 4 test modules (15 tests)
-- `backend/` — `requirements.txt`, `.env.example`, `.gitignore`, `README.md`, `pytest.ini`, `alembic.ini`
-- `CHANGELOG.md`, `PROJECT_STATUS.md` (อัปเดต)
+- ใหม่: `backend/app/orchestrator/` (`state_machine.py`, `engine.py`), `backend/app/bus/`
+  (`dispatcher.py`), `backend/app/agents/routing.py`, `backend/app/agents/runtime.py`,
+  `backend/app/api/agent_messages.py`, `backend/tests/test_state_machine.py`,
+  `backend/tests/test_orchestrator.py`, `backend/tests/test_routing_bus.py`
+- แก้: `app/agents/personas.py` (+3 personas), `app/api/tasks.py` (PATCH enforce state machine),
+  `app/api/projects.py` (confirm ผ่าน transition, + `/run`), `app/api/__init__.py`, `app/main.py`
 
 ## Current State
 
-- Backend รันได้: `alembic upgrade head` → `uvicorn app.main:app` (docs ที่ `/docs`)
-- pytest ผ่าน 15/15 (agent ทดสอบผ่าน fallback path — ไม่มี network call)
-- `.venv/` + `dep_pm.db` เป็น local เท่านั้น (อยู่ใน `.gitignore`)
-- โฟลเดอร์ยังไม่เป็น git repository
+- Backend รันได้: `alembic upgrade head` → `uvicorn app.main:app`
+- pytest **32/32 ผ่าน** (orchestrator ทดสอบด้วย FallbackExecutor + mock reviewer — ไม่มี network)
+- Solo Mode ครบวงจรบน API แล้ว; ยังไม่ได้ทดสอบกับ Claude API จริง (ไม่มี key)
+- git: commit Sprint 1 แล้ว (`e512771`) — Sprint 2 รอ commit ถัดไป
 
-## Next Tasks (= Sprint 2, ดู docs/DEVELOPMENT_PLAN.md §6)
+## Next Tasks (= Sprint 3, ดู docs/DEVELOPMENT_PLAN.md §6)
 
-1. **State Machine** บังคับ transition ถูกต้อง (ผิด → 409) + เขียน audit_log ทุกครั้ง —
-   ตอนนี้ `PATCH /api/tasks/:id` ยัง permissive (ยังไม่ validate transition)
-2. **Routing Rules** (Blueprint §9): task type → Claude persona (PM/Architect/Developer/Reviewer)
-3. **Solo Mode Agent Runtime** (Orchestrator): planned → assign → รัน persona → review → done/revision
-4. **Message Bus in-process** (ADR-03): ทุก handoff/result/review_comment ลง `agent_messages`
-5. Escalation: revision fail 2 ครั้ง → `escalated` (มี `revision_count` + `MAX_REVISIONS` แล้ว)
-6. เพิ่ม personas DEV/REVIEWER/ARCHITECT ใน `app/agents/personas.py` (โครงมี PM แล้ว)
+1. Scaffold `frontend/` (Next.js 15 + TypeScript)
+2. Kanban Board ต่อโปรเจกต์ (คอลัมน์ตาม status, ลาก/ปุ่มเรียก `PATCH /api/tasks/:id`)
+3. Message Log Viewer (จาก `GET /api/tasks/:id/messages`)
+4. Portfolio View — **ต้องเพิ่ม `GET /api/portfolio` ฝั่ง backend ก่อน** (ยังไม่มี)
+5. หน้า New Project (requirement → task plan → ยืนยัน scope)
+6. Refresh แบบ polling/SSE (ADR-04)
 
 ## Known Issues
 
-- `PATCH /api/tasks/:id` ยังไม่บังคับ State Machine (ตั้งใจ — เลื่อนไป Sprint 2)
-- Brownfield scan เป็น mock ตลอด MVP (ADR-02) — response ระบุ `is_mock: true` + prefix "[mock]"
-- ชื่อ model default = `claude-sonnet-5` (ตั้งผ่าน env `CLAUDE_MODEL`) — ปรับได้ตามต้องการ
+- `GET /api/portfolio` และ `POST/GET /api/deployments` ยังไม่ implement (portfolio ทำต้น Sprint 3,
+  deployments เป็นของ Sprint 4 ตามแผน)
+- Reviewer ของ ClaudeExecutor: ถ้า parse JSON review ไม่ได้ → auto-approve พร้อม note
+  (กัน escalation จาก output เพี้ยน — ทบทวนเมื่อใช้ key จริง)
+- `POST /api/projects/:id/run` เป็น synchronous — โปรเจกต์ใหญ่จะ block request
+  (พอสำหรับ MVP; พิจารณา background job ตอน Sprint 4)
+- Brownfield scan ยังเป็น mock ตลอด MVP (ADR-02)
 
-## Decisions Made (เพิ่มจาก Sprint 1)
+## Decisions Made (เพิ่มจาก Sprint 2)
 
-1. **PM Agent มี fallback เสมอ** — ไม่มี API key หรือ parse ไม่ได้ → สร้าง task เดียว ไม่ 500
-2. **audit + service layer แยก** (`app/services/`) — router บาง, business logic รวมศูนย์
-3. Default `CLAUDE_MODEL=claude-sonnet-5`, `MAX_TOKENS_PER_TASK=4096` (ผ่าน env)
-4. Alembic migration เขียน seed agent ด้วย fixed UUID `...0001` (deterministic)
+1. **Escalation ตีความ "Max Revision = 2" = reject ครั้งที่ 2 → escalated** (revision จริง 1 รอบ)
+   ตรงกับ "Review --fail 2 ครั้ง--> Escalated" ใน Blueprint §5
+2. **ทุก status change ผ่าน `transition()` เท่านั้น** — ห้าม set `task.status` ตรง ๆ
+3. Orchestrator **commit ต่อ task** — งานที่เสร็จแล้วไม่ rollback ถ้าตัวถัดไปพัง
+4. Reviewer parse fail → auto-approve (documented) แทนที่จะเสี่ยง escalate ทุก task
+5. Dependency ไม่ครบ (เช่น dependency escalated) → task ค้างที่ planned ไม่ถูกรัน
 
 ## Questions for the User
 
-1. **`git init` โปรเจกต์นี้ตอนนี้เลยไหม?** (แนะนำ: ทำ — จะได้ track Sprint 1 เป็น commit แรก)
-2. Claude API key + budget/เดือน สำหรับทดสอบ PM Agent จริง (ตอนนี้รันผ่าน fallback)
-3. ยืนยัน default model `claude-sonnet-5` ใช้ได้ หรือต้องการรุ่นอื่น (เช่น `claude-opus-4-8`)
-4. เริ่ม Sprint 2 (State Machine + Orchestrator) ต่อเลยหรือไม่
+1. Commit Sprint 2 แล้ว — เริ่ม Sprint 3 (Frontend/Kanban) เลย หรือทดสอบ Claude API จริงก่อน?
+2. Sprint 3 ต้องตัดสินใจ UI framework (Blueprint แนะ Next.js 15 — ยืนยัน UI lib เช่น shadcn/ui?)
+3. `GET /api/portfolio` จะทำเป็นงานแรกของ Sprint 3 ฝั่ง backend — โอเคไหม

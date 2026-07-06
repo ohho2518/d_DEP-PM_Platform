@@ -26,6 +26,8 @@ from app.schemas.task import (
     TaskRead,
     Pagination,
 )
+from app.orchestrator.engine import run_project
+from app.orchestrator.state_machine import transition
 from app.services.audit import record_audit
 from app.services.tasks import persist_task_plan
 
@@ -140,14 +142,9 @@ def confirm_scope(
         stmt = stmt.where(Task.id.in_(payload.task_ids))
     tasks = db.execute(stmt).scalars().all()
     for task in tasks:
-        task.status = TaskStatus.PLANNED.value
-        record_audit(
-            db,
-            actor_type=ActorType.HUMAN,
-            action="task.confirmed",
-            entity_type="task",
-            entity_id=str(task.id),
-            diff={"status": {"from": TaskStatus.BACKLOG.value, "to": TaskStatus.PLANNED.value}},
+        # ผ่าน State Machine เสมอ (backlog -> planned) — audit ถูกเขียนใน transition()
+        transition(
+            db, task, TaskStatus.PLANNED, actor_type=ActorType.HUMAN, reason="scope confirmed"
         )
     db.commit()
     return TaskList(
@@ -184,3 +181,24 @@ async def scan_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> 
     )
     created = persist_task_plan(db, project_id, plan, actor_id="stub-metadata")
     return ScanResponse(report=report, created_task_ids=[str(t.id) for t in created])
+
+
+@router.post("/{project_id}/run")
+def run_orchestrator(project_id: uuid.UUID, db: Session = Depends(get_db)) -> dict:
+    """รัน Solo-Mode Orchestrator กับ task ที่ planned ทั้งหมดของโปรเจกต์ (synchronous ใน MVP)."""
+    _get_project_or_404(db, project_id)
+    summary = run_project(db, project_id)
+    return {
+        "project_id": summary.project_id,
+        "processed": len(summary.outcomes),
+        "counts": summary.counts,
+        "outcomes": [
+            {
+                "task_id": o.task_id,
+                "title": o.title,
+                "final_status": o.final_status,
+                "revisions": o.revisions,
+            }
+            for o in summary.outcomes
+        ],
+    }

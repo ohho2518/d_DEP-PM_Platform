@@ -1,8 +1,4 @@
-"""Task-level routers: PATCH task, message history (Blueprint §13).
-
-Full State Machine validation lands in Sprint 2; Sprint 1 does a permissive PATCH plus an
-audit record so the flow is testable end-to-end.
-"""
+"""Task-level routers: PATCH task (State-Machine enforced), message history (Blueprint §13)."""
 from __future__ import annotations
 
 import uuid
@@ -11,10 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.constants import ActorType
+from app.constants import ActorType, TaskStatus
 from app.db.session import get_db
 from app.models.agent_message import AgentMessage
 from app.models.task import Task
+from app.orchestrator.state_machine import InvalidTransition, transition
 from app.schemas.task import TaskRead, TaskUpdate
 from app.services.audit import record_audit
 
@@ -33,8 +30,18 @@ def update_task(
     task_id: uuid.UUID, payload: TaskUpdate, db: Session = Depends(get_db)
 ) -> Task:
     task = _get_task_or_404(db, task_id)
+    fields = payload.model_dump(exclude_unset=True)
+
+    # Status change ต้องผ่าน State Machine เท่านั้น — ผิด transition → 409 (Sprint 2 DoD)
+    new_status: TaskStatus | None = fields.pop("status", None)
+    if new_status is not None and new_status.value != task.status:
+        try:
+            transition(db, task, new_status, actor_type=ActorType.HUMAN)
+        except InvalidTransition as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
     changes: dict = {}
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    for field, value in fields.items():
         current = getattr(task, field)
         # Enum-typed payload values -> their string value for the ORM column.
         new_value = value.value if hasattr(value, "value") else value
@@ -51,6 +58,7 @@ def update_task(
             entity_id=str(task.id),
             diff=changes,
         )
+    if changes or new_status is not None:
         db.commit()
         db.refresh(task)
     return task

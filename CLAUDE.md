@@ -28,7 +28,7 @@ Avoid reading the entire repository unless the task requires it.
 
 * Main features: Project Intake (New/Existing), AI Task Breakdown, Agent Task Assignment (Solo/Team Mode), Kanban Board, Inter-Agent Communication Log, Automated Deploy — ดู `docs/DEVELOPMENT_PLAN.md` §1
 
-* Current status: **Sprint 1 (Backend Foundation) เสร็จ** — รอเริ่ม Sprint 2 (ดู `PROJECT_STATUS.md`)
+* Current status: **Sprint 2 (Orchestration Engine) เสร็จ** — รอเริ่ม Sprint 3 (ดู `PROJECT_STATUS.md`)
 
 Key reference documents (read-only, ห้ามแก้):
 
@@ -63,7 +63,7 @@ Key reference documents (read-only, ห้ามแก้):
 
 ## Repository Structure
 
-ปัจจุบัน (Sprint 1 เสร็จ — backend รันได้จริง):
+ปัจจุบัน (Sprint 2 เสร็จ — Solo Mode ครบวงจร):
 
     docs/DEVELOPMENT_PLAN.md              แผนพัฒนาที่อนุมัติแล้ว (สปรินต์, ADR, schema, API)
     PROJECT_STATUS.md                     สถานะล่าสุด + next tasks
@@ -74,18 +74,20 @@ Key reference documents (read-only, ห้ามแก้):
     backend/app/db/                       engine, session, GUID/JSON portable types (ADR-01)
     backend/app/models/                   ORM 6 ตาราง
     backend/app/schemas/                  Pydantic (project, task, scan)
-    backend/app/api/                      routers (projects, tasks)
-    backend/app/agents/                   PM persona + task breakdown
+    backend/app/api/                      routers (projects, tasks, agent_messages)
+    backend/app/agents/                   personas 4 บทบาท, routing rules, runtime, PM breakdown
+    backend/app/orchestrator/             State Machine (transition-only) + engine (Solo Mode loop)
+    backend/app/bus/                      In-process message bus (ADR-03)
     backend/app/metadata/                 MetadataProvider interface + Stub (ADR-02)
     backend/app/services/                 audit + task-plan persistence
     backend/alembic/                      migrations (schema + seed agent)
-    backend/tests/                        pytest (15 tests)
+    backend/tests/                        pytest (32 tests)
 
 ยังไม่ทำ (Sprint ถัดไป):
 
-    backend/app/orchestrator/             State Machine + Orchestrator (Sprint 2)
-    backend/app/bus/                      In-process message bus (Sprint 2)
     frontend/                             Next.js (Sprint 3)
+    GET /api/portfolio                    ทำต้น Sprint 3
+    /api/deployments                      Sprint 4
 
 ## Development Commands
 
@@ -114,7 +116,7 @@ Not applicable — Python backend (frontend build เริ่ม Sprint 3)
 ### Test
 
     cd backend
-    pytest                            # 15 tests
+    pytest                            # 32 tests
 
 ### Lint / Format
 
@@ -237,6 +239,15 @@ This is required so a new Claude session can continue immediately without expens
 * Use clear names.
 
 * Keep functions focused.
+
+### Project-specific rules (Sprint 2+)
+
+* ห้าม set `task.status` ตรง ๆ — ต้องผ่าน `app/orchestrator/state_machine.transition()` เท่านั้น
+  (validate + เขียน audit อัตโนมัติ; ผิด transition ให้ API ตอบ 409)
+
+* การสื่อสารระหว่าง agent ทุกข้อความต้องผ่าน `app/bus.publish()` (ลง `agent_messages` เสมอ — ADR-03)
+
+* `transition()` และ `publish()` ไม่ commit เอง — ผู้เรียกเป็นเจ้าของ transaction
 
 ## Database Rules
 
