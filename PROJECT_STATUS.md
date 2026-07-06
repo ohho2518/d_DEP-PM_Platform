@@ -1,80 +1,70 @@
 # PROJECT_STATUS.md — DEP-PM Platform
 
-> อัปเดตล่าสุด: 2026-07-06 | สถานะโดยรวม: **Sprint 3 (Kanban Dashboard) เสร็จ — รอเริ่ม Sprint 4**
+> อัปเดตล่าสุด: 2026-07-06 | สถานะโดยรวม: **MVP ครบ 4 สปรินต์ (โค้ด) — เหลือ UAT 3 ข้อที่รอ
+> ทรัพยากรภายนอกจากผู้ใช้ (API keys, GitHub repo, PostgreSQL)**
 
 ## Completed Work
 
-### Engineering Documentation Set (2026-07-06 — หลัง Sprint 3)
-- สร้าง `docs/` ชุดเต็มตาม MASTER PROMPT: `ARCHITECTURE.md`, `SYSTEM_DOCUMENTATION.md`,
-  `API.md`, `DATABASE.md`, `SECURITY.md`, `AI_AGENT_GUIDE.md`
-- **กติกาใหม่:** อัปเดตเอกสารชุดนี้ท้ายทุก sprint ตามตาราง Documentation Rules ใน
-  `docs/AI_AGENT_GUIDE.md` (เฉพาะส่วนที่เปลี่ยน ไม่ regenerate ทั้งหมด)
+### Sprint 4 — Deploy Pipeline + Team Mode + PostgreSQL-ready (2026-07-06)
+- Deploy pipeline: dispatcher (`repository_dispatch` + stub mode), endpoints
+  POST/GET/PATCH `/api/deployments`, Manual Approval Gate (production = มือเท่านั้น),
+  CI callback → task done→deployed
+- Auto-deploy staging เมื่อ task done (config `AUTO_DEPLOY_ENABLED`)
+- Team Mode: `AGENT_MODE=team` → TeamExecutor (Dev=OpenAI, SR=Gemini, PM/Reviewer=Claude)
+  + fallback chain ต่อ role — orchestrator ไม่แก้ (DoD ผ่าน)
+- PostgreSQL-ready (psycopg + ขั้นตอนใน runbook) | ตัดสินใจข้าม Redis
+- Handover: `docs/runbook.md` + `docs/github-workflow-example.yml`
+- pytest 48/48
 
-### Sprint 3 — Kanban Dashboard + Message Log + Portfolio (2026-07-06)
-- Backend: `GET /api/portfolio` (counts ต่อสถานะ, agents, deploy ล่าสุด)
-- Frontend: Next.js 16.2.10 + TypeScript + Tailwind (`frontend/`)
-- หน้า Portfolio, New Project (STEP 1-4 ครบ), Kanban Board (8 คอลัมน์ + ปุ่ม transition
-  + Run Agents), Message Log Viewer, polling ทุก 4 วิ (ADR-04)
-- E2E verified กับ backend จริงบน production build
+### ก่อนหน้า (2026-07-06 ทั้งหมด)
+- Engineering docs set 6 ไฟล์ตาม MASTER PROMPT | Sprint 3: Kanban + Portfolio + Message Log
+- Sprint 2: State Machine + Orchestrator + Bus | Sprint 1: Foundation + PM Agent + Stub scan
 
-### Sprint 2 — Orchestration Engine (2026-07-06)
-- State Machine (409 on invalid), Routing Rules, Solo Mode Runtime, Message Bus, Escalation
+## Files Changed (Sprint 4)
 
-### Sprint 1 — Backend Foundation (2026-07-06)
-- FastAPI + SQLAlchemy + Alembic, ORM 6 ตาราง, PM Agent breakdown, Metadata Stub
-
-## Files Changed (Sprint 3)
-
-- Backend ใหม่: `backend/app/api/portfolio.py`, `backend/tests/test_portfolio.py`
-- Backend แก้: `app/api/__init__.py`, `app/main.py` (wire router)
-- Frontend ใหม่ทั้งโฟลเดอร์: `frontend/` — สำคัญ:
-  - `src/lib/{types,api,usePolling}.ts` — types ตรง backend schema, API client, polling hook
-  - `src/app/page.tsx` — Portfolio
-  - `src/app/projects/new/page.tsx` — New Project flow
-  - `src/app/projects/[id]/page.tsx` — Kanban + Task detail + Message Log
-  - `src/app/layout.tsx` — nav shell
-  - `.env.local.example` — `NEXT_PUBLIC_API_URL`
+- ใหม่: `app/services/deploy.py`, `app/api/deployments.py`, `app/agents/providers.py`,
+  `tests/test_deployments.py`, `tests/test_team_mode.py`,
+  `docs/runbook.md`, `docs/github-workflow-example.yml`
+- แก้: `app/config.py` (+8 env), `app/agents/runtime.py` (TeamExecutor + get_executor),
+  `app/orchestrator/engine.py` (auto-deploy hook), `app/api/__init__.py`, `app/main.py`,
+  `requirements.txt` (openai, google-genai, psycopg), `.env.example`
+- เอกสารอัปเดต: API.md (endpoints 13-15), SYSTEM_DOCUMENTATION.md, DATABASE.md, SECURITY.md
 
 ## Current State
 
-- **รัน dev ครบระบบ:** backend `uvicorn app.main:app` (พอร์ต 8000) + frontend `npm run dev`
-  (พอร์ต 3000, ตั้ง `.env.local` ชี้ backend)
-- pytest 34/34 ผ่าน; `npm run build` ผ่าน (TypeScript + 4 routes)
-- ผู้ใช้ทำครบวงจรผ่าน UI ได้: สร้างโปรเจกต์ → ยืนยัน scope → Run Agents → เห็น task เลื่อน
-  ไป done + ดูบทสนทนา agent ย้อนหลัง (DoD Sprint 3)
-- ยังไม่มี `ANTHROPIC_API_KEY` — agent วิ่ง fallback path (UI ระบุ source ชัด)
-- git: Sprint 1 (`e512771`), Sprint 2 (`c1cef14`) — Sprint 3 รอ commit
+- pytest 48/48 | ทุกอย่างรันบน SQLite + stub/fallback ครบวงจร
+- **โค้ด MVP ครบตามแผน 4 สปรินต์** — ที่เหลือเป็นการเปิดใช้กับของจริง (ดู UAT ค้าง)
+- git: e512771 → c1cef14 → e3d323a → 986c092 — Sprint 4 รอ commit นี้
 
-## Next Tasks (= Sprint 4, ดู docs/DEVELOPMENT_PLAN.md §6)
+## Next Tasks (= UAT ที่ค้าง — รอทรัพยากรจากผู้ใช้)
 
-1. **Automated Deploy** (Blueprint §12): task `done` → trigger GitHub Actions ผ่าน
-   `repository_dispatch` (staging auto, production มี Manual Gate) + `POST/GET /api/deployments`
-2. **ย้าย DB → PostgreSQL** (ADR-01) + รัน test suite เดิมบน PostgreSQL
-3. เพิ่ม Redis (message transport + pub/sub ถ้าทัน — ADR-03/04)
-4. **Team Mode**: mapping role → provider (Codex Dev = OpenAI, Gemini SR = Google) —
-   ต้องมี `OPENAI_API_KEY` + `GEMINI_API_KEY`
-5. Security ขั้นต่ำ (Blueprint §15) + UAT + `docs/runbook.md`
+1. **`ANTHROPIC_API_KEY`** → ทดสอบ PM breakdown + Solo Mode จริง (+ ทบทวน reviewer auto-approve)
+2. **GitHub repo ทดสอบ + `GITHUB_TOKEN`** → วาง workflow template → deploy จริง end-to-end
+3. **PostgreSQL** (Docker หรือ managed) → `DATABASE_URL` → รัน test suite เต็มบน PG (DoD ADR-01)
+4. **`OPENAI_API_KEY` + `GEMINI_API_KEY`** → ทดสอบ Team Mode จริง
+5. หลัง UAT ผ่าน: security gate ใน `docs/SECURITY.md` ก่อน deploy สาธารณะ (auth, HTTPS,
+   callback secret, rate limit)
 
 ## Known Issues
 
-- Frontend เป็น Next.js **16.2.10** ไม่ใช่ 15 ตามแผนเดิม (create-next-app@latest) — ทำงานปกติ,
-  หมายเหตุ: dynamic route `params` เป็น Promise (ใช้ `React.use()`)
-- `/run` synchronous — UI ปุ่ม "Run Agents" ค้างจนจบ (แสดงสถานะ "กำลังทำงาน…")
-- ปุ่ม transition บน UI mirror state machine ฝั่ง frontend (`lib/types.ts`) — ถ้าแก้ backend
-  ต้องแก้ `ALLOWED_TRANSITIONS` ใน frontend ให้ตรงกัน
-- Deployments ยังเป็น null ทุกโปรเจกต์จนกว่า Sprint 4
+- CI callback (`PATCH /api/deployments/:id`) ยังไม่มี auth — ห้าม expose backend สาธารณะ
+  (อยู่ใน security gate)
+- Executors ของจริง (Claude/OpenAI/Gemini) + GitHub dispatch ยังไม่เคยรันกับ service จริง
+- `/run` synchronous + ไม่ thread-safe ต่อโปรเจกต์ (technical debt #1 ใน SYSTEM_DOCUMENTATION §22)
+- Frontend ยังไม่มีหน้า deployments แยก (portfolio แสดง last_deployment แล้ว — พอสำหรับ MVP)
 
-## Decisions Made (เพิ่มจาก Sprint 3)
+## Decisions Made (Sprint 4)
 
-1. **ไม่ใช้ UI library หนัก** (shadcn/ui ฯลฯ) — Tailwind ล้วน ลด dependency ตามหลัก CLAUDE.md
-2. **เปลี่ยนสถานะด้วยปุ่ม ไม่ใช้ drag-and-drop** — แผนระบุ "ลาก/ปุ่ม" เลือกปุ่มเพื่อเลี่ยง
-   dnd library + robust กว่าบน state machine (ปุ่มแสดงเฉพาะ transition ที่ valid)
-3. **Polling 4 วิ + หยุดเมื่อแท็บไม่ visible** (ADR-04) — SSE เลื่อนไปพิจารณา Sprint 4
-4. รับ Next 16 แทน 15 (เวอร์ชัน stable ล่าสุดจาก create-next-app)
+1. **ข้าม Redis** — ADR-03 "ถ้าทัน"; ไม่มีเหตุ cross-process ใน single-user; upgrade path คงเดิม
+2. **Manual Approval Gate = enforce ที่ API layer** — auto path hardcode staging;
+   production มาจาก POST มือเท่านั้น (+ แนะนำ GitHub environment protection อีกชั้นใน template)
+3. **Deployment status callback แยกจาก task State Machine** — deployments มี flow เล็กของตัวเอง
+   (queued→running→success|failed) แล้วสะท้อนเข้า task ผ่าน transition ปกติ (done→deployed)
+4. **Team Mode fallback chain ต่อ role** — key ขาดตัวไหน role นั้นไหลไป Claude → deterministic
+   (ระบบไม่ล้มกลางงาน)
 
 ## Questions for the User
 
-1. Commit Sprint 3 แล้ว — เริ่ม Sprint 4 (Deploy Pipeline + PostgreSQL + Team Mode) เลยไหม?
-2. Sprint 4 ต้องการ: GitHub repo ทดสอบ deploy (`repository_dispatch`), PostgreSQL instance
-   (local Docker ได้ไหม?), และ API keys (OpenAI + Gemini) สำหรับ Team Mode — เตรียมอันไหนได้บ้าง?
-3. อยากลองเปิด UI ดูก่อนไหม? (`uvicorn` + `npm run dev` — ขั้นตอนใน backend/README.md + ด้านล่าง)
+1. เตรียมได้ก่อน: ANTHROPIC key / GitHub repo+token / PostgreSQL / OpenAI+Gemini keys — อันไหน?
+2. Model defaults ใน .env.example (`gpt-5.2`, `gemini-3-pro`) — ยืนยันรุ่นที่จะใช้จริงตอน UAT
+3. ต้องการหน้า Deployments แยกใน UI ไหม หรือ portfolio พอ (ตอนนี้พอ — เพิ่มได้ถ้าต้องการ)

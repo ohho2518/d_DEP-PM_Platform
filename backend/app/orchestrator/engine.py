@@ -76,6 +76,29 @@ def _next_runnable(db: Session, project_id: uuid.UUID) -> Task | None:
     return next((t for t in planned if _deps_met(db, t)), None)
 
 
+def _maybe_auto_deploy(db: Session, task: Task) -> None:
+    """Task done + AUTO_DEPLOY_ENABLED => สร้าง staging deployment (Blueprint §12).
+
+    เส้นทาง auto ยิงได้เฉพาะ staging เท่านั้น — production ต้องสั่งมือผ่าน
+    POST /api/deployments (Manual Approval Gate). Import ภายในฟังก์ชันกัน circular
+    (services/deploy ไม่รู้จัก orchestrator อยู่แล้ว แต่กันไว้ตาม dependency direction).
+    """
+    from app.config import get_settings
+    from app.constants import DeploymentTrigger
+    from app.services.deploy import create_deployment
+
+    if not get_settings().auto_deploy_enabled:
+        return
+    create_deployment(
+        db,
+        project_id=task.project_id,
+        task_id=task.id,
+        environment="staging",
+        triggered_by=DeploymentTrigger.AUTO,
+        actor_id=ORCHESTRATOR_ID,
+    )
+
+
 def _run_task(db: Session, task: Task, executor: PersonaExecutor) -> TaskOutcome:
     # 1) Routing + assign
     role = route_task(db, task)
@@ -126,6 +149,7 @@ def _run_task(db: Session, task: Task, executor: PersonaExecutor) -> TaskOutcome
                 actor_type=ActorType.AGENT, actor_id=AgentRole.REVIEWER.value,
                 reason="review approved",
             )
+            _maybe_auto_deploy(db, task)
             break
 
         task.revision_count += 1

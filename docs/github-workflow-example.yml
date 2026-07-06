@@ -1,0 +1,46 @@
+# ตัวอย่าง GitHub Actions workflow สำหรับ repo เป้าหมายที่ DEP-PM จะ deploy
+# วางไฟล์นี้ที่ .github/workflows/dep-pm-deploy.yml ใน repo เป้าหมาย (ไม่ใช่ repo นี้)
+#
+# การทำงาน: DEP-PM ยิง repository_dispatch (event_type: dep-pm-deploy) พร้อม
+# client_payload {deployment_id, project_id, task_id, environment}
+# → workflow build/deploy → รายงานผลกลับที่ PATCH /api/deployments/:id
+#
+# Secrets ที่ต้องตั้งใน repo เป้าหมาย:
+#   DEP_PM_API_URL   เช่น https://dep-pm-backend.example.com (ต้อง reach ได้จาก runner)
+
+name: DEP-PM Deploy
+
+on:
+  repository_dispatch:
+    types: [dep-pm-deploy]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Manual Approval Gate ฝั่ง GitHub (อีกชั้นนอกเหนือจาก DEP-PM):
+    # ตั้ง protection rule บน environment "production" ใน repo settings
+    environment: ${{ github.event.client_payload.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build & Deploy (แทนที่ด้วยขั้นตอนจริงของโปรเจกต์)
+        id: deploy
+        run: |
+          echo "Deploying to ${{ github.event.client_payload.environment }}"
+          # ... build / test / deploy จริงตรงนี้ ...
+
+      - name: Report success back to DEP-PM
+        if: success()
+        run: |
+          curl -sS -X PATCH \
+            "${{ secrets.DEP_PM_API_URL }}/api/deployments/${{ github.event.client_payload.deployment_id }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\": \"success\", \"commit_sha\": \"${GITHUB_SHA}\"}"
+
+      - name: Report failure back to DEP-PM
+        if: failure()
+        run: |
+          curl -sS -X PATCH \
+            "${{ secrets.DEP_PM_API_URL }}/api/deployments/${{ github.event.client_payload.deployment_id }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\": \"failed\"}"

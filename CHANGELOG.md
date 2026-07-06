@@ -1,5 +1,24 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-07-06 — Sprint 4: Deploy Pipeline + Team Mode + PostgreSQL-ready
+
+- **Deploy pipeline (Blueprint §12):** `services/deploy.py` ยิง GitHub `repository_dispatch`
+  (event `dep-pm-deploy`) เมื่อตั้ง `GITHUB_TOKEN`+`GITHUB_REPO`; ไม่ตั้ง = stub mode
+  (record `queued`, ไม่ error) | endpoints: `POST /api/deployments` (manual — production
+  มาทางนี้เท่านั้น = Manual Approval Gate), `GET /:id`, `PATCH /:id` (CI callback —
+  success เลื่อน task done→deployed อัตโนมัติ, terminal status ห้ามแก้ → 409)
+- **Auto-deploy:** task done ระหว่าง orchestrator run + `AUTO_DEPLOY_ENABLED=true` →
+  staging deployment อัตโนมัติ (auto path hardcode staging)
+- **Team Mode (Blueprint §8-9):** `AGENT_MODE=team` → `TeamExecutor` map role→provider
+  (Dev=OpenAI/Codex, SR=Gemini, PM+Reviewer=Claude) + fallback chain ต่อ role
+  (provider→anthropic→deterministic); orchestrator ไม่แก้แม้แต่บรรทัดเดียว (DoD)
+- **PostgreSQL-ready:** `psycopg[binary]` ใน requirements + ขั้นตอนย้ายใน `docs/runbook.md`
+  (การรัน test จริงบน PG รอ infrastructure — ไม่มี Docker/PG บนเครื่องนี้)
+- **ตัดสินใจ: ข้าม Redis** — ADR-03 ระบุ "ถ้าทัน"; single-user ยังไม่มีเหตุ cross-process
+- **Handover:** `docs/runbook.md` (รัน/เปิด features/troubleshooting/UAT checklist) +
+  `docs/github-workflow-example.yml` (template สำหรับ repo เป้าหมาย)
+- pytest 48 เคสผ่าน (เพิ่ม 14: deployments + team mode)
+
 ## 2026-07-06 — Engineering Documentation Set (ตาม MASTER PROMPT)
 
 - สร้างชุดเอกสารวิศวกรรมใน `docs/` ครอบคลุม 25 sections ของ

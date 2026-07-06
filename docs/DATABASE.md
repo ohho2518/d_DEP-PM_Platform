@@ -1,6 +1,6 @@
 # DATABASE.md — DEP-PM Platform
 
-> Data Model + Database Documentation (MASTER PROMPT §10-11) | อัปเดต: 2026-07-06 (หลัง Sprint 3)
+> Data Model + Database Documentation (MASTER PROMPT §10-11) | อัปเดต: 2026-07-06 (หลัง Sprint 4)
 > Schema source of truth: `backend/app/models/` + `backend/alembic/versions/`
 
 ---
@@ -155,7 +155,8 @@ payload shape ตาม message_type:
 - `question`: `{escalated, reason, last_comment}` — broadcast (to=NULL) เมื่อ escalate
 
 ### `deployments`
-โครงพร้อมตั้งแต่ Sprint 1 แต่**ยังไม่มี writer** — Sprint 4 (deploy pipeline) จะเป็นผู้เขียน
+Writer: `services/deploy.create_deployment` (ทาง POST /api/deployments หรือ auto-deploy hook)
+Status flow: `queued` → `running` (dispatch สำเร็จ) → `success|failed` (CI callback — terminal, ห้ามแก้)
 `task_id` เป็น SET NULL (ลบ task ไม่ควรลบประวัติ deploy)
 
 ### `audit_log` — append-only

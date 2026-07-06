@@ -1,6 +1,6 @@
 # API.md — DEP-PM Platform
 
-> API Documentation (MASTER PROMPT §12) | อัปเดต: 2026-07-06 (หลัง Sprint 3)
+> API Documentation (MASTER PROMPT §12) | อัปเดต: 2026-07-06 (หลัง Sprint 4)
 > Interactive docs: รัน backend แล้วเปิด `http://127.0.0.1:8000/docs` (OpenAPI อัตโนมัติ)
 
 ## ภาพรวม
@@ -152,7 +152,7 @@ Response `200`:
   "agents": [ { "id": "…0001", "name": "Claude Solo", "role": "pm",
                 "mode": "solo", "status": "idle" } ] }
 ```
-`last_deployment` เป็น null จนกว่า Sprint 4
+`last_deployment` = deployment ล่าสุดของโปรเจกต์ (null ถ้ายังไม่เคย deploy)
 
 ---
 
@@ -162,11 +162,31 @@ Response: `{ "status": "ok", "agent_enabled": false }`
 
 ---
 
-## Endpoints ตามแผนที่ยังไม่มี (Sprint 4)
-| Endpoint | สปรินต์ |
+### 13) `POST /api/deployments` — trigger deploy (manual)
+Request: `{ "project_id": "…", "task_id": "…"(optional), "environment": "staging|production" }`
+- environment อื่น → 400 | **production trigger ได้จาก endpoint นี้เท่านั้น** (Manual Gate — เส้นทาง auto ของ orchestrator ยิงได้แค่ staging)
+Response `201`:
+```json
+{ "id": "…", "status": "running", "environment": "staging", "triggered_by": "manual",
+  "dispatched": true, "detail": "repository_dispatch sent", "…": "…" }
+```
+- ไม่ตั้ง `GITHUB_TOKEN`/`GITHUB_REPO` → **stub mode**: `status: "queued"`, `dispatched: false`, detail บอกเหตุ (ไม่ error)
+
+### 14) `GET /api/deployments/:id` — สถานะ deploy
+Response `200`: deployment object (id, status, environment, commit_sha, …)
+
+### 15) `PATCH /api/deployments/:id` — callback จาก CI workflow
+Request: `{ "status": "success|failed|running", "commit_sha": "…"(optional) }`
+- ย้อนสถานะ / แก้ terminal (success/failed) → **409**
+- `success` + มี task_id + task ยัง `done` → เลื่อน task → `deployed` อัตโนมัติ (สะท้อนบอร์ด)
+- ผู้เรียกที่ตั้งใจ: GitHub workflow (ดู `docs/github-workflow-example.yml`)
+
+---
+
+## Endpoints ตามแผนที่ยังไม่มี
+| Endpoint | หมายเหตุ |
 |----------|---------|
-| `POST /api/tasks/:id/assign` | contract ระบุไว้ — ปัจจุบันใช้ PATCH แทนได้; ทบทวน Sprint 4 |
-| `POST /api/deployments`, `GET /api/deployments/:id` | Sprint 4 (deploy pipeline) |
+| `POST /api/tasks/:id/assign` | contract ระบุไว้ — ปัจจุบัน PATCH ครอบคลุม; ทำเมื่อมี use case จริง |
 
 ## Contract-sync rule
 Frontend types (`frontend/src/lib/types.ts`) เขียนมือ mirror schemas —

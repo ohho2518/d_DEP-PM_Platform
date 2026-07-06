@@ -96,6 +96,72 @@ class ClaudeExecutor:
             return ReviewResult(approved=True, comment="(unparseable review — auto-approved)")
 
 
+class TeamExecutor:
+    """Team Mode (Sprint 4, Blueprint §9): map role → provider ต่างค่าย.
+
+    Mapping ตาม Blueprint: Codex Dev = OpenAI, Gemini SR = Google,
+    PM/Reviewer = Claude (Anthropic). Provider ที่ config ไม่ครบ → fallback chain:
+    provider ของ role → anthropic → deterministic text (ไม่ล้มกลางงาน)
+
+    Orchestrator ไม่รู้จักคลาสนี้โดยตรง — เห็นแค่ PersonaExecutor protocol (DoD Sprint 4)
+    """
+
+    ROLE_PROVIDER: dict[AgentRole, str] = {
+        AgentRole.PM: "anthropic",
+        AgentRole.DEV: "openai",            # Codex Dev
+        AgentRole.SENIOR_ARCHITECT: "google",  # Gemini SR
+        AgentRole.REVIEWER: "anthropic",
+    }
+
+    def __init__(self) -> None:
+        from app.agents.providers import BUILDERS
+
+        # สร้าง client ครั้งเดียวต่อ provider ที่ config ครบ
+        self._calls = {name: builder() for name, builder in BUILDERS.items()}
+        self._fallback = FallbackExecutor()
+
+    def _call_for(self, role: AgentRole):
+        provider = self.ROLE_PROVIDER[role]
+        return self._calls.get(provider) or self._calls.get("anthropic")
+
+    def execute(self, task: Task, role: AgentRole, feedback: str | None = None) -> str:
+        call = self._call_for(role)
+        if call is None:
+            return self._fallback.execute(task, role, feedback)
+        prompt = (
+            f"Task: {task.title}\n"
+            f"Description: {task.description or '-'}\n"
+            f"Spec / acceptance criteria: {task.spec or '-'}"
+        )
+        if feedback:
+            prompt += f"\n\nReview comment รอบก่อน (ต้องแก้): {feedback}"
+        return call(PERSONA_PROMPTS[role], prompt)
+
+    def review(self, task: Task, work: str) -> ReviewResult:
+        call = self._call_for(AgentRole.REVIEWER)
+        if call is None:
+            return self._fallback.review(task, work)
+        prompt = (
+            f"Task: {task.title}\n"
+            f"Spec / acceptance criteria: {task.spec or '-'}\n\n"
+            f"Work product ที่ต้องตรวจ:\n{work}"
+        )
+        text = call(REVIEWER_SYSTEM_PROMPT, prompt)
+        try:
+            data = json.loads(_extract_json(text))
+            return ReviewResult(approved=bool(data["approved"]), comment=str(data.get("comment", "")))
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            return ReviewResult(approved=True, comment="(unparseable review — auto-approved)")
+
+
 def get_executor() -> PersonaExecutor:
-    """เลือก executor ตาม config: มี key จริง → Claude, ไม่มี → fallback."""
-    return ClaudeExecutor() if get_settings().agent_enabled else FallbackExecutor()
+    """เลือก executor ตาม config — สลับ Solo ↔ Team ด้วย env `AGENT_MODE` เท่านั้น.
+
+    - team               → TeamExecutor (role → provider, fallback chain ต่อ role)
+    - solo + มี key      → ClaudeExecutor
+    - solo + ไม่มี key   → FallbackExecutor (deterministic)
+    """
+    settings = get_settings()
+    if settings.agent_mode == "team":
+        return TeamExecutor()
+    return ClaudeExecutor() if settings.agent_enabled else FallbackExecutor()

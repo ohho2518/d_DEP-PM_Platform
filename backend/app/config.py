@@ -22,12 +22,32 @@ class Settings(BaseSettings):
     claude_model: str = "claude-sonnet-5"
     max_tokens_per_task: int = 4096
 
+    # --- Team Mode (Sprint 4, Blueprint §8-9) -------------------------------
+    # 'solo'  = Claude ทุกบทบาท (default) | 'team' = map role -> provider
+    agent_mode: str = "solo"
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5.2"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3-pro"
+
+    # --- Deploy pipeline (Sprint 4, Blueprint §12) --------------------------
+    # ครบทั้งคู่ => dispatch repository_dispatch จริง; ไม่ครบ => stub (บันทึก record อย่างเดียว)
+    github_token: str = ""
+    github_repo: str = ""  # รูปแบบ "owner/repo"
+    # task เข้า done ระหว่าง orchestrator run => สร้าง deployment ไป staging อัตโนมัติ
+    auto_deploy_enabled: bool = False
+
     frontend_origin: str = "http://localhost:3000"
 
     @property
     def agent_enabled(self) -> bool:
         """True when a real Anthropic key is configured."""
         return bool(self.anthropic_api_key.strip())
+
+    @property
+    def deploy_dispatch_enabled(self) -> bool:
+        """True เมื่อ config GitHub ครบพอจะยิง repository_dispatch จริง."""
+        return bool(self.github_token.strip()) and bool(self.github_repo.strip())
 
 
 @lru_cache

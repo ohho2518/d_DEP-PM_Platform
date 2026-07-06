@@ -28,7 +28,7 @@ Avoid reading the entire repository unless the task requires it.
 
 * Main features: Project Intake (New/Existing), AI Task Breakdown, Agent Task Assignment (Solo/Team Mode), Kanban Board, Inter-Agent Communication Log, Automated Deploy — ดู `docs/DEVELOPMENT_PLAN.md` §1
 
-* Current status: **Sprint 3 (Kanban Dashboard) เสร็จ** — รอเริ่ม Sprint 4 (ดู `PROJECT_STATUS.md`)
+* Current status: **MVP ครบ 4 สปรินต์ (โค้ด)** — เหลือ UAT ที่รอทรัพยากรภายนอก (ดู `PROJECT_STATUS.md`)
 
 Key reference documents (read-only, ห้ามแก้):
 
@@ -71,7 +71,7 @@ Key reference documents (read-only, ห้ามแก้):
 
 ## Repository Structure
 
-ปัจจุบัน (Sprint 2 เสร็จ — Solo Mode ครบวงจร):
+ปัจจุบัน (MVP ครบ 4 สปรินต์):
 
     docs/DEVELOPMENT_PLAN.md              แผนพัฒนาที่อนุมัติแล้ว (สปรินต์, ADR, schema, API)
     PROJECT_STATUS.md                     สถานะล่าสุด + next tasks
@@ -89,19 +89,24 @@ Key reference documents (read-only, ห้ามแก้):
     backend/app/metadata/                 MetadataProvider interface + Stub (ADR-02)
     backend/app/services/                 audit + task-plan persistence
     backend/alembic/                      migrations (schema + seed agent)
-    backend/tests/                        pytest (32 tests)
+    backend/tests/                        pytest (48 tests)
 
     backend/app/api/portfolio.py          GET /api/portfolio (Sprint 3)
+    backend/app/api/deployments.py        POST/GET/PATCH deployments (Sprint 4)
+    backend/app/services/deploy.py        repository_dispatch dispatcher + stub mode (Sprint 4)
+    backend/app/agents/providers.py       Team Mode provider builders (Sprint 4)
     frontend/src/lib/                     types (mirror backend schema), api client, usePolling
     frontend/src/app/page.tsx             Portfolio view
     frontend/src/app/projects/new/        New Project flow (STEP 1-4)
     frontend/src/app/projects/[id]/       Kanban Board + Task detail + Message Log
+    docs/runbook.md                       Operations/handover + UAT checklist
+    docs/github-workflow-example.yml      Workflow template สำหรับ repo เป้าหมาย
 
-ยังไม่ทำ (Sprint 4):
+รอทรัพยากรภายนอก (UAT — ดู PROJECT_STATUS.md):
 
-    /api/deployments + deploy pipeline    GitHub Actions repository_dispatch
-    PostgreSQL + Redis                    ADR-01 / ADR-03
-    Team Mode                             role → provider mapping
+    รัน test suite บน PostgreSQL          รอ PG instance (psycopg พร้อมแล้ว)
+    Deploy จริง / Team Mode จริง          รอ GITHUB_TOKEN+repo / OPENAI+GEMINI keys
+    Redis                                 ตัดสินใจข้าม (ADR-03 upgrade path คงเดิม)
 
 ## Development Commands
 
@@ -136,7 +141,7 @@ Document real commands only.
 ### Test
 
     cd backend
-    pytest                            # 34 tests
+    pytest                            # 48 tests
 
 ### Lint / Format
 
