@@ -1,7 +1,7 @@
 "use client";
 // Kanban Board + Agent Office (การ์ตูน agent แสดงสถานะจริง) + Task detail / Message Log
 // โทนสีตาม ai-dev-team-complete.html
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import AgentOffice from "@/components/AgentOffice";
 import { api } from "@/lib/api";
 import { usePolling } from "@/lib/usePolling";
@@ -24,13 +24,28 @@ const COLUMN_ACCENT: Record<TaskStatus, string> = {
   escalated: "var(--danger)",
 };
 
+// สถานะที่ถือว่า "จบแล้ว" สำหรับการคำนวณ progress ของรอบ run
+const FINISHED: ReadonlySet<TaskStatus> = new Set(["done", "deployed", "escalated"]);
+
+interface RunStats {
+  startedAt: number;
+  totalPlanned: number;     // จำนวน task ที่จะถูกประมวลผลรอบนี้
+  baselineFinished: number; // task ที่จบอยู่แล้วก่อนเริ่ม (ไม่นับใน progress)
+}
+
 export default function BoardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: projectId } = use(params);
-  const { data, error, refresh } = usePolling(() => api.listTasks(projectId), 4000);
 
   const [selected, setSelected] = useState<Task | null>(null);
   const [running, setRunning] = useState(false);
+  const [runStats, setRunStats] = useState<RunStats | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // ระหว่างรัน poll ถี่ขึ้น (2 วิ) เพื่อให้ progress/การ์ตูนสดกว่า
+  const { data, error, refresh } = usePolling(
+    () => api.listTasks(projectId),
+    running ? 2000 : 4000,
+  );
 
   async function moveTask(task: Task, to: TaskStatus) {
     try {
@@ -44,6 +59,13 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   async function runOrchestrator() {
     setRunning(true);
     setNotice(null);
+    // baseline สำหรับ progress: นับจาก snapshot ล่าสุดก่อนเริ่ม
+    const tasks = data?.data ?? [];
+    setRunStats({
+      startedAt: Date.now(),
+      totalPlanned: tasks.filter((t) => t.status === "planned").length,
+      baselineFinished: tasks.filter((t) => FINISHED.has(t.status)).length,
+    });
     try {
       const summary = await api.runOrchestrator(projectId);
       const parts = Object.entries(summary.counts)
@@ -52,13 +74,14 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
       setNotice(
         summary.processed === 0
           ? "ไม่มี task สถานะ planned ให้รัน (ยืนยัน scope ก่อน)"
-          : `Orchestrator เสร็จ — ${summary.processed} tasks (${parts})`,
+          : `✅ เสร็จแล้ว — ${summary.processed} tasks (${parts})`,
       );
       await refresh();
     } catch (e) {
       setNotice(e instanceof Error ? e.message : String(e));
     } finally {
       setRunning(false);
+      setRunStats(null);
     }
   }
 
@@ -88,6 +111,8 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
 
       {/* ออฟฟิศจำลอง — agent เดินเมื่อกำลังทำงานจริง (สถานะจาก tasks ที่ poll ทุก 4 วิ) */}
       <AgentOffice tasks={data.data} />
+
+      {running && runStats && <RunProgress stats={runStats} tasks={data.data} />}
 
       {notice && (
         <p className="card px-3 py-2 text-xs" style={{ color: "var(--text2)" }}>
@@ -263,5 +288,83 @@ function MessageBubble({ m }: { m: AgentMessage }) {
         {JSON.stringify(m.payload, null, 2)}
       </pre>
     </li>
+  );
+}
+
+const PHASE_LABEL: Record<string, string> = {
+  assigned: "กำลังมอบหมายงาน",
+  in_progress: "agent กำลังเขียนงาน",
+  review: "reviewer กำลังตรวจ",
+};
+
+function fmtDuration(sec: number): string {
+  if (sec < 60) return `${Math.max(1, Math.round(sec))} วิ`;
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return s ? `${m} นาที ${s} วิ` : `${m} นาที`;
+}
+
+/** Progress ของรอบ Run Agents — คำนวณจาก task ที่ poll สด (backend เป็น synchronous
+ *  จึงไม่มี progress endpoint ตรง ๆ; ใช้จำนวน task ที่จบเทียบ baseline แทน) */
+function RunProgress({ stats, tasks }: { stats: RunStats; tasks: Task[] }) {
+  // ticker 1 วิ ให้เวลาที่แสดงเดินสด ไม่ต้องรอรอบ poll
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const total = stats.totalPlanned;
+  const finished = Math.max(
+    0,
+    tasks.filter((t) => FINISHED.has(t.status)).length - stats.baselineFinished,
+  );
+  const pct = total ? Math.min(100, Math.round((finished / total) * 100)) : 0;
+  const elapsedSec = (now - stats.startedAt) / 1000;
+
+  // งานที่กำลัง active ตอนนี้ (orchestrator ทำทีละ task)
+  const active = tasks.find((t) =>
+    t.status === "assigned" || t.status === "in_progress" || t.status === "review",
+  );
+
+  // คาดการณ์เวลา: เฉลี่ยต่อ task ที่จบแล้ว × ที่เหลือ (แสดงได้หลังจบ task แรก)
+  let etaText = "กำลังประเมิน… (จะแม่นขึ้นหลังจบงานแรก)";
+  if (total > 0 && finished > 0 && finished < total) {
+    const eta = (elapsedSec / finished) * (total - finished);
+    etaText = `เหลือประมาณ ${fmtDuration(eta)}`;
+  } else if (finished >= total && total > 0) {
+    etaText = "กำลังสรุปผล…";
+  }
+
+  return (
+    <div className="card p-3">
+      <div className="mb-1.5 flex items-center justify-between text-xs">
+        <span className="font-semibold" style={{ color: "var(--text)" }}>
+          ⚙ กำลังรัน: {finished}/{total} งาน
+          <span className="ml-2 font-normal" style={{ color: "var(--text2)" }}>
+            {active
+              ? `${PHASE_LABEL[active.status] ?? active.status} — “${active.title}”${
+                  active.revision_count > 0 ? ` (แก้รอบที่ ${active.revision_count})` : ""
+                }`
+              : "กำลังเตรียมงานถัดไป…"}
+          </span>
+        </span>
+        <span style={{ color: "var(--text3)" }}>
+          ใช้ไป {fmtDuration(elapsedSec)} · {etaText}
+        </span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full" style={{ background: "#f0f1f8" }}>
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{
+            width: `${Math.max(pct, 4)}%`,
+            background: "linear-gradient(90deg, var(--claude), var(--gemini))",
+          }}
+        />
+      </div>
+      <div className="mt-1 text-right text-[11px] font-semibold" style={{ color: "var(--claude)" }}>
+        {pct}%
+      </div>
+    </div>
   );
 }
