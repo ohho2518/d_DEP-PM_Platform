@@ -28,7 +28,7 @@ Avoid reading the entire repository unless the task requires it.
 
 * Main features: Project Intake (New/Existing), AI Task Breakdown, Agent Task Assignment (Solo/Team Mode), Kanban Board, Inter-Agent Communication Log, Automated Deploy — ดู `docs/DEVELOPMENT_PLAN.md` §1
 
-* Current status: **Sprint 2 (Orchestration Engine) เสร็จ** — รอเริ่ม Sprint 3 (ดู `PROJECT_STATUS.md`)
+* Current status: **Sprint 3 (Kanban Dashboard) เสร็จ** — รอเริ่ม Sprint 4 (ดู `PROJECT_STATUS.md`)
 
 Key reference documents (read-only, ห้ามแก้):
 
@@ -39,7 +39,8 @@ Key reference documents (read-only, ห้ามแก้):
 
 ## Actual Tech Stack
 
-**สถานะ: Backend CONFIRMED (Sprint 1 scaffold เสร็จ)** — frontend ยัง PLANNED (เริ่ม Sprint 3)
+**สถานะ: CONFIRMED ทั้ง backend และ frontend** (หมายเหตุ: frontend เป็น Next.js 16.2.10
+ไม่ใช่ 15 ตามแผนเดิม — create-next-app@latest; dynamic route `params` เป็น Promise)
 
 * Programming language: Python 3.12+ (backend), TypeScript (frontend)
 
@@ -83,11 +84,17 @@ Key reference documents (read-only, ห้ามแก้):
     backend/alembic/                      migrations (schema + seed agent)
     backend/tests/                        pytest (32 tests)
 
-ยังไม่ทำ (Sprint ถัดไป):
+    backend/app/api/portfolio.py          GET /api/portfolio (Sprint 3)
+    frontend/src/lib/                     types (mirror backend schema), api client, usePolling
+    frontend/src/app/page.tsx             Portfolio view
+    frontend/src/app/projects/new/        New Project flow (STEP 1-4)
+    frontend/src/app/projects/[id]/       Kanban Board + Task detail + Message Log
 
-    frontend/                             Next.js (Sprint 3)
-    GET /api/portfolio                    ทำต้น Sprint 3
-    /api/deployments                      Sprint 4
+ยังไม่ทำ (Sprint 4):
+
+    /api/deployments + deploy pipeline    GitHub Actions repository_dispatch
+    PostgreSQL + Redis                    ADR-01 / ADR-03
+    Team Mode                             role → provider mapping
 
 ## Development Commands
 
@@ -105,18 +112,24 @@ Document real commands only.
 
 ### Run Dev Server
 
+    # Backend
     cd backend
     alembic upgrade head              # สร้าง schema + seed Claude Solo agent (SQLite)
     uvicorn app.main:app --reload     # http://127.0.0.1:8000  (docs: /docs)
 
+    # Frontend (อีก terminal; ครั้งแรก: npm install + cp .env.local.example .env.local)
+    cd frontend
+    npm run dev                       # http://localhost:3000
+
 ### Build
 
-Not applicable — Python backend (frontend build เริ่ม Sprint 3)
+    cd frontend
+    npm run build                     # Next.js production build (รวม typecheck)
 
 ### Test
 
     cd backend
-    pytest                            # 32 tests
+    pytest                            # 34 tests
 
 ### Lint / Format
 
@@ -248,6 +261,9 @@ This is required so a new Claude session can continue immediately without expens
 * การสื่อสารระหว่าง agent ทุกข้อความต้องผ่าน `app/bus.publish()` (ลง `agent_messages` เสมอ — ADR-03)
 
 * `transition()` และ `publish()` ไม่ commit เอง — ผู้เรียกเป็นเจ้าของ transaction
+
+* แก้ State Machine ฝั่ง backend เมื่อไหร่ ต้องแก้ `frontend/src/lib/types.ts`
+  (`ALLOWED_TRANSITIONS`) ให้ตรงกันด้วย — UI ใช้ตัดสินใจว่าจะแสดงปุ่ม transition ไหน
 
 ## Database Rules
 

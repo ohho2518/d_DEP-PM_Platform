@@ -1,5 +1,22 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-07-06 — Sprint 3: Kanban Dashboard + Message Log + Portfolio
+
+- **Backend:** เพิ่ม `GET /api/portfolio` — task counts ต่อสถานะทุกโปรเจกต์, รายชื่อ agents,
+  deploy ล่าสุด (ตาราง deployments พร้อมแล้ว ค่าจริงเริ่ม Sprint 4); pytest 34 เคสผ่าน
+- **Frontend scaffold:** Next.js **16.2.10** (create-next-app@latest — ใหม่กว่าแผนที่ระบุ 15)
+  + TypeScript + Tailwind, App Router, `src/` layout
+- **Portfolio page** (`/`): การ์ดโปรเจกต์ + แถบสัดส่วนสถานะ + agent pills
+- **New Project page** (`/projects/new`): ครบวงจร STEP 1-4 ของ Blueprint §6 —
+  กรอก requirement → PM Agent แตกงาน (หรือ scan mock สำหรับ existing) → เห็น plan → ยืนยัน scope
+- **Kanban Board** (`/projects/[id]`): 8 คอลัมน์ตาม status, การ์ดแสดง assignee pill
+  (🤖 agent role / 👤 human) + revision count, ปุ่มเปลี่ยนสถานะเฉพาะ transition ที่ถูกต้อง
+  (mirror State Machine — backend ยังบังคับ 409 อีกชั้น), ปุ่ม "Run Agents" เรียก orchestrator
+- **Message Log Viewer**: task detail panel แสดงบทสนทนา agent (handoff/result/review_comment/question)
+- **Polling refresh (ADR-04)**: `usePolling` hook — refetch ทุก 4 วิ เฉพาะแท็บ active
+- **E2E verified:** create → breakdown → confirm → run → done ผ่าน API + ทุกหน้า (/, /projects/new,
+  /projects/[id]) ตอบ 200 บน production build
+
 ## 2026-07-06 — Sprint 2: Task Orchestration Engine + Solo Mode Runtime
 
 - **State Machine** (`app/orchestrator/state_machine.py`): บังคับ transition ตาม Blueprint §5
