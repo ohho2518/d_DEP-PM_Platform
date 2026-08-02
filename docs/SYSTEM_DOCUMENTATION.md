@@ -84,6 +84,30 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 - `get_executor()`: `AGENT_MODE=team` → TeamExecutor; solo + key → ClaudeExecutor; ไม่มี key → Fallback
   (สลับโหมดด้วย env เท่านั้น — orchestrator ไม่เปลี่ยน = DoD Sprint 4)
 
+### `app/integrations/ceo_client.py` — ผิวสัมผัสกับ d_CEO (Phase 1)
+- **ไฟล์เดียวที่ยิง HTTP ไป d_CEO ได้** (แบบเดียวกับ `jarvis/ceo_client.py` ฝั่ง Jarvis)
+  — contract drift จึงเห็นได้จากจุดเดียว | contract: `docs/INTEGRATION_CEO.md`
+- **Public API:** `health()` (ไม่ raise — ใช้ตัดสินใจแสดงผล) · `list_teams()` ·
+  `resolve_team_id(name)` · `list_tasks(status=…)` · `patch_task(id, status=, output=)`
+- **Error model:** ทุก error ทางเครือข่าย/HTTP ≥400 → `CeoUnavailable` (caller ตัดสินใจ:
+  endpoint → 503, เส้นทางอัตโนมัติ → เพิกเฉยเงียบ)
+- **Guardrail สำคัญ:** `ALLOWED_OUTBOUND_STATUSES = {in_progress, qc_review}` —
+  ส่ง `done`/`awaiting_approval`/`rejected` = `ValueError` **ก่อนยิง HTTP**
+  (มติ Vinit 2026-08-02: ระบบข้างเคียงปิดงานเองไม่ได้ ต้องผ่าน QC gate)
+- **การตัดสินใจ:** `ceo_task_id` เก็บเป็น string ไม่ใช่ `GUID` — id ของระบบอื่น เราไม่ตีความรูปแบบ
+- `get_ceo_client()` คืน `None` เมื่อไม่ได้ตั้งค่า → เป็น "สวิตช์" จุดเดียว และเป็นจุดที่ test override
+
+### `app/services/ceo_sync.py` — รับงาน/รายงานผล
+- `list_inbox(db, client)`: queued + ทีม R&D + ยังไม่ถูกดึง (`ceo_task_id` ที่มีอยู่ = ตัวกรอง)
+- `pull_tasks(...)`: ต่องาน → สร้าง project (`ceo_task_id` unique) → PM breakdown →
+  PATCH `in_progress` | **PATCH ล้มไม่ rollback** (โปรเจกต์เกิดแล้ว — `acknowledged: false` แล้ว retry ทีหลัง)
+- `build_report(db, project)`: พร้อมรายงานเมื่อ**ไม่มี task ที่ยังเดินอยู่** (escalated ถือว่าจบรอบแล้ว
+  แต่ระบุไว้ในรายงานให้คนตัดสิน — เราไม่ตัดสินเองว่างานล้มเหลว) → ประกอบ markdown
+- `report_project(...)`: PATCH `qc_review` + output + audit `ceo.reported`
+- **Complexity:** O(T) ต่อโปรเจกต์ + 1 query สำหรับเหตุผล escalation จาก `agent_messages`
+- **ทำไมอยู่ใน services ไม่ใช่ orchestrator:** engine ไม่ต้องแก้แม้แต่บรรทัดเดียวเพื่อรองรับ
+  การเชื่อมต่อ (เจตนาเดียวกับ Team Mode ใน Sprint 4) — `api/projects.py` เป็นคนเรียกหลัง `/run`
+
 ### `app/orchestrator/state_machine.py` — ดู §9 (Business Logic)
 
 ### `app/orchestrator/engine.py` — Solo Mode loop
@@ -213,7 +237,7 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 - Retry: PM breakdown retry 1 (โครงสร้าง JSON); anthropic SDK มี HTTP retry ในตัว
 - ยังไม่มี: structured logging, error tracking (Sentry ฯลฯ) — หลัง MVP
 
-## 18. Testing (48 เคส — `backend/tests/`)
+## 18. Testing (79 เคส — `backend/tests/`)
 | ไฟล์ | ครอบคลุม |
 |------|----------|
 | conftest.py | in-memory SQLite ต่อ test (StaticPool) + TestClient override `get_db` |
@@ -226,8 +250,11 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 | test_routing_bus.py | routing keywords, publish persist+dispatch, endpoint 201/404 |
 | test_deployments.py | stub mode, invalid env 400, callback → task deployed, terminal immutable 409, portfolio, auto-deploy on/off |
 | test_team_mode.py | mode switch ด้วย config, role→provider mapping ตรง Blueprint, fallback chain, provider injection |
+| test_ceo_integration.py | **guardrail ห้ามส่ง done/awaiting_approval**, inbox กรองทีม+งานที่ดึงแล้ว, pull สร้าง project+breakdown+ack, pull ซ้ำไม่ซ้ำซ้อน, report เฉพาะเมื่องานจบ, report ส่ง `qc_review` พร้อม output, degrade เมื่อ d_CEO ออฟไลน์, auto-report หลัง `/run` |
 
-- **Mocking strategy:** ไม่ mock HTTP — inject `RejectingReviewer` ผ่าน `executor` param (ทดสอบ logic จริง ไม่ผูก anthropic SDK)
+- **Mocking strategy:** ไม่ mock HTTP — inject `RejectingReviewer` ผ่าน `executor` param และ inject
+  `StubCeoClient` ผ่าน dependency override ของ `get_ceo_client` (ทดสอบ logic จริง ไม่ผูก SDK/เครือข่าย)
+  · `conftest` ตั้ง `ceo_api_base=""` ให้ทุก test กันไม่ให้ suite เผลอยิง Solo_CEO API ที่รันจริงบนเครื่อง
 - **ช่องว่างที่รู้:** ClaudeExecutor ไม่ถูก integration-test (ไม่มี key); frontend ไม่มี unit test (verify ด้วย build + E2E มือ) — ดู §22
 
 ## 19. Deployment (ปัจจุบัน + แผน)

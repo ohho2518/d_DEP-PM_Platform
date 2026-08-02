@@ -42,3 +42,17 @@ def test_create_and_list_tasks(client):
 def test_tasks_for_missing_project_404(client):
     resp = client.get("/api/projects/00000000-0000-0000-0000-000000000009/tasks")
     assert resp.status_code == 404
+
+
+def test_get_project(client):
+    pid = _new_project(client, name="รายละเอียด").json()["id"]
+    resp = client.get(f"/api/projects/{pid}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "รายละเอียด"
+    assert body["ceo_task_id"] is None  # โปรเจกต์ที่สร้างเอง ไม่ได้มาจาก d_CEO
+
+
+def test_get_missing_project_404(client):
+    resp = client.get("/api/projects/00000000-0000-0000-0000-000000000009")
+    assert resp.status_code == 404

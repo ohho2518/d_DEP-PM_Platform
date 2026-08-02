@@ -31,4 +31,6 @@ class ProjectRead(BaseModel):
     repo_url: str | None
     status: ProjectStatus
     metadata_registry_ref: str | None
+    # task ใน d_CEO ที่ถูก delegate ลงมาเป็นโปรเจกต์นี้ (null = สร้างเองในระบบ)
+    ceo_task_id: str | None = None
     created_at: datetime

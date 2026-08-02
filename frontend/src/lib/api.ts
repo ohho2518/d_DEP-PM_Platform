@@ -2,6 +2,10 @@
 import type {
   AgentMessage,
   BreakdownResponse,
+  CeoInboxItem,
+  CeoPullResult,
+  CeoReport,
+  CeoStatus,
   DeploymentList,
   Portfolio,
   Project,
@@ -32,6 +36,8 @@ export const api = {
 
   createProject: (body: { name: string; type: "new" | "existing"; repo_url?: string }) =>
     request<Project>("/api/projects", { method: "POST", body: JSON.stringify(body) }),
+
+  getProject: (projectId: string) => request<Project>(`/api/projects/${projectId}`),
 
   listTasks: (projectId: string) =>
     request<TaskList>(`/api/projects/${projectId}/tasks?limit=200`),
@@ -64,4 +70,18 @@ export const api = {
     request<DeploymentList>(
       `/api/deployments?limit=100${projectId ? `&project_id=${projectId}` : ""}`,
     ),
+
+  // --- d_CEO (เลขา) — DEP-PM รับงานในฐานะ Team Lead R&D ---------------------
+  ceoStatus: () => request<CeoStatus>("/api/ceo/status"),
+
+  ceoInbox: () => request<{ data: CeoInboxItem[]; total: number }>("/api/ceo/inbox"),
+
+  ceoPull: (taskIds: string[] = []) =>
+    request<{ pulled: CeoPullResult[]; count: number }>("/api/ceo/pull", {
+      method: "POST",
+      body: JSON.stringify({ task_ids: taskIds, breakdown: true }),
+    }),
+
+  ceoReport: (projectId: string) =>
+    request<CeoReport>(`/api/ceo/report/${projectId}`, { method: "POST" }),
 };

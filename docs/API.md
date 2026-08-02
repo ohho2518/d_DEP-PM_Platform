@@ -43,6 +43,14 @@ Side effects: audit `project.created`
 
 ---
 
+### 1.1) `GET /api/projects/:id` — รายละเอียดโปรเจกต์
+Response `200`: Project object เดียวกับข้างบน (+ `ceo_task_id`)
+- `ceo_task_id` = task ใน d_CEO ที่ถูก delegate ลงมาเป็นโปรเจกต์นี้ (`null` = สร้างเองในระบบ)
+  — UI ใช้ตัดสินว่าจะโชว์ป้าย "งานจากเลขา" และปุ่ม "ส่งผลกลับเลขา" ไหม
+- 404 ถ้าไม่พบ
+
+---
+
 ### 2) `GET /api/projects/:id/tasks?limit=50&offset=0` — รายการ task
 - `limit` clamp 1..200, `offset` ≥ 0, เรียง `created_at`
 Response `200`:
@@ -107,8 +115,12 @@ Response `200`:
 Response `200`:
 ```json
 { "project_id": "…", "processed": 3, "counts": { "done": 2, "escalated": 1 },
+  "ceo_report": { "ready": true, "reported": true, "status_sent": "qc_review",
+                  "detail": "ส่งผลงานเข้า QC gate ของ d_CEO แล้ว" },
   "outcomes": [ { "task_id": "…", "title": "…", "final_status": "done", "revisions": 1 } ] }
 ```
+- `ceo_report` = `null` เมื่อโปรเจกต์ไม่ได้มาจาก d_CEO — ถ้ามาจาก d_CEO และงานจบครบ
+  ระบบรายงานกลับเข้า QC gate ให้อัตโนมัติ (ล้มเหลว = เพิกเฉยเงียบ ยิง §19 ซ้ำเองได้)
 - รันเฉพาะ task `planned` ที่ dependency (`depends_on`) เป็น done/deployed ครบ
 - `processed: 0` = ไม่มี task ให้รัน (ยังไม่ confirm scope)
 - Side effects ต่อ task: routing audit, transitions, ข้อความ bus ≥3 (handoff/result/review_comment)
@@ -166,8 +178,9 @@ Response `200`:
 ---
 
 ### 12) `GET /health` — liveness
-Response: `{ "status": "ok", "agent_enabled": false }`
-`agent_enabled` = มี `ANTHROPIC_API_KEY` จริงหรือไม่ (UI ใช้บอกผู้ใช้ว่าอยู่โหมด fallback)
+Response: `{ "status": "ok", "agent_enabled": false, "ceo_enabled": true }`
+- `agent_enabled` = มี `ANTHROPIC_API_KEY` จริงหรือไม่ (UI ใช้บอกผู้ใช้ว่าอยู่โหมด fallback)
+- `ceo_enabled` = ตั้ง `CEO_API_BASE` ไว้ไหม (**ออนไลน์จริงหรือไม่** ดูที่ §16)
 
 ---
 
@@ -200,6 +213,57 @@ Request: `{ "status": "success|failed|running", "commit_sha": "…"(optional) }`
 - ย้อนสถานะ / แก้ terminal (success/failed) → **409**
 - `success` + มี task_id + task ยัง `done` → เลื่อน task → `deployed` อัตโนมัติ (สะท้อนบอร์ด)
 - ผู้เรียกที่ตั้งใจ: GitHub workflow (ดู `docs/github-workflow-example.yml`)
+
+---
+
+## d_CEO integration (Phase 1) — DEP-PM รับงานในฐานะ Team Lead R&D
+
+> contract เต็ม + กติกา: [`INTEGRATION_CEO.md`](./INTEGRATION_CEO.md)
+> ทั้งหมดเป็น **manual** โดยตั้งใจ — ผู้ใช้กดเอง (หลัก "ยืนยันก่อนทำ" ของ ecosystem)
+
+### 16) `GET /api/ceo/status` — สมองออนไลน์ไหม
+```json
+{ "enabled": true, "online": true, "base_url": "http://127.0.0.1:8000",
+  "team_name": "Research & Development", "team_id": "4406dde7-…", "waiting": 2 }
+```
+- **ไม่เคยตอบ 503** — UI ใช้ตัดสินว่าจะโชว์ปุ่มไหม | ปิดอยู่ → `{"enabled": false, "online": false, "team_name": "…"}`
+- `waiting` = จำนวนงานใน d_CEO ที่รอเราดึง
+
+### 17) `GET /api/ceo/inbox` — งานที่รออยู่
+```json
+{ "data": [ { "id": "56d3319d-…", "input_text": "แก้บั๊ก login…",
+              "status": "queued", "created_at": "2026-08-02T10:00:00Z" } ], "total": 1 }
+```
+- เฉพาะงาน `queued` ที่ `assigned_team_id` = ทีม R&D **และยังไม่เคยถูกดึง**
+- `created_at` เป็น **UTC** — frontend แปลงเป็น Asia/Bangkok เอง
+- **503** ถ้า d_CEO ปิดอยู่หรือยังไม่ตั้ง `CEO_API_BASE`
+
+### 18) `POST /api/ceo/pull` — รับงานมาทำ
+Request (ทุก field optional): `{ "task_ids": ["…"], "breakdown": true }`
+— `task_ids` ว่าง/ไม่ส่ง = รับทุกงานที่รออยู่
+```json
+{ "count": 1,
+  "pulled": [ { "ceo_task_id": "56d3319d-…", "project_id": "…", "name": "แก้บั๊ก login",
+                "task_count": 5, "breakdown_source": "agent", "acknowledged": true,
+                "detail": "รับงานแล้ว + แจ้ง d_CEO เป็น in_progress" } ] }
+```
+Side effects ต่องาน: สร้าง project (`ceo_task_id` ผูกไว้) → PM Agent แตกงานเป็น backlog →
+`PATCH /tasks/{id}` ที่ d_CEO เป็น `in_progress` → audit `project.created` (actor `ceo-sync`)
+- ดึงซ้ำงานเดิมไม่ได้ (unique) — ได้ `count: 0`
+- `acknowledged: false` = สร้างโปรเจกต์แล้วแต่แจ้ง d_CEO ไม่สำเร็จ (retry ได้ด้วย §19)
+- **ผู้ใช้ยังต้อง confirm scope + กด Run เอง** — ระบบไม่รันให้อัตโนมัติ
+
+### 19) `POST /api/ceo/report/:project_id` — ส่งผลงานกลับ
+```json
+{ "ready": true, "reported": true, "status_sent": "qc_review",
+  "detail": "ส่งผลงานเข้า QC gate ของ d_CEO แล้ว",
+  "counts": { "done": 4, "escalated": 1 }, "output": "# ผลงานจากทีม R&D — …" }
+```
+- 🔴 **ส่งได้แค่ `qc_review`** — ห้ามปิดงานเอง ต้องผ่าน QC gate ของ d_CEO
+  (มติ Vinit 2026-08-02 · guardrail อยู่ใน `ceo_client.py` ValueError ก่อนยิง HTTP)
+- `ready: false` = ยังมี task เดินอยู่ → **ไม่แตะ d_CEO เลย**
+- **400** ถ้าโปรเจกต์ไม่มี `ceo_task_id` · **404** ไม่พบโปรเจกต์ · **503** ยังไม่ตั้งค่า/ปิดอยู่
+- เรียกอัตโนมัติให้แล้วหลัง §7 (`/run`) — endpoint นี้ไว้ยิงซ้ำเมื่อรอบอัตโนมัติล้มเหลว
 
 ---
 

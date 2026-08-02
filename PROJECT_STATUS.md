@@ -1,7 +1,8 @@
 # PROJECT_STATUS.md — DEP-PM Platform
 
-> อัปเดตล่าสุด: 2026-08-02 | สถานะโดยรวม: **MVP ใช้งานได้ + Phase 0 (จัดบ้าน) เสร็จ**
-> — งานถัดไปคือ **ต่อสายรับงานจาก d_CEO** (บทบาท Team Lead R&D)
+> อัปเดตล่าสุด: 2026-08-02 | สถานะโดยรวม: **Phase 0 + Phase 1 เสร็จ**
+> — DEP-PM **ต่อสายรับงานจาก d_CEO ได้แล้ว** ในบทบาท Team Lead R&D
+> (เหลือทดสอบกับงาน R&D จริง + `/run` async)
 
 ## สถานะการใช้งาน (สำคัญสำหรับ session ถัดไป)
 
@@ -27,6 +28,27 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 
 ## Completed Work
 
+### Phase 1 — ต่อสายรับงานจาก d_CEO (2026-08-02)
+
+- **`integrations/ceo_client.py`** — ไฟล์เดียวที่ยิง HTTP ไป d_CEO (ที่อื่นห้ามยิงเอง)
+  · `health/list_teams/resolve_team_id/list_tasks/patch_task` · error → `CeoUnavailable`
+  · **guardrail:** ส่ง `done`/`awaiting_approval`/`rejected` = ValueError ก่อนยิง HTTP
+- **`services/ceo_sync.py`** — inbox (queued + ทีม R&D + ยังไม่ถูกดึง) · pull (project +
+  breakdown + PATCH `in_progress`) · report (สรุป markdown → `qc_review`)
+  · orchestrator **ไม่ถูกแก้แม้แต่บรรทัดเดียว** (เจตนาเดียวกับ Team Mode)
+- **Endpoints:** `GET /api/projects/:id` · `GET /api/ceo/status|inbox` · `POST /api/ceo/pull` ·
+  `POST /api/ceo/report/:id` · `/run` เพิ่ม `ceo_report` · `/health` เพิ่ม `ceo_enabled`
+- **Schema:** `projects.ceo_task_id` unique — migration `e5a91c73b204` (apply กับ DB จริงแล้ว
+  ข้อมูลครบ 3 projects / 21 tasks)
+- **UI:** กล่อง "📥 งานจากเลขา" บน Portfolio (ซ่อนเองถ้าปิดการเชื่อม) + ป้าย/ปุ่ม
+  "📤 ส่งผลกลับเลขา" บนหน้าบอร์ด · เวลาจาก d_CEO (UTC) แปลงเป็น Asia/Bangkok ตอนแสดง
+- **เอกสาร:** `docs/INTEGRATION_CEO.md` (contract + §7 สิ่งที่ต้องขอจาก d_CEO) · API.md §1.1, §16-19 ·
+  DATABASE.md · SYSTEM_DOCUMENTATION.md §5-7/§18 · runbook §4.1 · AGENTS.md
+- **ตรวจกับ d_CEO ตัวจริง:** `/api/ceo/status` → `online:true`, resolve ทีม R&D ได้
+  (`4406dde7-…`), `waiting: 0` — ยืนยันว่าถูกต้อง เพราะคิว queued 9 งานเป็นของ QC&KM 4 /
+  ไม่ระบุทีม 4 / Marketing 1 **ไม่มีของ R&D**
+- pytest 60 → **79 tests** ผ่านหมด · ruff clean · `npm run build` ผ่าน
+
 ### Phase 0 — จัดบ้านให้พร้อมต่อ ecosystem (2026-08-02)
 
 - **commit งานค้าง ~1 เดือน** (`9cd76d6`) — debt #3/#5/#7 + หน้า `/deployments` + ruff
@@ -51,37 +73,48 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 
 ## Files Changed (2026-08-02)
 
+**Phase 1**
+- **ใหม่:** `backend/app/integrations/{__init__,ceo_client}.py`, `backend/app/services/ceo_sync.py`,
+  `backend/app/api/ceo.py`, `backend/alembic/versions/e5a91c73b204_add_project_ceo_task_id.py`,
+  `backend/tests/test_ceo_integration.py`, `frontend/src/components/CeoInbox.tsx`,
+  `docs/INTEGRATION_CEO.md`
+- **แก้:** `backend/app/{config,main}.py`, `app/models/project.py`, `app/schemas/project.py`,
+  `app/api/{__init__,projects}.py`, `backend/.env.example`, `backend/tests/{conftest,test_projects}.py`,
+  `frontend/src/lib/{types,api}.ts`, `frontend/src/app/page.tsx`,
+  `frontend/src/app/projects/[id]/page.tsx`, `docs/{API,DATABASE,SYSTEM_DOCUMENTATION,runbook}.md`,
+  `AGENTS.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`
+
+**Phase 0**
 - **แก้:** `AGENTS.md` (เขียนใหม่ทั้งไฟล์), `CLAUDE.md` + `GEMINI.md` (เหลือ pointer), `README.md`,
-  `.gitignore`, `PROJECT_STATUS.md`, `docs/{PROJECT_OVERVIEW,RISK_REGISTER,API,runbook,ARCHITECTURE,SECURITY}.md`,
+  `.gitignore`, `docs/{PROJECT_OVERVIEW,RISK_REGISTER,API,runbook,ARCHITECTURE,SECURITY}.md`,
   `backend/README.md`, `frontend/src/lib/api.ts`, `frontend/.env.local{,.example}`
-- **ใหม่:** `BackUp/Phase0Cleanup_20260802_224442/` (สำเนา DB ก่อนแตะ — gitignored)
-- คอมมิตก่อนหน้าในวันเดียวกัน `9cd76d6` = งานค้างของ 2026-07-07 ทั้งชุด (35 ไฟล์)
+- คอมมิต `9cd76d6` = งานค้างของ 2026-07-07 ทั้งชุด (35 ไฟล์) · `5f43fa3` = Phase 0
+- **สำรอง:** `BackUp/Phase0Cleanup_20260802_224442/` + `BackUp/Phase1CeoIntegration_20260802_230717/`
+  (gitignored)
 
 ## Current State
 
-- **pytest 60/60 ผ่าน · ruff clean · `npm run build` ผ่าน** (ตรวจหลังแก้พอร์ตแล้ว)
-- ยืนยันด้วยการรันจริง: DEP-PM `:8400/health` → `{"status":"ok","agent_enabled":true}`
-  และ d_CEO `:8000/health` ยังตอบปกติพร้อมกัน
-- git: main สะอาด (มี 1 commit ของงานค้าง + Phase 0 รอ commit) · remote `github.com/ohho2518/d_DEP-PM_Platform`
-  **ยังไม่ push**
+- **pytest 79/79 ผ่าน · ruff clean · `npm run build` ผ่าน**
+- ยืนยันด้วยการรันจริง: DEP-PM `:8400` กับ d_CEO `:8000` รันคู่กันได้ ·
+  `/api/ceo/status` → `online:true` + resolve ทีม R&D ได้
+- DB จริง migrate ถึง head `e5a91c73b204` แล้ว (3 projects / 21 tasks ครบ)
+- git: main สะอาด · **ยังไม่ push** (ล้ำ origin อยู่ 4 commits รวม `902dbcb` ของ 25 ก.ค.)
 
 ## Next Tasks
 
-1. **Phase 1 — ต่อสายรับงานจาก d_CEO (~2-3 วัน)** ← งานหลักถัดไป
-   - migration: `projects.ceo_task_id` (nullable, unique) + schema + `types.ts` คอมมิตเดียวกัน
-   - `backend/app/integrations/ceo_client.py` (httpx ไฟล์เดียว + degrade เงียบเมื่อสมองออฟไลน์) + mock test
-   - "ดึงงานจากเลขา": `GET /tasks?status=queued` → กรอง `assigned_team_id` = Research & Development
-     (resolve จาก `GET /teams` ตอน runtime ห้าม hardcode) → สร้าง project + breakdown → `PATCH` เป็น `in_progress`
-   - รายงานกลับ: งานในโปรเจกต์จบครบ → `PATCH /tasks/{id}` เป็น **`qc_review`** + `output` สรุปผล
-     **ห้ามส่ง `done` เอง** (มติ Vinit 2026-08-02 เคส d_MOS — ทุกงานต้องผ่าน QC gate)
-   - `docs/INTEGRATION_CEO.md` (consumer view) + ขอ ticket/ยืนยันจากฝั่ง d_CEO
+1. **ทดสอบ Phase 1 กับงานจริง** — ต้องมีคนสั่งงานผ่าน Jarvis แล้วมอบให้ทีม
+   **Research & Development** (ตอนนี้คิว d_CEO ไม่มีงานของทีมนี้เลย) → กดดึง → รัน → ดูว่า
+   สถานะขยับเป็น `qc_review` พร้อม output ที่ฝั่ง d_CEO
+   *(หมายเหตุ: สร้าง task ทดสอบใน d_CEO = เขียนข้อมูลจริงของผู้ใช้ — รอคำสั่งก่อน)*
 2. **Phase 2 — `/run` เป็น background job (~1 วัน)** — 202 + `run_id` + lock ต่อโปรเจกต์ (409) +
-   `GET /:id/run` progress · จำเป็นเพราะสายบังคับบัญชารอ synchronous ไม่ไหว (d_CEO วัดจริง 1 task = 192 วิ)
-3. **Phase 3 — ปิด UAT/ความปลอดภัยที่ค้าง:** callback shared-secret · test suite บน PostgreSQL (DoD ADR-01) ·
-   Team Mode กับ OPENAI/GEMINI keys จริง
-4. **แจ้งรีโปอื่นแก้เอกสารที่ล้าสมัย** (ห้ามแก้ข้ามรีโป): `d_Jarvis\docs\VISION.md` §5 และ
-   `d_CEO\project_plan_solo_ceo.md` §9.1 ยังเขียนว่า "merge DEP-PM เข้า Solo_CEO"
-5. ก่อน deploy สาธารณะ: security gate ใน `docs/SECURITY.md` (auth, HTTPS, rate limit) — ควรทำพร้อมทั้ง ecosystem
+   `GET /:id/run` progress · **จำเป็นก่อนใช้งานจริงเป็นประจำ** เพราะ 1 task ใช้เวลาระดับนาที
+   และตอนนี้ `/run` block ทั้ง request
+3. **ขอจากฝั่ง d_CEO** (ดู `docs/INTEGRATION_CEO.md` §7): ยืนยัน contract + ออก
+   `INTEGRATION_DEPPM.md` · แก้เอกสารที่ยังเขียนว่า "merge DEP-PM เข้า Solo_CEO"
+   (`d_Jarvis\docs\VISION.md` §5, `d_CEO\project_plan_solo_ceo.md` §9.1) — **ห้ามแก้ข้ามรีโป**
+4. **Phase 3 — ปิด UAT/ความปลอดภัยที่ค้าง:** callback shared-secret · test suite บน PostgreSQL
+   (DoD ADR-01) · Team Mode กับ OPENAI/GEMINI keys จริง
+5. ก่อน deploy สาธารณะ: security gate ใน `docs/SECURITY.md` — ควรทำพร้อมทั้ง ecosystem
 
 ## Known Issues
 
@@ -97,6 +130,12 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 
 1. **DEP-PM ไม่ยุบรวมกับ Solo_CEO** — เป็น **Team Lead R&D** ปลายสาย Vinit→Jarvis→d_CEO→DEP-PM
    เอกสาร "merge" ในรีโปอื่นถือว่าล้าสมัย · กติกา "ไม่ทำระบบ task ซ้อน" ยึดด้วย 1 task = 1 project
+1.1 **รับงานแบบกดปุ่มเอง (manual pull) ก่อน** ไม่ทำ poller อัตโนมัติ — เห็นพฤติกรรมจริงก่อน
+   และตรงหลัก "ยืนยันก่อนทำ" ของ ecosystem (เปลี่ยนเป็นอัตโนมัติภายหลังได้ ไม่ต้องแก้ contract)
+1.2 **การเชื่อมต่ออยู่ใน `services/` ไม่ใช่ `orchestrator/`** — engine ไม่ถูกแก้เลย
+   (เจตนาเดียวกับ Team Mode Sprint 4) · `api/projects.py` เป็นคนเรียกหลัง `/run`
+1.3 **`ceo_task_id` เก็บเป็น `VARCHAR(36)` ไม่ใช่ `GUID`** — id ของระบบอื่น เราไม่ตีความรูปแบบ
+   ถ้า d_CEO เปลี่ยนรูปแบบ id เราไม่พัง
 2. **AGENTS.md เป็น single source of truth** ของกติกา AI agent · CLAUDE.md/GEMINI.md เป็น pointer
    (ตรงกับ convention ของ d_Jarvis / d_CEO / d_InnoHub)
 3. **พอร์ต DEP-PM = 8400** ถาวร — เอกสารทุกไฟล์อัปเดตแล้ว ห้ามย้ายกลับ 8000
@@ -106,7 +145,8 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 
 ## Questions for the User
 
-1. **Phase 1 เริ่มได้เลยไหม** หรืออยากให้ push commit ขึ้น GitHub ก่อน (ตอนนี้ยังไม่ push)
-2. งานจาก d_CEO ที่จะให้ DEP-PM รับ — ให้ **ดึงเองอัตโนมัติ (poller)** หรือ **กดปุ่มดึง (manual pull)**
-   ก่อนในเฟสแรก? (แนะนำ manual pull — ปลอดภัยกว่าและเห็นพฤติกรรมจริงก่อนปล่อยอัตโนมัติ)
-3. PostgreSQL / OPENAI+GEMINI keys — อันไหนพร้อมก่อน (กระทบลำดับ Phase 3)
+1. **push 4 commits ขึ้น GitHub เลยไหม** (ยังไม่เคย push งานตั้งแต่ 6 ก.ค.)
+2. **สร้าง task ทดสอบใน d_CEO ให้ทีม R&D ได้ไหม** เพื่อปิดวงจร Phase 1 ให้ครบ —
+   เป็นการเขียนข้อมูลจริงในระบบเลขา จึงยังไม่ทำเอง
+3. Phase 2 (`/run` async) ต่อเลยไหม — จำเป็นก่อนใช้งานประจำ
+4. PostgreSQL / OPENAI+GEMINI keys — อันไหนพร้อมก่อน (กระทบลำดับ Phase 3)

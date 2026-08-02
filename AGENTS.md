@@ -28,6 +28,7 @@ Your job: develop, maintain, debug, refactor, document, and improve this project
 - แตะ API → `docs/API.md` · แตะ schema/migration → `docs/DATABASE.md`
 - แตะ orchestrator/state machine → `docs/SYSTEM_DOCUMENTATION.md` §9
 - แตะ frontend → `docs/SYSTEM_DOCUMENTATION.md` §13 + `frontend/AGENTS.md`
+- แตะการเชื่อมกับ d_CEO → `docs/INTEGRATION_CEO.md` (**contract — provider เป็นเจ้าของ**)
 - แตะกติกา "แก้โค้ดยังไงไม่พัง" → `docs/AI_AGENT_GUIDE.md`
 - แตะสถาปัตยกรรม/ADR → `docs/ARCHITECTURE.md` + `docs/DEVELOPMENT_PLAN.md` §2
 
@@ -131,6 +132,7 @@ Vinit (CEO) ──สั่ง──► d_Jarvis ──REST──► d_CEO ─�
 ```text
 docs/DEVELOPMENT_PLAN.md              แผนพัฒนาที่อนุมัติแล้ว (สปรินต์, ADR, schema, API)
 docs/{ARCHITECTURE,SYSTEM_DOCUMENTATION,API,DATABASE,SECURITY,AI_AGENT_GUIDE}.md
+docs/INTEGRATION_CEO.md               contract กับ d_CEO (เราเป็น consumer — provider เป็นเจ้าของ)
 docs/{PROJECT_OVERVIEW,RISK_REGISTER}.md   ภาพรวมธุรกิจ + ทะเบียนความเสี่ยง
 docs/runbook.md                       Operations/handover + UAT checklist
 docs/github-workflow-example.yml      Workflow template สำหรับ repo เป้าหมาย
@@ -144,12 +146,13 @@ backend/app/{main,config,constants}.py  FastAPI entry + settings + enums กล�
 backend/app/db/                       engine, session, GUID/JSON portable types (ADR-01)
 backend/app/models/                   ORM 6 ตาราง
 backend/app/schemas/                  Pydantic (project, task, scan)
-backend/app/api/                      routers: projects, tasks, agent_messages, portfolio, deployments
+backend/app/api/                      routers: projects, tasks, agent_messages, portfolio, deployments, ceo
 backend/app/agents/                   personas 4 บทบาท, routing, runtime, providers, pm breakdown
 backend/app/orchestrator/             State Machine (transition-only) + engine (Solo Mode loop)
 backend/app/bus/                      In-process message bus (ADR-03)
 backend/app/metadata/                 MetadataProvider interface + Stub (ADR-02)
-backend/app/services/                 audit + task-plan persistence + deploy dispatcher
+backend/app/integrations/             client ของระบบข้างเคียง — ceo_client.py (d_CEO) §3.1
+backend/app/services/                 audit + task-plan persistence + deploy dispatcher + ceo_sync
 backend/alembic/                      migrations (schema, seed agent, token columns)
 backend/tests/                        pytest 60 เคส
 backend/ruff.toml                     lint config
@@ -218,6 +221,9 @@ AGENT_MODE=            # solo | team
 OPENAI_API_KEY= OPENAI_MODEL= GEMINI_API_KEY= GEMINI_MODEL=   # Team Mode
 GITHUB_TOKEN= GITHUB_REPO=    # deploy dispatch; ว่าง = stub mode
 AUTO_DEPLOY_ENABLED=   # true = task done → staging deployment อัตโนมัติ
+CEO_API_BASE=          # base URL ของ d_CEO (ปริยาย http://127.0.0.1:8000) — ว่าง = ปิดการเชื่อม
+CEO_TEAM_NAME=         # ชื่อทีมใน d_CEO ที่เรารับงาน (ปริยาย "Research & Development")
+CEO_TIMEOUT_SECONDS=   # timeout ต่อ request ไป d_CEO (ปริยาย 15)
 FRONTEND_ORIGIN=       # CORS origin เดียว (ไม่ใช่ *)
 ```
 
@@ -237,7 +243,8 @@ NEXT_PUBLIC_API_URL=   # base URL ของ backend — ค่าปัจจุ
 - **API flow:** REST JSON, error format ของ FastAPI, **409 = ผิด State Machine transition** (เอกลักษณ์ของระบบนี้)
 - **Database flow:** 6 ตาราง, UUID ผ่าน `GUID` type decorator, JSON ผ่าน SQLAlchemy `JSON` — portable ระหว่าง SQLite↔PostgreSQL
 - **Auth flow:** ยังไม่มี — bind localhost เท่านั้น
-- **External services:** Anthropic (Solo Mode) · OpenAI + Gemini (Team Mode) · GitHub `repository_dispatch` (deploy) — ทุกตัวมี fallback ไม่ล้มทั้งระบบเมื่อ key ขาด
+- **External services:** Anthropic (Solo Mode) · OpenAI + Gemini (Team Mode) · GitHub `repository_dispatch` (deploy) · **d_CEO** (รับงาน/รายงานผล) — ทุกตัวมี fallback ไม่ล้มทั้งระบบเมื่อ key ขาดหรือปลายทางปิด
+- **การเชื่อมกับ d_CEO:** ทุกการยิง HTTP อยู่ใน `integrations/ceo_client.py` **ไฟล์เดียว** (ที่อื่นห้ามยิงเอง) · business logic อยู่ใน `services/ceo_sync.py` · orchestrator ไม่รู้จักทั้งคู่ · **ส่งกลับได้แค่ `in_progress`/`qc_review`** ห้ามปิดงานเอง — ดู `docs/INTEGRATION_CEO.md`
 - **จุดเสียบ 3 จุด (extensibility):** `PersonaExecutor` (provider ใหม่) · `MetadataProvider` (DEP Engine จริง) · bus transport (Redis)
 - **ADR-01..04** อยู่ใน `docs/DEVELOPMENT_PLAN.md` §2 — SQLite ก่อน · Metadata stub · in-process bus · polling
 
@@ -267,6 +274,9 @@ NEXT_PUBLIC_API_URL=   # base URL ของ backend — ค่าปัจจุ
 7. **จุดเสียบ อย่า bypass:** provider ใหม่ = implement `PersonaExecutor` · metadata จริง = implement `MetadataProvider` · อย่าแก้ orchestrator เพื่อ special-case provider ใดตัวหนึ่ง
 8. **ห้ามลบ fallback path** (no-key → fallback) — เป็นคุณสมบัติเชิงสัญญา ไม่ใช่โค้ดชั่วคราว
 9. Enums กลางอยู่ `constants.py` ที่เดียว — ห้าม string literal ของ status/role ในโค้ดใหม่
+10. **สถานะของ d_CEO เป็นคนละชุดกับ `TaskStatus` ของเรา** — ใช้ค่าคงที่ `CEO_STATUS_*`
+    ใน `integrations/ceo_client.py` อย่าเอา `TaskStatus` ไปส่งข้ามระบบ (บังเอิญชื่อซ้ำบางตัว)
+11. **ห้ามปิดงานฝั่ง d_CEO เอง** — ส่งได้แค่ `in_progress`/`qc_review` ทุกงานต้องผ่าน QC gate
 
 ---
 

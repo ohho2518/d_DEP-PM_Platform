@@ -33,6 +33,7 @@ npm run dev                       # http://localhost:3000 (ครั้งแร
 | Team Mode (dev=OpenAI, SR=Gemini) | `AGENT_MODE=team` + `OPENAI_API_KEY` + `GEMINI_API_KEY` (ขาด key ไหน role นั้น fallback → Claude → deterministic) | breakdown/run แล้วดู payload ใน message log |
 | Deploy dispatch จริง | `GITHUB_TOKEN` (fine-grained PAT, contents:write) + `GITHUB_REPO=owner/repo` | `POST /api/deployments` → `dispatched: true` |
 | Auto-deploy staging เมื่อ task done | `AUTO_DEPLOY_ENABLED=true` | run orchestrator → deployment record เกิด |
+| **รับงานจากเลขา (d_CEO)** | `CEO_API_BASE=http://127.0.0.1:8000` (+`CEO_TEAM_NAME` ถ้าเปลี่ยนชื่อทีม) | `curl 127.0.0.1:8400/api/ceo/status` → `online: true` + `team_id` ไม่ใช่ null |
 
 **เปลี่ยน env แล้วต้อง restart uvicorn** (Settings cache ต่อ process)
 
@@ -59,6 +60,20 @@ DATABASE_URL=postgresql+psycopg://... pytest
 ```
 driver (`psycopg[binary]`) อยู่ใน requirements แล้ว; โค้ด portable ตาม ADR-01 (GUID/JSON decorators)
 
+## 4.1 รับงานจากเลขา (d_CEO) — ใช้งานประจำวัน
+
+1. ต้องมี **d_CEO รันอยู่ที่ `:8000`** (Task Scheduler "d_CEO API" — ปกติรันค้างอยู่แล้ว)
+2. งานต้องถูกมอบให้ทีม **Research & Development** ตอนสร้างใน d_CEO
+   (`POST /tasks` ต้องมี `assigned_team_id` ของทีมนี้ ไม่งั้นเราไม่เห็นในคิว)
+3. หน้า Portfolio (`/`) จะมีกล่อง **📥 งานจากเลขา** โผล่เอง → กด "ดึงงานทั้งหมด" หรือ "รับงานนี้"
+4. ระบบสร้างโปรเจกต์ + ให้ PM Agent แตกงาน + แจ้ง d_CEO เป็น `in_progress` ให้อัตโนมัติ
+5. **ผู้ใช้ยืนยัน scope + กด Run Agents เอง** (ระบบไม่รันให้อัตโนมัติ)
+6. งานจบครบ → รายงานกลับเข้า **QC gate** ของ d_CEO ให้อัตโนมัติ (สถานะ `qc_review`)
+   · รอบอัตโนมัติล้มเหลว → กดปุ่ม **📤 ส่งผลกลับเลขา** บนหน้าบอร์ดซ้ำได้
+
+> 🔴 **ระบบเราปิดงานฝั่ง d_CEO เองไม่ได้** — ส่งได้แค่ `in_progress`/`qc_review`
+> QC ของ d_CEO เป็นคนเคาะว่า `done` / `awaiting_approval` / `rejected` (มติ Vinit 2026-08-02)
+
 ## 5. อาการผิดปกติที่พบบ่อย
 
 | อาการ | สาเหตุ/วิธีแก้ |
@@ -70,6 +85,10 @@ driver (`psycopg[binary]`) อยู่ใน requirements แล้ว; โค�
 | deployment ค้าง `running` | workflow ฝั่ง repo ไม่ได้ callback — เช็ค Actions log + secret `DEP_PM_API_URL`; แก้มือ: `PATCH /api/deployments/:id {"status": "failed"}` |
 | task ค้าง `in_progress` (orchestrator ตายกลางทาง) | `PATCH /api/tasks/:id {"status": "review"}` แล้วให้คน review หรือ rerun |
 | Run Agents ไม่ทำอะไร (processed: 0) | ไม่มี task `planned` — ยัง confirm scope ไม่ได้ทำ หรือ dependency ค้าง (ดู task escalated) |
+| กล่อง "งานจากเลขา" ไม่โผล่ | ยังไม่ตั้ง `CEO_API_BASE` (restart uvicorn หลังแก้ `.env`) |
+| "🧠 สมองออฟไลน์" | d_CEO ไม่ได้รัน — เช็ก `curl 127.0.0.1:8000/health` และ Task Scheduler "d_CEO API" |
+| งานรอ 0 ทั้งที่เพิ่งสั่งงาน | งานถูก assign ให้ทีมอื่น — ต้องเป็นทีม `CEO_TEAM_NAME` (Research & Development) |
+| ดึงงานแล้ว `acknowledged: false` | สร้างโปรเจกต์สำเร็จแต่ PATCH กลับ d_CEO ล้ม — ไม่ต้องดึงใหม่ (จะซ้ำไม่ได้อยู่แล้ว) กดส่งผลกลับทีหลังได้ |
 
 ## 6. ข้อมูล & การกู้คืน
 - **DB (dev):** ไฟล์ `backend/dep_pm.db` — backup = copy ไฟล์; ลบ = เริ่มใหม่ด้วย `alembic upgrade head`

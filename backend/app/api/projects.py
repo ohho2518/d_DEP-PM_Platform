@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.agents.pm import breakdown_requirement
 from app.constants import ActorType, ProjectType, TaskStatus
 from app.db.session import get_db
+from app.integrations.ceo_client import CeoClient, get_ceo_client
 from app.metadata.provider import get_metadata_provider
 from app.models.project import Project
 from app.models.task import Task
@@ -28,6 +29,7 @@ from app.schemas.task import (
     TaskPlan,
     TaskRead,
 )
+from app.services import ceo_sync
 from app.services.audit import record_audit
 from app.services.tasks import persist_task_plan
 
@@ -60,6 +62,12 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
     db.commit()
     db.refresh(project)
     return project
+
+
+@router.get("/{project_id}", response_model=ProjectRead)
+def get_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> Project:
+    """รายละเอียดโปรเจกต์ — UI ใช้รู้ว่ามาจาก d_CEO ไหม (`ceo_task_id`)."""
+    return _get_project_or_404(db, project_id)
 
 
 @router.get("/{project_id}/tasks", response_model=TaskList)
@@ -204,14 +212,32 @@ async def scan_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> 
 
 
 @router.post("/{project_id}/run")
-def run_orchestrator(project_id: uuid.UUID, db: Session = Depends(get_db)) -> dict:
+def run_orchestrator(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    ceo_client: CeoClient | None = Depends(get_ceo_client),
+) -> dict:
     """รัน Solo-Mode Orchestrator กับ task ที่ planned ทั้งหมดของโปรเจกต์ (synchronous ใน MVP)."""
-    _get_project_or_404(db, project_id)
+    project = _get_project_or_404(db, project_id)
     summary = run_project(db, project_id)
+
+    # โปรเจกต์ที่มาจาก d_CEO และงานจบครบแล้ว → รายงานกลับเข้า QC gate ให้อัตโนมัติ
+    # ล้มเหลว = เพิกเฉยเงียบ (ยิง POST /api/ceo/report/:id ซ้ำเองได้) — ห้ามทำให้ /run พัง
+    ceo_report: dict | None = None
+    if project.ceo_task_id and ceo_client is not None:
+        result = ceo_sync.report_project(db, ceo_client, project)
+        ceo_report = {
+            "ready": result.ready,
+            "reported": result.reported,
+            "status_sent": result.status_sent,
+            "detail": result.detail,
+        }
+
     return {
         "project_id": summary.project_id,
         "processed": len(summary.outcomes),
         "counts": summary.counts,
+        "ceo_report": ceo_report,
         "outcomes": [
             {
                 "task_id": o.task_id,

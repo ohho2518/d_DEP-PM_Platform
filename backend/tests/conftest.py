@@ -31,6 +31,9 @@ def _isolated_settings(monkeypatch):
     monkeypatch.setattr(settings, "github_token", "")
     monkeypatch.setattr(settings, "github_repo", "")
     monkeypatch.setattr(settings, "auto_deploy_enabled", False)
+    # ปิดการเชื่อม d_CEO เป็นค่าเริ่มต้น — test ที่ต้องใช้ override dependency ด้วย stub เอง
+    # (กันไม่ให้ suite เผลอยิงไปที่ Solo_CEO API ที่รันอยู่จริงบนเครื่อง dev)
+    monkeypatch.setattr(settings, "ceo_api_base", "")
     yield
 
 

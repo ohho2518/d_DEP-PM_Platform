@@ -38,6 +38,8 @@ export interface Project {
   type: "new" | "existing";
   repo_url: string | null;
   status: string;
+  /** task ใน d_CEO ที่ถูก delegate ลงมาเป็นโปรเจกต์นี้ (null = สร้างเองในระบบ) */
+  ceo_task_id: string | null;
   created_at: string;
 }
 
@@ -79,7 +81,48 @@ export interface RunSummary {
   project_id: string;
   processed: number;
   counts: Record<string, number>;
+  /** รายงานกลับ d_CEO อัตโนมัติหลังงานจบ (null = โปรเจกต์นี้ไม่ได้มาจากเลขา) */
+  ceo_report: CeoReport | null;
   outcomes: { task_id: string; title: string; final_status: string; revisions: number }[];
+}
+
+// --- d_CEO integration (Phase 1) — DEP-PM = Team Lead R&D ---------------------
+
+export interface CeoStatus {
+  enabled: boolean;
+  online: boolean;
+  team_name: string;
+  base_url?: string;
+  team_id?: string | null;
+  waiting?: number;
+  detail?: string;
+}
+
+export interface CeoInboxItem {
+  id: string;
+  input_text: string;
+  status: string;
+  /** ISO 8601 **UTC** — ต้องแปลงเป็น Asia/Bangkok ตอนแสดงผล */
+  created_at: string;
+}
+
+export interface CeoPullResult {
+  ceo_task_id: string;
+  project_id: string;
+  name: string;
+  task_count: number;
+  breakdown_source: "agent" | "fallback" | null;
+  acknowledged: boolean;
+  detail: string;
+}
+
+export interface CeoReport {
+  ready: boolean;
+  reported: boolean;
+  status_sent: string | null;
+  detail: string;
+  counts?: Record<string, number>;
+  output?: string | null;
 }
 
 export interface BreakdownResponse {

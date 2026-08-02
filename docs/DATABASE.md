@@ -120,9 +120,17 @@ erDiagram
 | repo_url | VARCHAR(500) | NULL | |
 | status | VARCHAR(20) | NOT NULL, default 'planning' | ยังไม่มี logic เปลี่ยน status โปรเจกต์ (หลัง MVP) |
 | metadata_registry_ref | VARCHAR(500) | NULL | จองไว้สำหรับ DEP Engine จริง (ADR-02) |
+| ceo_task_id | VARCHAR(36) | NULL, **UNIQUE** | task ใน d_CEO ที่ถูก delegate ลงมา (Phase 1) — NULL = โปรเจกต์ที่สร้างเองในระบบ |
 | created_at | DATETIME(tz) | NOT NULL, server_default now | |
 
 Query pattern: `GET /portfolio` อ่านทุกแถว (โปรเจกต์น้อย — ไม่ต้อง index เพิ่ม)
+
+**ทำไม `ceo_task_id` ต้อง UNIQUE:** บังคับกติกา **"1 task ธุรกิจใน d_CEO = 1 project ที่นี่"**
+(ไม่สร้างทะเบียนงานธุรกิจซ้อน — `AGENTS.md` §3.1) และกันการดึงงานเดิมซ้ำ
+เก็บเป็น `VARCHAR(36)` ไม่ใช่ `GUID` **โดยตั้งใจ** — id นี้เป็นของระบบอื่น เราไม่ควรตีความ
+รูปแบบของเขา แค่เก็บ/เทียบเป็น string (ถ้า d_CEO เปลี่ยนรูปแบบ id เราไม่พัง)
+> หมายเหตุ dialect: ทั้ง SQLite และ PostgreSQL อนุญาตหลายแถวเป็น NULL ในคอลัมน์ UNIQUE
+> — โปรเจกต์ที่สร้างเองจึงอยู่ร่วมกันได้ตามปกติ
 
 ### `tasks` — ตารางร้อนสุด
 | Column | Type | Constraint |
@@ -177,6 +185,7 @@ Status flow: `queued` → `running` (dispatch สำเร็จ) → `success|f
 | `a14314b6f9a2` | สร้าง 6 ตาราง + indexes | autogenerate แล้ว**แก้มือ**: เพิ่ม `import app.db.types` (autogen ไม่ใส่ให้) — บทเรียน: ตรวจ autogen เสมอ |
 | `b2f1c0d3e4a5` | seed agent "Claude Solo" | fixed UUID `00000000-…-0001` → deterministic ทุก environment; downgrade ลบเฉพาะแถวนี้ |
 | `c7d4e2a9b1f3` | เพิ่ม `tasks.tokens_input/tokens_output` | server_default "0" — แถวเก่าได้ 0 อัตโนมัติ |
+| `e5a91c73b204` | เพิ่ม `projects.ceo_task_id` + unique constraint | ใช้ `batch_alter_table` (SQLite ไม่รองรับ ADD CONSTRAINT) · แถวเก่าได้ NULL = ไม่ถือว่ามาจาก d_CEO |
 
 ### กติกา migration (จาก ADR-01 + CLAUDE.md Database Rules)
 1. คอลัมน์ JSON ใช้ SQLAlchemy `JSON` (ห้าม JSONB ตรง ๆ — map ตอน deploy PG)

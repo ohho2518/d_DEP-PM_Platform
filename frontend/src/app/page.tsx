@@ -2,6 +2,7 @@
 // Portfolio View — โทนสีตาม ai-dev-team-complete.html + polling (ADR-04)
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { CeoInbox } from "@/components/CeoInbox";
 import { usePolling } from "@/lib/usePolling";
 import { STATUS_ORDER, type TaskStatus } from "@/lib/types";
 
@@ -35,6 +36,8 @@ export default function PortfolioPage() {
 
   return (
     <div className="space-y-8">
+      <CeoInbox />
+
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-xl font-bold">Portfolio</h1>

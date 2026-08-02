@@ -9,6 +9,7 @@ import {
   ALLOWED_TRANSITIONS,
   STATUS_ORDER,
   type AgentMessage,
+  type Project,
   type Task,
   type TaskStatus,
 } from "@/lib/types";
@@ -40,6 +41,13 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   const [running, setRunning] = useState(false);
   const [runStats, setRunStats] = useState<RunStats | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
+  const [reporting, setReporting] = useState(false);
+
+  // โหลดครั้งเดียว — ใช้รู้ว่าโปรเจกต์นี้มาจากเลขา (d_CEO) ไหม
+  useEffect(() => {
+    api.getProject(projectId).then(setProject).catch(() => setProject(null));
+  }, [projectId]);
 
   // ระหว่างรัน poll ถี่ขึ้น (2 วิ) เพื่อให้ progress/การ์ตูนสดกว่า
   const { data, error, refresh } = usePolling(
@@ -71,10 +79,16 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
       const parts = Object.entries(summary.counts)
         .map(([k, v]) => `${k}: ${v}`)
         .join(", ");
+      // โปรเจกต์จากเลขา: backend รายงานกลับเข้า QC gate ให้อัตโนมัติเมื่องานจบครบ
+      const ceo = summary.ceo_report?.reported
+        ? " · 📤 ส่งผลกลับเลขาเข้า QC gate แล้ว"
+        : summary.ceo_report && summary.ceo_report.ready === false
+          ? ` · (ยังไม่ส่งเลขา: ${summary.ceo_report.detail})`
+          : "";
       setNotice(
         summary.processed === 0
           ? "ไม่มี task สถานะ planned ให้รัน (ยืนยัน scope ก่อน)"
-          : `✅ เสร็จแล้ว — ${summary.processed} tasks (${parts})`,
+          : `✅ เสร็จแล้ว — ${summary.processed} tasks (${parts})${ceo}`,
       );
       await refresh();
     } catch (e) {
@@ -82,6 +96,23 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
     } finally {
       setRunning(false);
       setRunStats(null);
+    }
+  }
+
+  async function reportToCeo() {
+    setReporting(true);
+    setNotice(null);
+    try {
+      const result = await api.ceoReport(projectId);
+      setNotice(
+        result.reported
+          ? "📤 ส่งผลงานเข้า QC gate ของเลขาแล้ว (สถานะ qc_review — QC เป็นคนเคาะต่อ)"
+          : `ยังไม่ได้ส่ง: ${result.detail}`,
+      );
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReporting(false);
     }
   }
 
@@ -97,16 +128,28 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="flex items-center gap-2 text-lg font-bold">
           Kanban{" "}
           <span className="text-sm font-normal" style={{ color: "var(--text3)" }}>
             ({data.pagination.total} tasks)
           </span>
+          {project?.ceo_task_id && (
+            <span className="chip" title={`d_CEO task ${project.ceo_task_id}`}>
+              📥 งานจากเลขา
+            </span>
+          )}
         </h1>
-        <button onClick={runOrchestrator} disabled={running} className="btn-primary">
-          {running ? "⚙ Agent กำลังทำงาน…" : "▶ Run Agents"}
-        </button>
+        <div className="flex gap-2">
+          {project?.ceo_task_id && (
+            <button onClick={reportToCeo} disabled={reporting || running} className="btn-ghost">
+              {reporting ? "กำลังส่ง…" : "📤 ส่งผลกลับเลขา"}
+            </button>
+          )}
+          <button onClick={runOrchestrator} disabled={running} className="btn-primary">
+            {running ? "⚙ Agent กำลังทำงาน…" : "▶ Run Agents"}
+          </button>
+        </div>
       </div>
 
       {/* ออฟฟิศจำลอง — agent เดินเมื่อกำลังทำงานจริง (สถานะจาก tasks ที่ poll ทุก 4 วิ) */}

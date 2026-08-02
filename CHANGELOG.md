@@ -1,5 +1,26 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-08-02 — Phase 1: รับงานจากเลขา (d_CEO) ในฐานะ Team Lead R&D
+
+- **📥 กล่อง "งานจากเลขา" บนหน้า Portfolio** — เห็นงานที่ d_CEO มอบให้ทีม R&D พร้อมปุ่ม
+  "ดึงงานทั้งหมด" / "รับงานนี้" · กล่องนี้ซ่อนเองถ้ายังไม่ตั้ง `CEO_API_BASE`
+  · d_CEO ปิดอยู่ = แสดง "🧠 สมองออฟไลน์" ระบบส่วนอื่นใช้ได้ปกติ
+- **ดึงงาน 1 ครั้ง = 1 โปรเจกต์** — สร้างโปรเจกต์ผูก `ceo_task_id` (unique) → PM Agent แตกงาน
+  ให้เลย → แจ้ง d_CEO เป็น `in_progress` · ดึงงานเดิมซ้ำไม่ได้ · **ผู้ใช้ยืนยัน scope + กด Run เอง**
+- **รายงานผลกลับอัตโนมัติ** เมื่องานในโปรเจกต์จบครบ (หลัง Run Agents) — ส่งสรุป markdown
+  (งานที่เสร็จ / งานที่ต้อง escalate พร้อมเหตุผล / token ที่ใช้) เข้า **QC gate** ของ d_CEO
+  · ปุ่ม "📤 ส่งผลกลับเลขา" บนหน้าบอร์ดไว้ยิงซ้ำเมื่อรอบอัตโนมัติล้มเหลว
+- 🔴 **ระบบปิดงานฝั่ง d_CEO เองไม่ได้** — ส่งได้แค่ `in_progress`/`qc_review` เท่านั้น
+  (`done`/`awaiting_approval`/`rejected` = ValueError ก่อนยิง HTTP) ตามมติ Vinit 2026-08-02
+  ว่าทุกงานต้องผ่าน QC gate — QC ของ d_CEO เป็นคนเคาะ
+- **Endpoints ใหม่:** `GET /api/projects/:id` · `GET /api/ceo/status` · `GET /api/ceo/inbox` ·
+  `POST /api/ceo/pull` · `POST /api/ceo/report/:project_id` — `/api/projects/:id/run` เพิ่ม
+  field `ceo_report` · `/health` เพิ่ม `ceo_enabled`
+- **Schema:** `projects.ceo_task_id` (VARCHAR(36), nullable, **unique**) — migration `e5a91c73b204`
+- **เอกสารใหม่:** `docs/INTEGRATION_CEO.md` (contract ฝั่ง consumer + สิ่งที่ต้องขอจาก d_CEO)
+  · runbook §4.1 วิธีใช้งานประจำวัน
+- pytest 60 → **79 tests** · ตรวจกับ d_CEO ตัวจริงแล้ว: resolve ทีม R&D ได้, `online: true`
+
 ## 2026-08-02 — Phase 0: ย้ายพอร์ตเป็น 8400 + AGENTS.md เป็นต้นฉบับ + จัดเอกสาร
 
 - **⚠️ Breaking (dev):** backend ย้ายจากพอร์ต **8000 → 8400** — `uvicorn app.main:app --reload --port 8400`

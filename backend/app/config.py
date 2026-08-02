@@ -37,12 +37,26 @@ class Settings(BaseSettings):
     # task เข้า done ระหว่าง orchestrator run => สร้าง deployment ไป staging อัตโนมัติ
     auto_deploy_enabled: bool = False
 
+    # --- d_CEO integration (Phase 1) ----------------------------------------
+    # DEP-PM = Team Lead R&D ปลายสาย Vinit -> Jarvis -> d_CEO -> ที่นี่ (AGENTS.md §3.1)
+    # ว่าง = ปิดการเชื่อมต่อ (endpoint /api/ceo/* จะตอบ 503)
+    ceo_api_base: str = "http://127.0.0.1:8000"
+    # ชื่อทีมใน d_CEO ที่งานของเราถูก assign มา — resolve เป็น id ตอน runtime ผ่าน GET /teams
+    # (teams เป็น data ไม่ใช่ค่าตายตัว — ห้าม hardcode id)
+    ceo_team_name: str = "Research & Development"
+    ceo_timeout_seconds: float = 15.0
+
     frontend_origin: str = "http://localhost:3000"
 
     @property
     def agent_enabled(self) -> bool:
         """True when a real Anthropic key is configured."""
         return bool(self.anthropic_api_key.strip())
+
+    @property
+    def ceo_enabled(self) -> bool:
+        """True เมื่อ config ครบพอจะคุยกับ d_CEO ได้."""
+        return bool(self.ceo_api_base.strip())
 
     @property
     def deploy_dispatch_enabled(self) -> bool:
