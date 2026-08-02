@@ -28,6 +28,22 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 
 ## Completed Work
 
+### UAT วงจรเต็มกับ d_CEO ตัวจริง + fix ที่พบ (2026-08-02)
+
+**เดินครบวงจรจริงแล้ว** — task ทดสอบ `d89c03a8` (ทีม R&D) → DEP-PM ดึง → PM Agent จริง
+แตกเป็น **6 tasks พร้อมกราฟพึ่งพา 4 ชั้น** → รัน orchestrator จริง **297 วินาที**
+→ ผล: done 4 · escalated 1 · ค้าง 1 → **รายงานกลับเข้า `qc_review` ที่ d_CEO พร้อม output
+1,040 ตัวอักษร** · token รวม 19,150 in / 18,512 out
+
+**บั๊กที่ UAT จับได้ (แก้แล้ว):** เกณฑ์ readiness นับ `planned` เป็น "ยังเดินอยู่" แต่ task ที่
+dependency ติด escalated ค้าง `planned` ถาวร → เงื่อนไขไม่มีวันเป็นจริง → **เคสที่ต้องรีบ
+บอกคนที่สุดกลับเงียบหาย** และ d_CEO ค้าง `in_progress` ตลอด
+→ เปลี่ยนเกณฑ์ให้ตรงกับเงื่อนไขที่ orchestrator หยุดเดินเอง + รายงานเพิ่มหัวข้อ
+"งานที่ค้างเพราะรองานข้างบน" และแถบเตือนว่ายังไม่จบสมบูรณ์ (pytest 79 → **82**)
+
+> บทเรียน: unit test ครอบแค่ "จบครบ" กับ "ยังเดินอยู่" — ไม่มีเคส "ตันถาวร" เพราะคิดไม่ถึง
+> **การรันกับงานจริงคือสิ่งเดียวที่จับได้**
+
 ### Phase 1 — ต่อสายรับงานจาก d_CEO (2026-08-02)
 
 - **`integrations/ceo_client.py`** — ไฟล์เดียวที่ยิง HTTP ไป d_CEO (ที่อื่นห้ามยิงเอง)
@@ -94,21 +110,23 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 
 ## Current State
 
-- **pytest 79/79 ผ่าน · ruff clean · `npm run build` ผ่าน**
-- ยืนยันด้วยการรันจริง: DEP-PM `:8400` กับ d_CEO `:8000` รันคู่กันได้ ·
-  `/api/ceo/status` → `online:true` + resolve ทีม R&D ได้
-- DB จริง migrate ถึง head `e5a91c73b204` แล้ว (3 projects / 21 tasks ครบ)
-- git: main สะอาด · **ยังไม่ push** (ล้ำ origin อยู่ 4 commits รวม `902dbcb` ของ 25 ก.ค.)
+- **pytest 82/82 ผ่าน · ruff clean · `npm run build` ผ่าน**
+- **วงจร d_CEO ↔ DEP-PM ใช้งานได้จริงแล้ว** (ยืนยันด้วยงานจริง ไม่ใช่แค่ mock)
+- DB จริง migrate ถึง head `e5a91c73b204` (4 projects / 27 tasks — รวมของทดสอบ)
+- **ของทดสอบที่ยังค้างในระบบ:** d_CEO task `d89c03a8` (สถานะ `qc_review` รอ QC ของเขาตรวจ)
+  + DEP-PM project `a07f1fb2` — จะเก็บไว้เป็นตัวอย่างหรือลบก็ได้
+- git: main สะอาด · **ยังไม่ push** (ล้ำ origin อยู่ 5 commits รวม `902dbcb` ของ 25 ก.ค.)
 
 ## Next Tasks
 
-1. **ทดสอบ Phase 1 กับงานจริง** — ต้องมีคนสั่งงานผ่าน Jarvis แล้วมอบให้ทีม
-   **Research & Development** (ตอนนี้คิว d_CEO ไม่มีงานของทีมนี้เลย) → กดดึง → รัน → ดูว่า
-   สถานะขยับเป็น `qc_review` พร้อม output ที่ฝั่ง d_CEO
-   *(หมายเหตุ: สร้าง task ทดสอบใน d_CEO = เขียนข้อมูลจริงของผู้ใช้ — รอคำสั่งก่อน)*
-2. **Phase 2 — `/run` เป็น background job (~1 วัน)** — 202 + `run_id` + lock ต่อโปรเจกต์ (409) +
-   `GET /:id/run` progress · **จำเป็นก่อนใช้งานจริงเป็นประจำ** เพราะ 1 task ใช้เวลาระดับนาที
-   และตอนนี้ `/run` block ทั้ง request
+1. **Phase 2 — `/run` เป็น background job (~1 วัน)** ← สำคัญสุด — 202 + `run_id` +
+   lock ต่อโปรเจกต์ (409) + `GET /:id/run` progress
+   · **พิสูจน์แล้ววันนี้: 6 tasks = 297 วินาที** blocking request เดียว ขณะที่ d_CEO สั่ง
+   Jarvis ให้ตั้ง timeout ไม่ต่ำกว่า 5 นาที — เกินพอดี ใช้งานประจำไม่ได้ถ้าไม่แก้
+2. **ทบทวนกติกา escalation กับงานเอกสาร** — UAT พบว่า task "รวมเนื้อหา" ถูก reviewer
+   ปฏิเสธ 2 รอบทั้งที่งานย่อยเสร็จหมด (reviewer จริงเข้มกว่า fallback มาก — บทเรียนเดิม
+   ใน runbook §7 ยังเป็นจริง) · พิจารณา: prompt reviewer ให้เกณฑ์ชัดขึ้น หรือให้ task
+   ประเภท "รวมเล่ม" เป็นงานคน
 3. **ขอจากฝั่ง d_CEO** (ดู `docs/INTEGRATION_CEO.md` §7): ยืนยัน contract + ออก
    `INTEGRATION_DEPPM.md` · แก้เอกสารที่ยังเขียนว่า "merge DEP-PM เข้า Solo_CEO"
    (`d_Jarvis\docs\VISION.md` §5, `d_CEO\project_plan_solo_ceo.md` §9.1) — **ห้ามแก้ข้ามรีโป**

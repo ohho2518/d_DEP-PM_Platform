@@ -223,6 +223,75 @@ def test_report_not_ready_while_tasks_still_running(client, stub_ceo, db_session
     assert stub_ceo.patches == []  # ห้ามรบกวน d_CEO ก่อนงานจบ
 
 
+def test_report_not_ready_while_scope_unconfirmed(client, stub_ceo, db_session):
+    project = _project_from_ceo(db_session)
+    db_session.add(Task(project_id=project.id, title="ยังไม่ยืนยัน", status=TaskStatus.BACKLOG.value))
+    db_session.commit()
+
+    body = client.post(f"/api/ceo/report/{project.id}").json()
+    assert body["ready"] is False
+    assert "scope" in body["detail"]
+    assert stub_ceo.patches == []
+
+
+def test_report_fires_when_remaining_tasks_are_blocked_by_escalation(client, stub_ceo, db_session):
+    """เคสจริงจาก UAT 2026-08-02 — เดิมรายงานไม่เคยยิงเลย ทำให้ d_CEO ค้าง in_progress ตลอด.
+
+    งาน escalated ทำให้ตัวที่ depend อยู่ค้าง `planned` ถาวร (orchestrator หยุดเดินเอง)
+    → ต้องถือว่า "จบรอบ" แล้วรายงานขึ้นไป ไม่ใช่เงียบ
+    """
+    project = _project_from_ceo(db_session)
+    blocker = Task(
+        project_id=project.id, title="รวมเนื้อหา", status=TaskStatus.ESCALATED.value, revision_count=2
+    )
+    db_session.add(blocker)
+    db_session.flush()
+    db_session.add_all(
+        [
+            Task(project_id=project.id, title="เขียนหัวข้อ A", status=TaskStatus.DONE.value),
+            Task(
+                project_id=project.id,
+                title="ตรวจทานฉบับสุดท้าย",
+                status=TaskStatus.PLANNED.value,
+                depends_on=[str(blocker.id)],
+            ),
+        ]
+    )
+    db_session.commit()
+
+    body = client.post(f"/api/ceo/report/{project.id}").json()
+    assert body["ready"] is True
+    assert body["reported"] is True
+
+    output = stub_ceo.patches[0]["output"]
+    assert "ยังไม่จบสมบูรณ์" in output  # เตือนคนอ่านชัด ๆ ว่าต้องมีคนเข้ามา
+    assert "รวมเนื้อหา" in output  # escalated
+    assert "ตรวจทานฉบับสุดท้าย" in output  # blocked
+    assert "รอ: รวมเนื้อหา" in output  # บอกว่าติดเพราะตัวไหน
+
+
+def test_report_waits_for_runnable_planned_task(client, stub_ceo, db_session):
+    """ต่างจากเคสข้างบน: planned ที่ dependency จบแล้ว = ยังรันต่อได้ → ห้ามรีบรายงาน."""
+    project = _project_from_ceo(db_session)
+    finished = Task(project_id=project.id, title="เสร็จแล้ว", status=TaskStatus.DONE.value)
+    db_session.add(finished)
+    db_session.flush()
+    db_session.add(
+        Task(
+            project_id=project.id,
+            title="รันต่อได้",
+            status=TaskStatus.PLANNED.value,
+            depends_on=[str(finished.id)],
+        )
+    )
+    db_session.commit()
+
+    body = client.post(f"/api/ceo/report/{project.id}").json()
+    assert body["ready"] is False
+    assert "รันได้" in body["detail"]
+    assert stub_ceo.patches == []
+
+
 def test_report_sends_qc_review_with_summary(client, stub_ceo, db_session):
     project = _project_from_ceo(db_session)
     db_session.add_all(

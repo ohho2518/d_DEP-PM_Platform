@@ -101,8 +101,13 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 - `list_inbox(db, client)`: queued + ทีม R&D + ยังไม่ถูกดึง (`ceo_task_id` ที่มีอยู่ = ตัวกรอง)
 - `pull_tasks(...)`: ต่องาน → สร้าง project (`ceo_task_id` unique) → PM breakdown →
   PATCH `in_progress` | **PATCH ล้มไม่ rollback** (โปรเจกต์เกิดแล้ว — `acknowledged: false` แล้ว retry ทีหลัง)
-- `build_report(db, project)`: พร้อมรายงานเมื่อ**ไม่มี task ที่ยังเดินอยู่** (escalated ถือว่าจบรอบแล้ว
-  แต่ระบุไว้ในรายงานให้คนตัดสิน — เราไม่ตัดสินเองว่างานล้มเหลว) → ประกอบ markdown
+- `build_report(db, project)`: **พร้อมรายงานเมื่อ orchestrator เดินต่อไม่ได้แล้ว** — ไม่มี task
+  in-flight (assigned/in_progress/review) **และ** ไม่มี `planned` ที่ deps จบครบ (รันต่อได้)
+  **และ** ไม่มี `backlog` (ยังไม่ยืนยัน scope) → ประกอบ markdown
+  - ⚠️ **เกณฑ์นี้ต้องตรงกับเงื่อนไขหยุดของ `_next_runnable`** — เดิมนับ `planned` ทั้งหมดเป็น
+    "ยังเดินอยู่" ทำให้โปรเจกต์ที่มี escalated (dependent ค้าง planned ถาวร) **ไม่เคยรายงานเลย**
+    และ d_CEO ค้าง `in_progress` ตลอดกาล — บั๊กจริงที่ UAT 2026-08-02 จับได้ **อย่าถอยกลับ**
+  - escalated + blocked ถือว่าจบรอบ แต่ระบุในรายงานให้คนตัดสิน — เราไม่ตัดสินเองว่างานล้มเหลว
 - `report_project(...)`: PATCH `qc_review` + output + audit `ceo.reported`
 - **Complexity:** O(T) ต่อโปรเจกต์ + 1 query สำหรับเหตุผล escalation จาก `agent_messages`
 - **ทำไมอยู่ใน services ไม่ใช่ orchestrator:** engine ไม่ต้องแก้แม้แต่บรรทัดเดียวเพื่อรองรับ
@@ -237,7 +242,7 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 - Retry: PM breakdown retry 1 (โครงสร้าง JSON); anthropic SDK มี HTTP retry ในตัว
 - ยังไม่มี: structured logging, error tracking (Sentry ฯลฯ) — หลัง MVP
 
-## 18. Testing (79 เคส — `backend/tests/`)
+## 18. Testing (82 เคส — `backend/tests/`)
 | ไฟล์ | ครอบคลุม |
 |------|----------|
 | conftest.py | in-memory SQLite ต่อ test (StaticPool) + TestClient override `get_db` |
@@ -250,7 +255,7 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 | test_routing_bus.py | routing keywords, publish persist+dispatch, endpoint 201/404 |
 | test_deployments.py | stub mode, invalid env 400, callback → task deployed, terminal immutable 409, portfolio, auto-deploy on/off |
 | test_team_mode.py | mode switch ด้วย config, role→provider mapping ตรง Blueprint, fallback chain, provider injection |
-| test_ceo_integration.py | **guardrail ห้ามส่ง done/awaiting_approval**, inbox กรองทีม+งานที่ดึงแล้ว, pull สร้าง project+breakdown+ack, pull ซ้ำไม่ซ้ำซ้อน, report เฉพาะเมื่องานจบ, report ส่ง `qc_review` พร้อม output, degrade เมื่อ d_CEO ออฟไลน์, auto-report หลัง `/run` |
+| test_ceo_integration.py | **guardrail ห้ามส่ง done/awaiting_approval**, **escalated บล็อก dependent → ต้องรายงาน** (บั๊กจริงจาก UAT), runnable planned → ยังไม่รายงาน, backlog → ยังไม่ยืนยัน scope, inbox กรองทีม+งานที่ดึงแล้ว, pull สร้าง project+breakdown+ack, pull ซ้ำไม่ซ้ำซ้อน, report ส่ง `qc_review` พร้อม output, degrade เมื่อ d_CEO ออฟไลน์, auto-report หลัง `/run` |
 
 - **Mocking strategy:** ไม่ mock HTTP — inject `RejectingReviewer` ผ่าน `executor` param และ inject
   `StubCeoClient` ผ่าน dependency override ของ `get_ceo_client` (ทดสอบ logic จริง ไม่ผูก SDK/เครือข่าย)

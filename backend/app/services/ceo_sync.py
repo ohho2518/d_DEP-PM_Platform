@@ -38,11 +38,9 @@ from app.services.tasks import persist_task_plan
 
 CEO_ACTOR_ID = "ceo-sync"
 
-# task ที่ยังเดินอยู่ = ยังรายงานผลไม่ได้
-ACTIVE_STATUSES = frozenset(
+# task ที่ orchestrator กำลังถืออยู่ (มีคน/agent ทำค้างอยู่จริง)
+IN_FLIGHT_STATUSES = frozenset(
     {
-        TaskStatus.BACKLOG.value,
-        TaskStatus.PLANNED.value,
         TaskStatus.ASSIGNED.value,
         TaskStatus.IN_PROGRESS.value,
         TaskStatus.REVIEW.value,
@@ -212,13 +210,39 @@ def build_report(db: Session, project: Project) -> ReportResult:
     if not tasks:
         return ReportResult(False, False, "ยังไม่มี task ในโปรเจกต์นี้", counts=counts)
 
-    active = [t for t in tasks if t.status in ACTIVE_STATUSES]
-    if active:
+    # เกณฑ์ "จบรอบ" = ตรงกับเงื่อนไขที่ orchestrator หยุดเดินเอง (_next_runnable คืน None)
+    # ห้ามนับ planned ทั้งหมดเป็น "ยังเดินอยู่" — planned ที่ dependency ติด escalated
+    # จะค้างตลอดกาล ทำให้เคสที่ต้องรีบบอกคนที่สุด (มีงาน escalate) กลายเป็นเคสที่เงียบหาย
+    # (บั๊กที่เจอจาก UAT จริง 2026-08-02 — ดู CHANGELOG)
+    by_id = {str(t.id): t for t in tasks}
+
+    def _runnable(task: Task) -> bool:
+        """planned ที่ dependency จบครบแล้ว = orchestrator หยิบไปทำต่อได้."""
+        return all(
+            (dep := by_id.get(dep_id)) is not None and dep.status in FINISHED_STATUSES
+            for dep_id in (task.depends_on or [])
+        )
+
+    in_flight = [t for t in tasks if t.status in IN_FLIGHT_STATUSES]
+    unconfirmed = [t for t in tasks if t.status == TaskStatus.BACKLOG.value]
+    planned = [t for t in tasks if t.status == TaskStatus.PLANNED.value]
+    runnable = [t for t in planned if _runnable(t)]
+    blocked = [t for t in planned if not _runnable(t)]  # ค้างเพราะ dependency ไม่มีวันจบ
+
+    if in_flight:
+        return ReportResult(
+            False, False, f"ยังมีงานที่ agent ถืออยู่ {len(in_flight)} รายการ", counts=counts
+        )
+    if unconfirmed:
         return ReportResult(
             False,
             False,
-            f"ยังมีงานเดินอยู่ {len(active)} รายการ — รายงานเมื่อจบครบเท่านั้น",
+            f"ยังไม่ได้ยืนยัน scope ({len(unconfirmed)} task ค้าง backlog)",
             counts=counts,
+        )
+    if runnable:
+        return ReportResult(
+            False, False, f"ยังมีงานที่รันได้อีก {len(runnable)} รายการ — กด Run ก่อน", counts=counts
         )
 
     finished = [t for t in tasks if t.status in FINISHED_STATUSES]
@@ -231,9 +255,16 @@ def build_report(db: Session, project: Project) -> ReportResult:
         f"# ผลงานจากทีม R&D — {project.name}",
         "",
         f"งานทั้งหมด **{len(tasks)}** รายการ · เสร็จ **{len(finished)}** · "
-        f"ต้องการคนตัดสิน **{len(escalated)}**",
+        f"ต้องการคนตัดสิน **{len(escalated)}**"
+        + (f" · ค้างเพราะรอตัวข้างบน **{len(blocked)}**" if blocked else ""),
         "",
     ]
+    if escalated or blocked:
+        lines += [
+            "> ⚠️ **งานรอบนี้ยังไม่จบสมบูรณ์** — มีงานที่ agent ทำต่อเองไม่ได้ "
+            "ต้องให้คนเข้ามาตัดสินหรือรับช่วง (รายละเอียดด้านล่าง)",
+            "",
+        ]
     if finished:
         lines.append("## งานที่ทำเสร็จ")
         lines += [
@@ -249,6 +280,16 @@ def build_report(db: Session, project: Project) -> ReportResult:
             f"- [{t.priority}] {t.title} — {reasons.get(t.id, 'review ไม่ผ่านครบจำนวนรอบที่กำหนด')}"
             for t in escalated
         ]
+        lines.append("")
+    if blocked:
+        lines.append("## งานที่ค้างเพราะรองานข้างบน")
+        for t in blocked:
+            waiting_on = [
+                by_id[d].title
+                for d in (t.depends_on or [])
+                if d in by_id and by_id[d].status not in FINISHED_STATUSES
+            ]
+            lines.append(f"- [{t.priority}] {t.title} — รอ: {', '.join(waiting_on) or 'ไม่ทราบ'}")
         lines.append("")
     lines += [
         "## ต้นทุน",
