@@ -1,5 +1,5 @@
 """Database package: engine, session, Base, and portable column types."""
 from app.db.base import Base
-from app.db.session import engine, get_db, SessionLocal
+from app.db.session import SessionLocal, engine, get_db
 
 __all__ = ["Base", "engine", "get_db", "SessionLocal"]

@@ -40,6 +40,7 @@ export default function RootLayout({
             </Link>
             <nav className="flex gap-4 text-sm" style={{ color: "var(--text2)" }}>
               <Link href="/" className="hover:opacity-70">Portfolio</Link>
+              <Link href="/deployments" className="hover:opacity-70">Deployments</Link>
               <Link href="/projects/new" className="hover:opacity-70">+ New Project</Link>
             </nav>
           </div>

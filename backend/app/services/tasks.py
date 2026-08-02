@@ -40,7 +40,7 @@ def persist_task_plan(
         created.append(task)
 
     # Pass 2 — resolve dependency refs to UUID strings (JSON array, ADR-01).
-    for planned, task in zip(plan.tasks, created):
+    for planned, task in zip(plan.tasks, created, strict=False):
         resolved = [str(ref_to_id[ref]) for ref in planned.depends_on if ref in ref_to_id]
         task.depends_on = resolved
 

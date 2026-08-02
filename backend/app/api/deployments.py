@@ -1,6 +1,7 @@
 """Deployments endpoints (Sprint 4, Blueprint §13):
 
 - POST  /api/deployments        trigger deploy (manual — production ต้องมาทางนี้เท่านั้น)
+- GET   /api/deployments        รายการ deployments (ใหม่ล่าสุดก่อน, filter ด้วย project_id ได้)
 - GET   /api/deployments/:id    สถานะ deploy
 - PATCH /api/deployments/:id    callback จาก GitHub workflow (queued/running -> success/failed)
 """
@@ -10,6 +11,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.constants import ActorType, DeploymentStatus, DeploymentTrigger, TaskStatus
@@ -83,6 +85,54 @@ def trigger_deployment(body: DeploymentCreate, db: Session = Depends(get_db)) ->
     db.commit()
     db.refresh(deployment)
     return {**_serialize(deployment), "dispatched": result.dispatched, "detail": result.detail}
+
+
+@router.get("")
+def list_deployments(
+    project_id: uuid.UUID | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+) -> dict:
+    """รายการ deployments ใหม่ล่าสุดก่อน — ใช้กับหน้า Deployments ใน UI."""
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+
+    base = select(Deployment)
+    if project_id is not None:
+        base = base.where(Deployment.project_id == project_id)
+
+    total = db.execute(select(func.count()).select_from(base.subquery())).scalar_one()
+    rows = (
+        db.execute(base.order_by(Deployment.created_at.desc()).limit(limit).offset(offset))
+        .scalars()
+        .all()
+    )
+
+    # เติมชื่อ project/task ให้ UI ไม่ต้องยิงเพิ่มรายแถว
+    project_names = {
+        p.id: p.name
+        for p in db.execute(
+            select(Project).where(Project.id.in_({d.project_id for d in rows}))
+        ).scalars()
+    }
+    task_ids = {d.task_id for d in rows if d.task_id}
+    task_titles = {
+        t.id: t.title
+        for t in db.execute(select(Task).where(Task.id.in_(task_ids))).scalars()
+    } if task_ids else {}
+
+    return {
+        "data": [
+            {
+                **_serialize(d),
+                "project_name": project_names.get(d.project_id),
+                "task_title": task_titles.get(d.task_id) if d.task_id else None,
+            }
+            for d in rows
+        ],
+        "pagination": {"total": total, "limit": limit, "offset": offset},
+    }
 
 
 @router.get("/{deployment_id}")

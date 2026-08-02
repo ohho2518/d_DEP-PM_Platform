@@ -26,6 +26,8 @@ export interface Task {
   spec: string | null;
   estimate_points: number | null;
   revision_count: number;
+  tokens_input: number;
+  tokens_output: number;
   created_at: string;
   updated_at: string;
 }
@@ -83,6 +85,26 @@ export interface RunSummary {
 export interface BreakdownResponse {
   source: "agent" | "fallback";
   tasks: Task[];
+}
+
+export type DeploymentStatus = "queued" | "running" | "success" | "failed";
+
+export interface DeploymentItem {
+  id: string;
+  project_id: string;
+  task_id: string | null;
+  triggered_by: string;
+  status: DeploymentStatus;
+  environment: string | null;
+  commit_sha: string | null;
+  created_at: string;
+  project_name: string | null;
+  task_title: string | null;
+}
+
+export interface DeploymentList {
+  data: DeploymentItem[];
+  pagination: { total: number; limit: number; offset: number };
 }
 
 // State Machine ฝั่ง UI — ต้องตรงกับ backend/app/orchestrator/state_machine.py

@@ -2,6 +2,7 @@
 import type {
   AgentMessage,
   BreakdownResponse,
+  DeploymentList,
   Portfolio,
   Project,
   RunSummary,
@@ -57,4 +58,9 @@ export const api = {
 
   taskMessages: (taskId: string) =>
     request<{ data: AgentMessage[] }>(`/api/tasks/${taskId}/messages`),
+
+  listDeployments: (projectId?: string) =>
+    request<DeploymentList>(
+      `/api/deployments?limit=100${projectId ? `&project_id=${projectId}` : ""}`,
+    ),
 };

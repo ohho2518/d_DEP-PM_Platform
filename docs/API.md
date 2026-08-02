@@ -49,7 +49,8 @@ Response `200`:
 ```json
 { "data": [ { "id": "…", "title": "…", "status": "backlog", "priority": "P2",
               "assignee_type": null, "agent_role": null, "depends_on": [],
-              "spec": null, "estimate_points": null, "revision_count": 0, "…": "…" } ],
+              "spec": null, "estimate_points": null, "revision_count": 0,
+              "tokens_input": 0, "tokens_output": 0, "…": "…" } ],
   "pagination": { "total": 1, "limit": 50, "offset": 0 } }
 ```
 
@@ -62,6 +63,7 @@ Request (บังคับแค่ `title`):
   "description": "…", "spec": "…", "depends_on": ["<task-uuid>"] }
 ```
 Response `201`: Task (status เริ่ม `backlog` เสมอ) | Side effects: audit `task.created`
+- `depends_on` ทุก id ต้องเป็น task จริงในโปรเจกต์เดียวกัน ไม่งั้น **400** (referential check)
 
 ---
 
@@ -121,6 +123,13 @@ Response `200`: Task | Side effects: audit `task.transition` และ/หรื
 
 ---
 
+### 8.1) `DELETE /api/tasks/:id` — ลบ task
+Response `204` (no body) | Side effects: audit `task.deleted`,
+ลบ agent_messages ของ task (CASCADE), deployments ที่อ้าง task → `task_id: null` (SET NULL)
+- มี task อื่นอ้างใน `depends_on` → **409** พร้อมรายชื่อ task ที่อ้าง (กัน dangling id — ต้องแก้/ลบตัวอ้างก่อน)
+
+---
+
 ### 9) `GET /api/tasks/:id/messages` — บทสนทนา agent ของ task
 Response `200`:
 ```json
@@ -171,6 +180,17 @@ Response `201`:
   "dispatched": true, "detail": "repository_dispatch sent", "…": "…" }
 ```
 - ไม่ตั้ง `GITHUB_TOKEN`/`GITHUB_REPO` → **stub mode**: `status: "queued"`, `dispatched: false`, detail บอกเหตุ (ไม่ error)
+
+### 13.1) `GET /api/deployments?project_id=…&limit=50&offset=0` — รายการ deployments
+- เรียงใหม่ล่าสุดก่อน | `project_id` optional (ไม่ใส่ = ทุกโปรเจกต์) | `limit` clamp 1..200
+Response `200`:
+```json
+{ "data": [ { "id": "…", "status": "queued", "environment": "staging",
+              "triggered_by": "manual", "commit_sha": null, "created_at": "…",
+              "project_name": "Demo", "task_title": "ship" } ],
+  "pagination": { "total": 1, "limit": 50, "offset": 0 } }
+```
+ใช้กับหน้า `/deployments` ใน UI (เติม `project_name`/`task_title` ให้แล้ว)
 
 ### 14) `GET /api/deployments/:id` — สถานะ deploy
 Response `200`: deployment object (id, status, environment, commit_sha, …)

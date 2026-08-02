@@ -50,6 +50,8 @@ class TaskRead(BaseModel):
     spec: str | None
     estimate_points: int | None
     revision_count: int
+    tokens_input: int
+    tokens_output: int
     created_at: datetime
     updated_at: datetime
 

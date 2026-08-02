@@ -49,4 +49,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(sa.text("DELETE FROM agents WHERE id = '%s'" % _SOLO_AGENT_ID))
+    op.execute(sa.text(f"DELETE FROM agents WHERE id = '{_SOLO_AGENT_ID}'"))

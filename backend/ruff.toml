@@ -1,0 +1,15 @@
+# Ruff — lint + import sort (เพิ่มตามแผน CLAUDE.md §Lint)
+# เริ่มแบบ conservative: ตรวจของพังจริง (E/F/B) + import order (I) + โค้ดโบราณ (UP)
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = [
+    "E501", # ยาวเกิน line-length — โค้ดเดิมมีหลายจุด (ข้อความไทย/prompt) ไม่บังคับตัด
+    "B008", # Depends(...) ใน argument default = idiom มาตรฐานของ FastAPI
+]
+
+[lint.per-file-ignores]
+# migrations สร้างตาม template ของ alembic — ไม่บังคับ import order
+"alembic/versions/*" = ["I"]

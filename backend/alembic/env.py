@@ -3,11 +3,10 @@ from __future__ import annotations
 
 from logging.config import fileConfig
 
+import app.models  # noqa: F401 — imported for side effect: registers all tables on Base
 from alembic import context
-
 from app.config import get_settings
 from app.db.base import Base
-import app.models  # noqa: F401 — imported for side effect: registers all tables on Base
 
 config = context.config
 if config.config_file_name is not None:

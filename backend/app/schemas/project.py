@@ -15,7 +15,7 @@ class ProjectCreate(BaseModel):
     repo_url: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
-    def _existing_requires_repo(self) -> "ProjectCreate":
+    def _existing_requires_repo(self) -> ProjectCreate:
         # An 'existing' (Brownfield) project needs a repo to scan (even if scan is a stub).
         if self.type == ProjectType.EXISTING and not self.repo_url:
             raise ValueError("repo_url is required when type='existing'")

@@ -13,21 +13,21 @@ from app.db.session import get_db
 from app.metadata.provider import get_metadata_provider
 from app.models.project import Project
 from app.models.task import Task
+from app.orchestrator.engine import run_project
+from app.orchestrator.state_machine import transition
 from app.schemas.project import ProjectCreate, ProjectRead
 from app.schemas.scan import ScanResponse
 from app.schemas.task import (
     BreakdownRequest,
     BreakdownResponse,
     ConfirmScopeRequest,
+    Pagination,
     PlannedTask,
     TaskCreate,
     TaskList,
     TaskPlan,
     TaskRead,
-    Pagination,
 )
-from app.orchestrator.engine import run_project
-from app.orchestrator.state_machine import transition
 from app.services.audit import record_audit
 from app.services.tasks import persist_task_plan
 
@@ -91,6 +91,26 @@ def create_task(
     project_id: uuid.UUID, payload: TaskCreate, db: Session = Depends(get_db)
 ) -> Task:
     _get_project_or_404(db, project_id)
+
+    # Referential check (debt #5): ทุก id ใน depends_on ต้องเป็น task จริงในโปรเจกต์เดียวกัน
+    # ไม่งั้น dangling id ทำให้ task ไม่มีวัน runnable (_deps_met fail-closed) แบบเงียบ ๆ
+    if payload.depends_on:
+        found = (
+            db.execute(
+                select(Task.id).where(
+                    Task.project_id == project_id, Task.id.in_(payload.depends_on)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        missing = set(payload.depends_on) - set(found)
+        if missing:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"depends_on อ้าง task ที่ไม่มีในโปรเจกต์นี้: {sorted(str(m) for m in missing)}",
+            )
+
     task = Task(
         project_id=project_id,
         title=payload.title,

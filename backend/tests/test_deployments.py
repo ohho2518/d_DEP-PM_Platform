@@ -84,6 +84,34 @@ def test_callback_terminal_status_is_immutable(client):
     assert resp.status_code == 409
 
 
+def test_list_deployments_newest_first_with_names(client):
+    pid = _project(client, name="ListMe")
+    tid = _done_task(client, pid)
+    client.post("/api/deployments", json={"project_id": pid, "environment": "staging"})
+    client.post(
+        "/api/deployments",
+        json={"project_id": pid, "task_id": tid, "environment": "production"},
+    )
+
+    body = client.get("/api/deployments").json()
+    assert body["pagination"]["total"] == 2
+    newest = body["data"][0]
+    assert newest["environment"] == "production"   # ใหม่ล่าสุดก่อน
+    assert newest["project_name"] == "ListMe"
+    assert newest["task_title"] == "ship"
+
+
+def test_list_deployments_filter_by_project(client):
+    pid_a = _project(client, name="A")
+    pid_b = _project(client, name="B")
+    client.post("/api/deployments", json={"project_id": pid_a, "environment": "staging"})
+    client.post("/api/deployments", json={"project_id": pid_b, "environment": "staging"})
+
+    body = client.get(f"/api/deployments?project_id={pid_a}").json()
+    assert body["pagination"]["total"] == 1
+    assert body["data"][0]["project_id"] == pid_a
+
+
 def test_portfolio_shows_last_deployment(client):
     pid = _project(client)
     client.post("/api/deployments", json={"project_id": pid, "environment": "staging"})
@@ -106,9 +134,10 @@ class _ApproveAll:
 
 
 def test_auto_deploy_disabled_by_default(client, db_session):
-    from app.models.project import Project
-    from app.models.deployment import Deployment
     from sqlalchemy import select
+
+    from app.models.deployment import Deployment
+    from app.models.project import Project
 
     project = Project(name="AutoOff", type="new")
     db_session.add(project)
@@ -122,10 +151,11 @@ def test_auto_deploy_disabled_by_default(client, db_session):
 
 
 def test_auto_deploy_creates_staging_deployment(client, db_session, monkeypatch):
-    from app.config import get_settings
-    from app.models.project import Project
-    from app.models.deployment import Deployment
     from sqlalchemy import select
+
+    from app.config import get_settings
+    from app.models.deployment import Deployment
+    from app.models.project import Project
 
     monkeypatch.setattr(get_settings(), "auto_deploy_enabled", True)
 

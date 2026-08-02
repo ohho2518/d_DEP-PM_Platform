@@ -231,6 +231,12 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
         <dl className="space-y-1 text-sm" style={{ color: "var(--text2)" }}>
           <div>status: <span className="font-semibold" style={{ color: "var(--text)" }}>{task.status}</span></div>
           <div>priority: {task.priority} · revisions: {task.revision_count}</div>
+          {(task.tokens_input > 0 || task.tokens_output > 0) && (
+            <div>
+              tokens: {task.tokens_input.toLocaleString()} in ·{" "}
+              {task.tokens_output.toLocaleString()} out
+            </div>
+          )}
           {task.agent_role && <div>agent role: {task.agent_role}</div>}
           {task.description && <p className="pt-2" style={{ color: "var(--text)" }}>{task.description}</p>}
           {task.spec && (

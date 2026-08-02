@@ -89,7 +89,8 @@ Key reference documents (read-only, ห้ามแก้):
     backend/app/metadata/                 MetadataProvider interface + Stub (ADR-02)
     backend/app/services/                 audit + task-plan persistence
     backend/alembic/                      migrations (schema + seed agent)
-    backend/tests/                        pytest (48 tests)
+    backend/tests/                        pytest (60 tests)
+    backend/ruff.toml                     lint config (E,F,I,B,UP — ดู §Lint)
 
     backend/app/api/portfolio.py          GET /api/portfolio (Sprint 3)
     backend/app/api/deployments.py        POST/GET/PATCH deployments (Sprint 4)
@@ -99,6 +100,7 @@ Key reference documents (read-only, ห้ามแก้):
     frontend/src/app/page.tsx             Portfolio view
     frontend/src/app/projects/new/        New Project flow (STEP 1-4)
     frontend/src/app/projects/[id]/       Kanban Board + Task detail + Message Log
+    frontend/src/app/deployments/         Deployments view (ประวัติ deploy ทุกโปรเจกต์)
     docs/runbook.md                       Operations/handover + UAT checklist
     docs/github-workflow-example.yml      Workflow template สำหรับ repo เป้าหมาย
 
@@ -141,11 +143,13 @@ Document real commands only.
 ### Test
 
     cd backend
-    pytest                            # 48 tests
+    pytest                            # 60 tests
 
 ### Lint / Format
 
-ยังไม่ตั้ง ruff/black — จะเพิ่มเมื่อจำเป็น (Sprint 2+)
+    cd backend
+    ruff check app tests alembic      # config ใน backend/ruff.toml (E,F,I,B,UP; ignore E501,B008)
+    ruff check --fix ...              # auto-fix import order ฯลฯ
 
 ## Environment Variables
 

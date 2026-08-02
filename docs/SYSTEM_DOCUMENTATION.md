@@ -250,12 +250,12 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 | # | รายการ | ผลกระทบ | แผน |
 |---|--------|---------|-----|
 | 1 | `/run` synchronous + ไม่ thread-safe ต่อโปรเจกต์ | UX ค้าง, ห้ามรันซ้อน | background worker + task queue (Sprint 4/หลัง) |
-| 2 | Claude/OpenAI/Gemini executors + GitHub dispatch ไม่เคยรันกับของจริง | ความเสี่ยง integration ซ่อนอยู่ | ทดสอบทันทีที่ได้ keys/repo (UAT checklist ใน runbook.md) |
-| 3 | Reviewer parse-fail = auto-approve | งานคุณภาพต่ำอาจหลุด | เปลี่ยนเป็น structured output / retry เมื่อใช้ key จริง |
+| 2 | Claude/OpenAI/Gemini executors + GitHub dispatch: เฉพาะ OpenAI/Gemini ที่ยังไม่เคยรันกับของจริง | ความเสี่ยง integration ซ่อนอยู่ | ทดสอบทันทีที่ได้ keys (UAT checklist ใน runbook.md) |
+| 3 | ~~Reviewer parse-fail = auto-approve~~ **แก้แล้ว (2026-07-07)**: retry 1 ครั้ง → ยัง parse ไม่ได้ = reject → เข้า revision/escalation ปกติ (`runtime._review_with_retry`) | — | — |
 | 4 | types.ts sync มือ | contract drift เงียบ | พิจารณา openapi-typescript codegen |
-| 5 | `depends_on` ไม่มี referential integrity | dangling id ถ้าลบ task | เช็คตอนลบ task หรือยอมรับ (fail-closed อยู่แล้ว) |
+| 5 | ~~`depends_on` ไม่มี referential integrity~~ **แก้แล้ว (2026-07-07)**: create validate ทุก id (400), `DELETE /api/tasks/:id` ปฏิเสธถ้ามีตัวอ้าง (409) | — | — |
 | 6 | นับ total แบบโหลดหมด ฯลฯ (ดู §16) | ช้าเมื่อ data โต | แก้ตอนย้าย PG |
-| 7 | ไม่มี token-usage tracking ต่อ task | คุมงบไม่ได้ (Risk #3) | เพิ่มก่อนเปิด Team Mode |
+| 7 | ~~ไม่มี token-usage tracking ต่อ task~~ **แก้แล้ว (2026-07-07)**: `tasks.tokens_input/tokens_output` สะสมทุก execute/review call (ทุก provider) — แสดงใน task detail UI | — | ต่อยอด: งบรวมต่อโปรเจกต์/alert เมื่อเปิด Team Mode จริง |
 
 ---
 

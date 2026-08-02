@@ -41,6 +41,8 @@ erDiagram
         text spec "nullable"
         int estimate_points "nullable"
         int revision_count "default 0"
+        int tokens_input "default 0, cumulative"
+        int tokens_output "default 0, cumulative"
         datetime created_at
         datetime updated_at "onupdate"
     }
@@ -91,7 +93,7 @@ erDiagram
 | การตัดสินใจ | เหตุผล | Tradeoff |
 |-------------|--------|----------|
 | PK เป็น UUID (custom `GUID` type) | merge ข้าม environment ได้, ไม่ leak ลำดับ, PostgreSQL ใช้ native UUID | ใหญ่กว่า int, ต้องมี type decorator (ADR-01) |
-| `depends_on` เป็น JSON array **ไม่ใช่ join table** | ADR-01 ห้าม PG array; join table over-engineered สำหรับ dependency ตื้น ๆ | ❌ ไม่มี referential integrity — id ที่ลบแล้วอาจค้างใน array (orchestrator ป้องกันโดยเช็คว่า resolve ครบ) ❌ query "ใคร depend on X" ต้อง scan |
+| `depends_on` เป็น JSON array **ไม่ใช่ join table** | ADR-01 ห้าม PG array; join table over-engineered สำหรับ dependency ตื้น ๆ | integrity บังคับที่ชั้น API: create validate ทุก id (400 ถ้า dangling), DELETE ปฏิเสธถ้ามีตัวอ้าง (409) — ❌ query "ใคร depend on X" ต้อง scan |
 | status เก็บ string เปล่า ไม่ใช่ DB enum | portable SQLite↔PG; เพิ่มค่าไม่ต้อง migrate | typo ป้องกันที่ชั้นแอป (Enum ใน `constants.py`) ไม่ใช่ DB |
 | `audit_log` ไม่มี FK ไปตารางอื่น | append-only log ต้องรอดแม้ entity ถูกลบ | join ต้องทำผ่าน entity_id string |
 | `agent_messages.to_agent_id = NULL` หมายถึง broadcast | รองรับข้อความ escalation ถึง "ผู้ใช้/dashboard" โดยไม่ต้องมี user table | ต้อง document ความหมาย (ที่นี่) |
@@ -136,6 +138,7 @@ Query pattern: `GET /portfolio` อ่านทุกแถว (โปรเจ�
 | spec | TEXT | NULL |
 | estimate_points | INT | NULL |
 | revision_count | INT | NOT NULL default 0 |
+| tokens_input / tokens_output | INT | NOT NULL default 0 — LLM usage สะสมทุก execute/review call ของ task (debt #7) |
 | created_at / updated_at | DATETIME(tz) | updated_at มี onupdate (Python-side) |
 
 **Indexes:** `ix_tasks_project_id` (ทุก query กรองโปรเจกต์), `ix_tasks_status` (orchestrator หา planned, portfolio group by)
@@ -173,6 +176,7 @@ Status flow: `queued` → `running` (dispatch สำเร็จ) → `success|f
 |----------|---------|----------|
 | `a14314b6f9a2` | สร้าง 6 ตาราง + indexes | autogenerate แล้ว**แก้มือ**: เพิ่ม `import app.db.types` (autogen ไม่ใส่ให้) — บทเรียน: ตรวจ autogen เสมอ |
 | `b2f1c0d3e4a5` | seed agent "Claude Solo" | fixed UUID `00000000-…-0001` → deterministic ทุก environment; downgrade ลบเฉพาะแถวนี้ |
+| `c7d4e2a9b1f3` | เพิ่ม `tasks.tokens_input/tokens_output` | server_default "0" — แถวเก่าได้ 0 อัตโนมัติ |
 
 ### กติกา migration (จาก ADR-01 + CLAUDE.md Database Rules)
 1. คอลัมน์ JSON ใช้ SQLAlchemy `JSON` (ห้าม JSONB ตรง ๆ — map ตอน deploy PG)

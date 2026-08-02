@@ -72,3 +72,75 @@ def test_team_executor_uses_provider_call_when_available(db_session, monkeypatch
     # review ใช้ anthropic + parse JSON
     review = executor.review(task, "work")
     assert review.approved is True and review.comment == "ok"
+
+
+def _make_task(db_session, title="t"):
+    from app.models.project import Project
+    from app.models.task import Task
+
+    project = Project(name=f"P-{title}", type="new")
+    db_session.add(project)
+    db_session.flush()
+    task = Task(project_id=project.id, title=title, depends_on=[])
+    db_session.add(task)
+    db_session.flush()
+    return task
+
+
+def test_unparseable_review_retries_then_rejects(db_session):
+    """debt #3: parse ไม่ได้ → retry 1 ครั้ง แล้ว reject (ไม่ auto-approve งานที่ไม่ถูกตรวจจริง)."""
+    task = _make_task(db_session)
+    calls = {"n": 0}
+
+    def garbage(system, prompt):
+        calls["n"] += 1
+        return "นี่ไม่ใช่ JSON เลย"
+
+    executor = TeamExecutor()
+    executor._calls["anthropic"] = garbage
+    review = executor.review(task, "work")
+
+    assert calls["n"] == 2  # ครั้งแรก + retry
+    assert review.approved is False
+    assert "unparseable" in review.comment
+
+
+def test_unparseable_review_recovers_on_retry(db_session):
+    task = _make_task(db_session)
+    replies = iter(["garbage", '{"approved": true, "comment": "fine"}'])
+
+    executor = TeamExecutor()
+    executor._calls["anthropic"] = lambda system, prompt: next(replies)
+    review = executor.review(task, "work")
+
+    assert review.approved is True and review.comment == "fine"
+
+
+def test_token_usage_accumulates_on_task(db_session):
+    """debt #7: ทุก execute/review call สะสม tokens_input/tokens_output ลง task."""
+    from app.agents.providers import LLMReply
+
+    task = _make_task(db_session)
+    executor = TeamExecutor()
+    executor._calls["openai"] = lambda system, prompt: LLMReply(
+        text="work", input_tokens=100, output_tokens=40
+    )
+    executor._calls["anthropic"] = lambda system, prompt: LLMReply(
+        text='{"approved": true, "comment": "ok"}', input_tokens=30, output_tokens=10
+    )
+
+    executor.execute(task, AgentRole.DEV)
+    executor.review(task, "work")
+
+    assert task.tokens_input == 130
+    assert task.tokens_output == 50
+
+
+def test_plain_string_provider_call_counts_zero_tokens(db_session):
+    """Custom/legacy call ที่คืน str ล้วน — ต้องไม่พังและนับ usage เป็น 0."""
+    task = _make_task(db_session)
+    executor = TeamExecutor()
+    executor._calls["openai"] = lambda system, prompt: "just text"
+
+    assert executor.execute(task, AgentRole.DEV) == "just text"
+    assert task.tokens_input == 0 and task.tokens_output == 0

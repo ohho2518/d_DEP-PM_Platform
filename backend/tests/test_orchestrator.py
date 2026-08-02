@@ -1,12 +1,10 @@
 """Orchestrator E2E: happy path, revision loop, escalation (Sprint 2 DoD)."""
 from __future__ import annotations
 
-import uuid
-
 from sqlalchemy import select
 
 from app.agents.runtime import ReviewResult
-from app.constants import MAX_REVISIONS, AgentRole
+from app.constants import MAX_REVISIONS
 from app.models.agent_message import AgentMessage
 from app.models.audit_log import AuditLog
 from app.models.project import Project

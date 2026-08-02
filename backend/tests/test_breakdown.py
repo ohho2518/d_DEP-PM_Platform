@@ -2,7 +2,7 @@
 so breakdown uses the deterministic fallback path — no network calls."""
 from __future__ import annotations
 
-from app.agents.pm import breakdown_requirement, _extract_json, _fallback_plan
+from app.agents.pm import _extract_json, _fallback_plan, breakdown_requirement
 from app.schemas.task import TaskPlan
 
 
@@ -48,9 +48,9 @@ def test_confirm_scope_moves_backlog_to_planned(client):
 
 
 def test_dependency_refs_resolve_to_uuids(client, db_session):
-    from app.services.tasks import persist_task_plan
     from app.models.project import Project
     from app.schemas.task import PlannedTask
+    from app.services.tasks import persist_task_plan
 
     project = Project(name="Dep", type="new")
     db_session.add(project)

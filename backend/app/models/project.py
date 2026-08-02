@@ -28,6 +28,6 @@ class Project(Base, TimestampMixin):
     # Reference into the DEP Engine metadata registry — null until a real scan exists (ADR-02).
     metadata_registry_ref: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    tasks: Mapped[list["Task"]] = relationship(
+    tasks: Mapped[list[Task]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )

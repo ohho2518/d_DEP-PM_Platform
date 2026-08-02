@@ -40,6 +40,7 @@ def _make_task(db, status=TaskStatus.BACKLOG):
 
 def test_transition_writes_audit(db_session):
     from sqlalchemy import select
+
     from app.models.audit_log import AuditLog
 
     task = _make_task(db_session)

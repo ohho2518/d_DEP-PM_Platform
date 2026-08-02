@@ -7,9 +7,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import app.models  # noqa: F401 — register tables
 from app.db.base import Base
 from app.db.session import get_db
-import app.models  # noqa: F401 — register tables
 from app.main import app
 
 

@@ -1,5 +1,26 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-07-07 — เคลียร์ technical debt #3/#5/#7 + หน้า Deployments + ruff
+
+- **Reviewer fail-safe (debt #3):** review ที่ parse ไม่ได้ → retry 1 ครั้ง → ยังไม่ได้ =
+  **reject** (เดิม auto-approve — งานไม่ถูกตรวจจริงอาจหลุดเป็น done) → เข้า revision loop
+  ปกติ ครบ MAX_REVISIONS แล้ว escalate ให้คน; logic รวมที่ `runtime._review_with_retry`
+  ใช้ทั้ง Solo และ Team Mode
+- **Token-usage tracking (debt #7):** คอลัมน์ใหม่ `tasks.tokens_input/tokens_output`
+  (migration `c7d4e2a9b1f3`) สะสมจากทุก execute/review call ทุก provider
+  (Anthropic/OpenAI/Gemini คืน `LLMReply` พร้อม usage) — โชว์ใน task detail panel
+- **depends_on referential integrity (debt #5):** สร้าง task ที่อ้าง id นอกโปรเจกต์/ไม่มีจริง
+  → 400 | endpoint ใหม่ `DELETE /api/tasks/:id` — มีตัวอ้างค้าง → 409; ลบสำเร็จเก็บ audit
+  + ลบ messages (CASCADE) + deployments.task_id → NULL (ทำที่ API layer เพราะ SQLite
+  dev ไม่ enforce FK)
+- **หน้า Deployments ใหม่** (`/deployments` + ลิงก์ nav): ตารางประวัติ deploy ทุกโปรเจกต์
+  ใหม่ล่าสุดก่อน พร้อมสถานะสี/environment/trigger/commit — ใช้ endpoint ใหม่
+  `GET /api/deployments` (filter `project_id` ได้, เติม project_name/task_title ให้)
+- **ruff:** config `backend/ruff.toml` (E,F,I,B,UP; ignore E501,B008) + แก้ของเดิมทั้งหมด
+  (ส่วนใหญ่ import order) — suite สะอาด
+- pytest 48 → **60 tests** (review fail-safe, token accumulation, depends_on guards,
+  deployments list)
+
 ## 2026-07-06 — UI: ai-dev-team theme + Agent Office + Run progress
 
 - **Restyle ทั้งระบบตาม `ai-dev-team-complete.html`**: โทนสว่าง #f4f5fb + dot grid,

@@ -5,13 +5,12 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.constants import Priority, TaskStatus
 from app.db.base import Base, utcnow
 from app.db.types import GUID, JSONType, new_uuid
-from sqlalchemy import DateTime, func
 
 if TYPE_CHECKING:
     from app.models.project import Project
@@ -46,6 +45,14 @@ class Task(Base):
     # Escalation Rule support (Max Revision = 2).
     revision_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # Cumulative LLM token usage across every execute/review call of this task (debt #7).
+    tokens_input: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    tokens_output: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), default=utcnow, nullable=False
     )
@@ -57,4 +64,4 @@ class Task(Base):
         nullable=False,
     )
 
-    project: Mapped["Project"] = relationship(back_populates="tasks")
+    project: Mapped[Project] = relationship(back_populates="tasks")

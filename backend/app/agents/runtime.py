@@ -14,15 +14,76 @@ from typing import Protocol
 
 from app.agents.personas import PERSONA_PROMPTS, REVIEWER_SYSTEM_PROMPT
 from app.agents.pm import _extract_json
+from app.agents.providers import LLMReply, ProviderCall
 from app.config import get_settings
 from app.constants import AgentRole
 from app.models.task import Task
+
+# Parse review ไม่ได้ → เรียก reviewer ซ้ำได้อีกกี่ครั้งก่อนตัดสิน reject (debt #3)
+REVIEW_PARSE_RETRIES = 1
 
 
 @dataclass
 class ReviewResult:
     approved: bool
     comment: str
+
+
+def _as_reply(value: LLMReply | str) -> LLMReply:
+    """Normalize ผลจาก provider call — เทสต์/custom call อาจคืน str ล้วน (ไม่มี usage)."""
+    return value if isinstance(value, LLMReply) else LLMReply(text=value)
+
+
+def _add_usage(task: Task, reply: LLMReply) -> None:
+    """สะสม token usage ลง task (debt #7) — ผู้เรียก orchestrator เป็นคน commit."""
+    task.tokens_input = (task.tokens_input or 0) + reply.input_tokens
+    task.tokens_output = (task.tokens_output or 0) + reply.output_tokens
+
+
+def _execute_prompt(task: Task, feedback: str | None) -> str:
+    prompt = (
+        f"Task: {task.title}\n"
+        f"Description: {task.description or '-'}\n"
+        f"Spec / acceptance criteria: {task.spec or '-'}"
+    )
+    if feedback:
+        prompt += f"\n\nReview comment รอบก่อน (ต้องแก้): {feedback}"
+    return prompt
+
+
+def _review_prompt(task: Task, work: str) -> str:
+    return (
+        f"Task: {task.title}\n"
+        f"Spec / acceptance criteria: {task.spec or '-'}\n\n"
+        f"Work product ที่ต้องตรวจ:\n{work}"
+    )
+
+
+def _parse_review(text: str) -> ReviewResult | None:
+    try:
+        data = json.loads(_extract_json(text))
+        return ReviewResult(approved=bool(data["approved"]), comment=str(data.get("comment", "")))
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _review_with_retry(task: Task, call: ProviderCall, prompt: str) -> ReviewResult:
+    """เรียก reviewer แล้ว parse ผล; parse ไม่ได้ → retry ก่อน แล้วจึง reject (fail-safe).
+
+    เดิม parse ไม่ได้ = auto-approve (Risk #7 กัน revision loop) — เปลี่ยนเป็น reject
+    เพื่อไม่ให้งานที่ไม่ถูกตรวจจริงหลุดเป็น done; loop ถูก bound ด้วย MAX_REVISIONS
+    → escalate ให้คนตรวจเอง (debt #3)
+    """
+    for _ in range(1 + REVIEW_PARSE_RETRIES):
+        reply = _as_reply(call(REVIEWER_SYSTEM_PROMPT, prompt))
+        _add_usage(task, reply)
+        parsed = _parse_review(reply.text)
+        if parsed is not None:
+            return parsed
+    return ReviewResult(
+        approved=False,
+        comment="(unparseable review after retry — reject ไว้ก่อน; ครบ MAX_REVISIONS จะ escalate ให้คนตรวจ)",
+    )
 
 
 class PersonaExecutor(Protocol):
@@ -62,7 +123,7 @@ class ClaudeExecutor:
         self._model = settings.claude_model
         self._max_tokens = settings.max_tokens_per_task
 
-    def _call(self, system: str, prompt: str) -> str:
+    def _call(self, system: str, prompt: str) -> LLMReply:
         response = self._client.messages.create(
             model=self._model,
             max_tokens=self._max_tokens,
@@ -73,35 +134,23 @@ class ClaudeExecutor:
         if not text.strip():
             # พบจริงใน UAT: adaptive thinking กินโควตา max_tokens จนหมด -> text ว่าง
             # คืน marker ชัดเจนแทน string ว่าง เพื่อให้ reviewer/audit เห็นสาเหตุ
-            return (
+            text = (
                 f"(no text output — stop_reason={response.stop_reason}; "
                 "เพิ่ม MAX_TOKENS_PER_TASK หรือแตก task ให้เล็กลง)"
             )
-        return text
+        return LLMReply(
+            text=text,
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+        )
 
     def execute(self, task: Task, role: AgentRole, feedback: str | None = None) -> str:
-        prompt = (
-            f"Task: {task.title}\n"
-            f"Description: {task.description or '-'}\n"
-            f"Spec / acceptance criteria: {task.spec or '-'}"
-        )
-        if feedback:
-            prompt += f"\n\nReview comment รอบก่อน (ต้องแก้): {feedback}"
-        return self._call(PERSONA_PROMPTS[role], prompt)
+        reply = self._call(PERSONA_PROMPTS[role], _execute_prompt(task, feedback))
+        _add_usage(task, reply)
+        return reply.text
 
     def review(self, task: Task, work: str) -> ReviewResult:
-        prompt = (
-            f"Task: {task.title}\n"
-            f"Spec / acceptance criteria: {task.spec or '-'}\n\n"
-            f"Work product ที่ต้องตรวจ:\n{work}"
-        )
-        text = self._call(REVIEWER_SYSTEM_PROMPT, prompt)
-        try:
-            data = json.loads(_extract_json(text))
-            return ReviewResult(approved=bool(data["approved"]), comment=str(data.get("comment", "")))
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-            # Parse ไม่ได้ → auto-approve พร้อม note (กัน revision loop จาก output เพี้ยน — Risk #7)
-            return ReviewResult(approved=True, comment="(unparseable review — auto-approved)")
+        return _review_with_retry(task, self._call, _review_prompt(task, work))
 
 
 class TeamExecutor:
@@ -136,30 +185,15 @@ class TeamExecutor:
         call = self._call_for(role)
         if call is None:
             return self._fallback.execute(task, role, feedback)
-        prompt = (
-            f"Task: {task.title}\n"
-            f"Description: {task.description or '-'}\n"
-            f"Spec / acceptance criteria: {task.spec or '-'}"
-        )
-        if feedback:
-            prompt += f"\n\nReview comment รอบก่อน (ต้องแก้): {feedback}"
-        return call(PERSONA_PROMPTS[role], prompt)
+        reply = _as_reply(call(PERSONA_PROMPTS[role], _execute_prompt(task, feedback)))
+        _add_usage(task, reply)
+        return reply.text
 
     def review(self, task: Task, work: str) -> ReviewResult:
         call = self._call_for(AgentRole.REVIEWER)
         if call is None:
             return self._fallback.review(task, work)
-        prompt = (
-            f"Task: {task.title}\n"
-            f"Spec / acceptance criteria: {task.spec or '-'}\n\n"
-            f"Work product ที่ต้องตรวจ:\n{work}"
-        )
-        text = call(REVIEWER_SYSTEM_PROMPT, prompt)
-        try:
-            data = json.loads(_extract_json(text))
-            return ReviewResult(approved=bool(data["approved"]), comment=str(data.get("comment", "")))
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-            return ReviewResult(approved=True, comment="(unparseable review — auto-approved)")
+        return _review_with_retry(task, call, _review_prompt(task, work))
 
 
 def get_executor() -> PersonaExecutor:
