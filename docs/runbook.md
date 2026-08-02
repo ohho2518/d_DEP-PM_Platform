@@ -12,14 +12,18 @@
 cd backend
 .venv\Scripts\activate            # ครั้งแรก: python -m venv .venv && pip install -r requirements.txt
 alembic upgrade head
-uvicorn app.main:app --reload     # http://127.0.0.1:8000 (docs: /docs)
+uvicorn app.main:app --reload --port 8400   # http://127.0.0.1:8400 (docs: /docs)
 
 # Frontend (terminal 2)
 cd frontend
 npm run dev                       # http://localhost:3000 (ครั้งแรก: npm install + cp .env.local.example .env.local)
 ```
 
-ตรวจสุขภาพ: `curl http://127.0.0.1:8000/health` → `{"status":"ok","agent_enabled":...}`
+ตรวจสุขภาพ: `curl http://127.0.0.1:8400/health` → `{"status":"ok","agent_enabled":...}`
+
+> **⚠️ ห้ามใช้พอร์ต 8000** — เป็นของ **d_CEO / Solo_CEO API** ที่รันค้างตลอดผ่าน Task Scheduler
+> และ d_Jarvis พึ่งพาอยู่ (ห้ามหยุด) · พอร์ตที่จองแล้วในเครื่อง: `8000` d_CEO · `8100` d_OCR ·
+> `8200` d_STT · `8300` d_InnoHub · **`8400` DEP-PM (ตัวนี้)**
 
 ## 2. เปิดความสามารถแต่ละส่วน (env ใน `backend/.env`)
 
@@ -97,5 +101,5 @@ driver (`psycopg[binary]`) อยู่ใน requirements แล้ว; โค�
    ให้ deliverable เป็นเอกสาร/โค้ด หรือให้คนรับ task ประเภท infra เอง
 
 ## 8. Security notes (ก่อน expose ออกนอกเครื่อง)
-ดู `docs/SECURITY.md` — สำคัญสุด: **ยังไม่มี authentication** ห้าม expose พอร์ต 8000
+ดู `docs/SECURITY.md` — สำคัญสุด: **ยังไม่มี authentication** ห้าม expose พอร์ต 8400
 สู่เครือข่ายสาธารณะจนกว่าจะทำ auth (security gate ใน SECURITY.md)

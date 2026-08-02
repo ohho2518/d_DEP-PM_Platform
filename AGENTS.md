@@ -1,4 +1,4 @@
-﻿# AGENTS.md
+# AGENTS.md
 
 > **Single source of truth for every AI coding agent working in this repository.**
 > Claude Code, Gemini CLI, Codex, Cursor, and any other agent read this file.
@@ -20,8 +20,16 @@ Your job: develop, maintain, debug, refactor, document, and improve this project
 |---|---|---|
 | 1 | `AGENTS.md` (this file) | Always |
 | 2 | `PROJECT_STATUS.md` | Always — this is the continuity file |
-| 3 | `WORKING_RULES.md` | Before touching code, DB, or UI |
+| 3 | `_CANON\WORKING_RULES.md` (path below) | Before touching code, DB, or UI |
 | 4 | `CHANGELOG.md` | Only for history, release notes, or debugging past decisions |
+
+เอกสารเฉพาะทางตามงานที่ทำ:
+
+- แตะ API → `docs/API.md` · แตะ schema/migration → `docs/DATABASE.md`
+- แตะ orchestrator/state machine → `docs/SYSTEM_DOCUMENTATION.md` §9
+- แตะ frontend → `docs/SYSTEM_DOCUMENTATION.md` §13 + `frontend/AGENTS.md`
+- แตะกติกา "แก้โค้ดยังไงไม่พัง" → `docs/AI_AGENT_GUIDE.md`
+- แตะสถาปัตยกรรม/ADR → `docs/ARCHITECTURE.md` + `docs/DEVELOPMENT_PLAN.md` §2
 
 **Do not scan the whole repository** unless the task genuinely requires it.
 
@@ -52,115 +60,213 @@ Your job: develop, maintain, debug, refactor, document, and improve this project
 
 ## 3. Project Overview
 
-<!-- FILL THIS IN. Delete the placeholder once known. -->
+- **Project name:** **DEP-PM Platform** — AI-Native Project Management Platform
+- **Purpose:** แพลตฟอร์มบริหารโปรเจกต์ที่มนุษย์และ AI Agent ทำงานบนบอร์ดเดียวกัน — รับ requirement → AI แตกงาน → มอบหมาย Agent/คน → Kanban → auto-deploy เมื่อผ่าน review
+- **Target users:** ทีมพัฒนา dPRO (dPRO AI Parking, MChat, Farm Lab และโปรเจกต์อนาคต) — MVP เป็น single-user (Vinit)
+- **Main features:** Project Intake (New/Existing-stub) · AI Task Breakdown · Agent Task Assignment (Solo/Team Mode) · Kanban Board · Inter-Agent Communication Log · Automated Deploy — รายละเอียดใน `docs/DEVELOPMENT_PLAN.md` §1
+- **Current status:** **MVP ครบ 4 สปรินต์** (pytest 60/60, ruff clean, UAT หลักผ่าน) — งานถัดไปคือ**ต่อสายรับงานจาก d_CEO** (§3.1) ดู `PROJECT_STATUS.md`
 
-- **Project name:** _Need confirmation_
-- **Purpose:** _Need confirmation_
-- **Target users:** _Need confirmation_
-- **Main features:** _Need confirmation_
-- **Current status:** Initializing
+**เอกสารอ้างอิงต้นทาง (read-only — ห้ามแก้):**
 
-> Rule: if information is unclear, write `Need confirmation`. **Never guess.**
+| ไฟล์ | คืออะไร |
+|---|---|
+| `DEP-PM Platform Blueprint v1.0.html` | สเปกหลักของระบบนี้ |
+| `DEP v3.0 Master Plan.html` | แพลตฟอร์มแม่ (ยังไม่มีโค้ดจริง — ใช้ stub, ADR-02) |
+| `ai-dev-team-complete.html` | Agent Routing Rules + SOW ของแต่ละ persona |
+| `docs/DEVELOPMENT_PLAN.md` | แผนพัฒนาที่อนุมัติแล้ว (สปรินต์, ADR-01..04, data model, API contract) |
+
+### 3.1 ตำแหน่งใน ecosystem dPRO — **DEP-PM = Team Lead R&D**
+
+สายบังคับบัญชาจริง (ยืนยันโดย Vinit, 2026-08-02):
+
+```
+Vinit (CEO) ──สั่ง──► d_Jarvis ──REST──► d_CEO ──delegate──► DEP-PM (repo นี้)
+             เสียง/ข้อความ/ภาพ  "หน้า"      "สมอง"           "Team Lead R&D"
+                                NLU+การ์ด  task+เลือกทีม     ลงมือทำงานพัฒนาจริง
+                                                  ▲                │
+                                                  └──── รายงานผล ───┘
+                                                    → QC gate → Vinit เคาะ
+```
+
+- **ผู้สั่งงานคือ Vinit เสมอ** — d_CEO ไม่ใช่เจ้านายของ repo นี้ แต่เป็นตัวแปลงคำสั่งเป็น task แล้วกระจายให้ทีม
+- **ทำไม DEP-PM ไม่ใช่ของซ้ำกับ d_CEO:** orchestrator ของ d_CEO เรียก Claude **แบบไม่มี tool** → ผลงานเป็นข้อความล้วน ไม่แตะไฟล์จริง ไม่ deploy (`d_CEO\docs\API.md`) — DEP-PM คือที่ที่งานพัฒนาเกิดขึ้นจริง
+- **กติกา "ไม่ทำระบบ task ซ้อน":** ยึด **1 task ธุรกิจใน d_CEO = 1 project ใน DEP-PM** — task ย่อยบนบอร์ดเราเป็นรายละเอียดการทำงาน ไม่ใช่ทะเบียนงานธุรกิจชุดที่สอง
+- ⚠️ เอกสาร 2 จุดในรีโปอื่นยังเขียนว่าให้ "merge DEP-PM เข้า Solo_CEO" (`d_Jarvis\docs\VISION.md` §5, `d_CEO\project_plan_solo_ceo.md` §9.1) — **ล้าสมัยแล้ว** ต้องให้ session ของรีโปนั้นแก้เอง **ห้ามแก้ข้ามรีโป**
+
+**พอร์ตที่จองแล้วในเครื่อง (ห้ามชน):**
+
+| พอร์ต | เจ้าของ |
+|---|---|
+| 8000 | **d_CEO / Solo_CEO API** — รันค้างตลอดผ่าน Task Scheduler, d_Jarvis พึ่งพาอยู่ **ห้ามหยุด** |
+| 8100 | d_OCR_Engine · 8200 d_STT_Engine · 8300 d_InnoHub |
+| **8400** | **DEP-PM backend (repo นี้)** |
+| 3000 | DEP-PM frontend (`next dev`) |
 
 ---
 
 ## 4. Tech Stack
 
-<!-- Fill from actual repo inspection. Write "Not found" if absent. -->
+**สถานะ: CONFIRMED ทั้ง backend และ frontend**
 
 | Item | Value |
 |---|---|
-| Language | _Not found_ |
-| Framework | _Not found_ |
-| Runtime | _Not found_ |
-| Package manager | _Not found_ |
-| Database | _Not found_ |
-| ORM | _Not found_ |
-| Authentication | _Not found_ |
-| UI library | _Not found_ |
-| Testing | _Not found_ |
-| Deployment target | _Not found_ |
+| Language | Python 3.12+ (backend) · TypeScript (frontend) |
+| Framework | FastAPI 0.115 (backend) · **Next.js 16.2.10** App Router (frontend) |
+| Runtime | uvicorn (dev, port **8400**) · node (next dev, port 3000) |
+| Package manager | pip (backend) · npm (frontend) |
+| Database | SQLite (dev) → PostgreSQL (staging/prod) — ADR-01 |
+| ORM | SQLAlchemy 2.x + Alembic |
+| Authentication | **ยังไม่มี** (single-user MVP) — ดู `docs/SECURITY.md` |
+| UI library | Tailwind CSS 4 (มากับ scaffold) — **ตัดสินใจไม่ใช้ component library** เพื่อลด dependency |
+| Testing | pytest (backend, 60 เคส) · frontend ยังไม่มี unit test (verify ด้วย `npm run build`) |
+| Lint | ruff (`backend/ruff.toml` — E,F,I,B,UP; ignore E501,B008) |
+| Deployment target | GitHub Actions → Vercel (FE) + Render/Railway (BE) — ยังไม่ทำจริง |
+
+> ⚠️ **Next.js 16 ไม่ใช่ 15 ตามแผนเดิม** (create-next-app@latest) — dynamic route `params` เป็น `Promise` ต้อง unwrap ด้วย `React.use()` ดู `frontend/AGENTS.md`
 
 ---
 
 ## 5. Project Structure
 
 ```text
-src/            Main source code
-app/            Routes / pages
-components/     Reusable UI components
-lib/            Shared utilities
-api/            API handlers
-database/       Schema, migrations, seed
-tests/          Test files
-docs/           Project documentation
-```
+docs/DEVELOPMENT_PLAN.md              แผนพัฒนาที่อนุมัติแล้ว (สปรินต์, ADR, schema, API)
+docs/{ARCHITECTURE,SYSTEM_DOCUMENTATION,API,DATABASE,SECURITY,AI_AGENT_GUIDE}.md
+docs/{PROJECT_OVERVIEW,RISK_REGISTER}.md   ภาพรวมธุรกิจ + ทะเบียนความเสี่ยง
+docs/runbook.md                       Operations/handover + UAT checklist
+docs/github-workflow-example.yml      Workflow template สำหรับ repo เป้าหมาย
+PROJECT_STATUS.md                     สถานะล่าสุด + next tasks (continuity file)
+CHANGELOG.md                          ประวัติการเปลี่ยนแปลง
+AGENTS.md                             ไฟล์นี้ (ต้นฉบับกติกา) · CLAUDE.md/GEMINI.md = pointer
+*.html (3 ไฟล์)                       เอกสารอ้างอิงต้นทาง — read-only ห้ามแก้
+BackUp/                               สำเนาก่อนแก้ตาม WORKING_RULES (gitignored)
 
-> Replace with the real structure after inspecting the repo.
+backend/app/{main,config,constants}.py  FastAPI entry + settings + enums กลาง
+backend/app/db/                       engine, session, GUID/JSON portable types (ADR-01)
+backend/app/models/                   ORM 6 ตาราง
+backend/app/schemas/                  Pydantic (project, task, scan)
+backend/app/api/                      routers: projects, tasks, agent_messages, portfolio, deployments
+backend/app/agents/                   personas 4 บทบาท, routing, runtime, providers, pm breakdown
+backend/app/orchestrator/             State Machine (transition-only) + engine (Solo Mode loop)
+backend/app/bus/                      In-process message bus (ADR-03)
+backend/app/metadata/                 MetadataProvider interface + Stub (ADR-02)
+backend/app/services/                 audit + task-plan persistence + deploy dispatcher
+backend/alembic/                      migrations (schema, seed agent, token columns)
+backend/tests/                        pytest 60 เคส
+backend/ruff.toml                     lint config
+
+frontend/src/lib/                     types.ts (mirror backend schema!), api.ts, usePolling.ts
+frontend/src/app/page.tsx             Portfolio view
+frontend/src/app/projects/new/        New Project flow (STEP 1-4)
+frontend/src/app/projects/[id]/       Kanban Board + Task detail + Message Log
+frontend/src/app/deployments/         Deployments view (ประวัติ deploy ทุกโปรเจกต์)
+frontend/src/components/AgentOffice.tsx  แอนิเมชันสถานะ agent บนหน้าบอร์ด
+```
 
 ---
 
 ## 6. Commands
 
-Only document commands that actually exist in the project. If absent, write `Not found. Need confirmation.`
+รันจากโฟลเดอร์ `backend/` (มี `.venv` แล้ว)
 
 ```bash
 # Install
-_Not found_
+cd backend
+python -m venv .venv
+.venv\Scripts\activate                       # *nix: source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env                         # ใส่ ANTHROPIC_API_KEY เพื่อเปิด PM Agent จริง
 
-# Development
-_Not found_
+# Development — Backend
+cd backend
+alembic upgrade head                         # สร้าง schema + seed Claude Solo agent (SQLite)
+uvicorn app.main:app --reload --port 8400    # http://127.0.0.1:8400  (docs: /docs)
+
+# Development — Frontend (อีก terminal; ครั้งแรก: npm install + cp .env.local.example .env.local)
+cd frontend
+npm run dev                                  # http://localhost:3000
 
 # Build
-_Not found_
+cd frontend
+npm run build                                # Next.js production build (รวม typecheck)
 
 # Test
-_Not found_
+cd backend
+pytest                                       # 60 tests
 
 # Lint / Format
-_Not found_
+cd backend
+ruff check app tests alembic                 # config ใน backend/ruff.toml
+ruff check --fix app tests alembic           # auto-fix import order ฯลฯ
 ```
+
+> **ห้ามใช้ `--port 8000`** — ชนกับ d_CEO ที่รันค้างอยู่ (§3.1)
 
 ---
 
 ## 7. Environment Variables
 
-From `.env.example`, config files, or README. **Never write real secrets.**
+ชื่อและความหมายเท่านั้น — **ห้ามเขียนค่าจริงลงไฟล์ใดในรีโป** (`.env` gitignored)
+
+**`backend/.env`** (ดู `backend/.env.example`)
 
 ```env
-DATABASE_URL=required
-PUBLIC_APP_URL=required
-API_KEY=required, secret, do not commit
+DATABASE_URL=          # connection string; dev = SQLite file, prod = PostgreSQL (ADR-01)
+ANTHROPIC_API_KEY=     # เปิด PM Agent + Solo Mode จริง; ว่าง = fallback path
+CLAUDE_MODEL=          # model id ของ Solo Mode
+MAX_TOKENS_PER_TASK=   # เพดาน token ต่อ task (Risk #3)
+AGENT_MODE=            # solo | team
+OPENAI_API_KEY= OPENAI_MODEL= GEMINI_API_KEY= GEMINI_MODEL=   # Team Mode
+GITHUB_TOKEN= GITHUB_REPO=    # deploy dispatch; ว่าง = stub mode
+AUTO_DEPLOY_ENABLED=   # true = task done → staging deployment อัตโนมัติ
+FRONTEND_ORIGIN=       # CORS origin เดียว (ไม่ใช่ *)
+```
+
+**`frontend/.env.local`**
+
+```env
+NEXT_PUBLIC_API_URL=   # base URL ของ backend — ค่าปัจจุบัน http://127.0.0.1:8400
 ```
 
 ---
 
 ## 8. Architecture Notes
 
-<!-- Fill after inspection -->
-
-- Frontend structure: _Not found_
-- Backend structure: _Not found_
-- API structure: _Not found_
-- Database structure: _Not found_
-- Auth flow: _Not found_
-- External services: _Not found_
-- Key decisions and why: _Not found_
+- **Pattern:** Layered Monolith + Pluggable Engine Interfaces — `api → services/orchestrator → models → db` โดยจุดที่คาดว่าจะเปลี่ยนเป็น Protocol/interface
+- **Frontend flow:** ทุกหน้าเป็น client component + `usePolling` (4 วิ, หยุดเมื่อแท็บไม่ active) — ไม่มี global store
+- **Backend flow:** router บาง ๆ (HTTP↔service) → orchestrator/services (business logic + เจ้าของ transaction) → ORM
+- **API flow:** REST JSON, error format ของ FastAPI, **409 = ผิด State Machine transition** (เอกลักษณ์ของระบบนี้)
+- **Database flow:** 6 ตาราง, UUID ผ่าน `GUID` type decorator, JSON ผ่าน SQLAlchemy `JSON` — portable ระหว่าง SQLite↔PostgreSQL
+- **Auth flow:** ยังไม่มี — bind localhost เท่านั้น
+- **External services:** Anthropic (Solo Mode) · OpenAI + Gemini (Team Mode) · GitHub `repository_dispatch` (deploy) — ทุกตัวมี fallback ไม่ล้มทั้งระบบเมื่อ key ขาด
+- **จุดเสียบ 3 จุด (extensibility):** `PersonaExecutor` (provider ใหม่) · `MetadataProvider` (DEP Engine จริง) · bus transport (Redis)
+- **ADR-01..04** อยู่ใน `docs/DEVELOPMENT_PLAN.md` §2 — SQLite ก่อน · Metadata stub · in-process bus · polling
 
 ---
 
 ## 9. Coding Rules
 
 1. Read the relevant files **before** editing.
-2. Make the **smallest safe change**.
+2. Make the **smallest safe change** — one unit of work at a time (WORKING_RULES Rule 2).
 3. Do not rewrite whole files unless necessary.
 4. Preserve existing behavior.
-5. Match the existing code style.
+5. Match the existing code style (type hints ทุก signature, `from __future__ import annotations`, docstring ไทย+อังกฤษผสมตาม codebase เดิม).
 6. Do not add dependencies without a stated reason.
 7. Do not remove features without user approval.
 8. Never hardcode secrets.
 9. Prefer clear and maintainable over clever.
 10. State your assumption **before** making any major change.
+
+### 9.1 Project-specific rules (บังคับ — ฝ่าฝืน = bug)
+
+1. **ห้าม set `task.status` ตรง ๆ** — ต้องผ่าน `app/orchestrator/state_machine.transition()` เท่านั้น (validate + เขียน audit อัตโนมัติ; ผิด transition → API ตอบ 409)
+2. **ห้าม INSERT `agent_messages` ตรง ๆ** — ทุกข้อความระหว่าง agent ต้องผ่าน `app/bus.publish()` (ADR-03: persist เสมอ)
+3. **`transition()` / `publish()` / `record_audit()` ไม่ commit เอง** — router commit ต่อ request, engine commit ต่อ task
+4. **Dependency direction ห้ามย้อนศร:** `api → orchestrator/services → models → db` · orchestrator ห้าม import api · models ห้าม import schemas · `agents/runtime.py` ห้าม import orchestrator
+5. **ADR-01 (portability):** ห้าม raw SQL เฉพาะ dialect · UUID ผ่าน `GUID` · JSON ผ่าน SQLAlchemy `JSON` · ห้าม PostgreSQL array type
+6. **Frontend↔Backend sync:** แก้ status/transition/response shape ฝั่ง backend → แก้ `frontend/src/lib/types.ts` (`ALLOWED_TRANSITIONS`, `STATUS_ORDER`, สี) **ในคอมมิตเดียวกัน**
+7. **จุดเสียบ อย่า bypass:** provider ใหม่ = implement `PersonaExecutor` · metadata จริง = implement `MetadataProvider` · อย่าแก้ orchestrator เพื่อ special-case provider ใดตัวหนึ่ง
+8. **ห้ามลบ fallback path** (no-key → fallback) — เป็นคุณสมบัติเชิงสัญญา ไม่ใช่โค้ดชั่วคราว
+9. Enums กลางอยู่ `constants.py` ที่เดียว — ห้าม string literal ของ status/role ในโค้ดใหม่
 
 ---
 
@@ -171,9 +277,9 @@ For **every** task:
 1. Read `AGENTS.md` + `PROJECT_STATUS.md`.
 2. Identify **only** the files needed for this task.
 3. Inspect those files before editing.
-4. Back up per `WORKING_RULES.md` if the file is being modified.
+4. Back up per `_CANON\WORKING_RULES.md` (Rule 1 ไฟล์ · Rule 3 ฐานข้อมูล) — `BackUp/<TaskName>_yyyyMMdd_HHmmss/`
 5. Make minimal changes.
-6. Run tests / lint / build if available.
+6. Run checks: `pytest` เต็มชุดเสมอ · แตะ frontend → `npm run build` · `ruff check app tests alembic`
 7. Update `PROJECT_STATUS.md`.
 8. Update `CHANGELOG.md` if user-facing behavior changed.
 9. Update `AGENTS.md` if architecture, commands, structure, or rules changed.
@@ -182,11 +288,7 @@ For **every** task:
 
 ## 11. Context Efficiency
 
-To keep sessions cheap and continuable:
-
-- Do not scan the whole project by default.
-- Do not open unrelated files.
-- Prefer targeted reads.
+- Do not scan the whole project by default · do not open unrelated files · prefer targeted reads.
 - `PROJECT_STATUS.md` is the **main continuity file** — keep it current and concise.
 - Move long history to `CHANGELOG.md`.
 - Keep `AGENTS.md` about stable rules, **not** daily progress.
@@ -198,25 +300,33 @@ To keep sessions cheap and continuable:
 ### Database
 
 1. Inspect the schema before changing DB code.
-2. Never change schema without a migration strategy.
+2. Never change schema without a migration strategy — **สร้าง revision ใหม่เสมอ ห้ามแก้ migration ที่ apply แล้ว**
 3. No destructive migrations or data deletion unless explicitly requested.
 4. Keep schema, API, types, and UI aligned.
-5. Update docs after schema changes.
-6. **Back up before any DB change** — see `WORKING_RULES.md`.
+5. Update `docs/DATABASE.md` after schema changes.
+6. **Back up before any DB change** — `backend/dep_pm.db` **คือข้อมูลจริงของผู้ใช้ ห้ามลบเด็ดขาด** (เคยลบพลาดมาแล้ว 2026-07-06)
+7. Autogenerate migration ต้อง**ตรวจมือเสมอ** — เคยขาด `import app.db.types` (บทเรียนจริง Sprint 1)
 
 ### UI
 
-1. Reuse existing components.
-2. Keep design and responsive behavior consistent.
-3. No redesign unless requested.
-4. Log visible behavior changes in `CHANGELOG.md`.
+1. Reuse existing components · keep design and responsive behavior consistent.
+2. No redesign unless requested.
+3. Log visible behavior changes in `CHANGELOG.md`.
+4. TS types มาจาก `lib/types.ts` เท่านั้น — อย่านิยาม interface ซ้ำในหน้า
 
 ### API
 
 1. Preserve existing request/response contracts unless asked.
-2. Validate all input.
+2. Validate all input (Pydantic ทุก endpoint).
 3. Handle errors safely; never leak internal errors to users.
-4. Update related frontend calls when an API changes.
+4. Update related frontend calls **and** `docs/API.md` when an API changes.
+5. เพิ่ม endpoint = router บาง + Pydantic schema + integration test ผ่าน TestClient + อัปเดต `docs/API.md`
+
+### Testing
+
+- ทุก endpoint ใหม่ → integration test (ดู `tests/conftest.py` pattern: in-memory SQLite ต่อ test)
+- ทุกกติกา business ใหม่ → test เฉพาะ (ดู `test_state_machine.py` transition matrix เป็นแบบ)
+- **ห้าม mock HTTP ของ anthropic** — inject executor ผ่าน `run_project(executor=…)` แทน
 
 ---
 
@@ -228,17 +338,21 @@ To keep sessions cheap and continuable:
 
 **Refactor:** preserve behavior → keep it small → never mix refactor with feature changes → run checks.
 
+**เพิ่ม task status ใหม่:** 6 จุดต้องแก้พร้อมกัน — `constants.TaskStatus` → `ALLOWED_TRANSITIONS` (backend) → `frontend/src/lib/types.ts` (type + ALLOWED_TRANSITIONS + STATUS_ORDER + สี) → `test_state_machine` → `docs/SYSTEM_DOCUMENTATION.md` §9 → `docs/API.md`
+
 ---
 
 ## 14. Never Do
 
 - Commit secrets, API keys, tokens, private keys, or customer data.
-- Delete important files.
-- Rewrite the whole project.
-- Change business logic outside the requested task.
-- Upgrade major dependencies without approval.
-- Format the entire repository unless requested.
+- ลบ `backend/dep_pm.db` หรือไฟล์สำคัญอื่น.
+- แก้/ลบไฟล์ `*.html` 3 ไฟล์ (read-only spec) หรือ migration ที่ apply แล้ว.
+- Rewrite the whole project · change business logic outside the requested task.
+- Upgrade major dependencies without approval · format the entire repository unless requested.
 - Guess a command that does not exist in the project.
+- เปลี่ยน `MAX_REVISIONS` semantics โดยไม่อัปเดต `docs/SYSTEM_DOCUMENTATION.md` §9 + tests.
+- Major architecture change โดยไม่ผ่านผู้ใช้ — ต้องเป็น ADR ใหม่ใน `docs/DEVELOPMENT_PLAN.md` §2.
+- **แก้ไฟล์ในรีโปอื่น** (d_CEO, d_Jarvis, _CANON) — ส่งเป็นคำขอให้ session ของรีโปนั้นทำเอง.
 
 ---
 
@@ -252,3 +366,5 @@ Always close with:
 4. **Checks run** (test / lint / build) and results
 5. **Not completed / known issues**
 6. **Recommended next step**
+
+`PROJECT_STATUS.md` ต้องมีครบ 7 หัวข้อ: งานที่เสร็จ · ไฟล์ที่เปลี่ยน · สถานะปัจจุบัน · งานถัดไป · ปัญหาที่รู้ · การตัดสินใจ · คำถามถึงผู้ใช้

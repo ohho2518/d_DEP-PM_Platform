@@ -1,5 +1,24 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-08-02 — Phase 0: ย้ายพอร์ตเป็น 8400 + AGENTS.md เป็นต้นฉบับ + จัดเอกสาร
+
+- **⚠️ Breaking (dev):** backend ย้ายจากพอร์ต **8000 → 8400** — `uvicorn app.main:app --reload --port 8400`
+  เหตุผล: `:8000` เป็นของ **d_CEO / Solo_CEO API** ที่รันค้างตลอดผ่าน Task Scheduler และ d_Jarvis
+  พึ่งพาอยู่ (ห้ามหยุด) — เดิมเอกสารบอกให้รันที่ 8000 ซึ่ง**รันไม่ขึ้นจริง** · ต้อง `cp .env.local.example
+  .env.local` ใหม่ หรือแก้ `NEXT_PUBLIC_API_URL` เป็น `http://127.0.0.1:8400`
+  · ตารางพอร์ตของ ecosystem จดไว้ใน `AGENTS.md` §3.1 และ `docs/runbook.md` §1
+- **`AGENTS.md` = single source of truth** ของกติกา AI agent (ตรงกับ convention ของ d_Jarvis/d_CEO/d_InnoHub)
+  — ย้ายเนื้อหาจริงจาก `CLAUDE.md` เข้ามาครบ + เพิ่ม **§3.1 ตำแหน่งใน ecosystem** (สายบังคับบัญชา
+  Vinit→Jarvis→d_CEO→DEP-PM = Team Lead R&D) · `CLAUDE.md`/`GEMINI.md` เหลือเป็น pointer
+  · แก้ลิงก์ `WORKING_RULES.md` ที่เคยชี้ไฟล์ที่ไม่มีอยู่จริง → ชี้ `_CANON`
+- **`README.md`** เขียนใหม่เป็นของ DEP-PM (เดิมเป็น README ของ Project Starter Kit ที่หลงเข้ามา)
+- **`docs/PROJECT_OVERVIEW.md` + `docs/RISK_REGISTER.md`** เติมเนื้อหาจริง (เดิมเป็นเทมเพลตเปล่า)
+  — 14 active risks + 6 closed + security/performance checklist ตามสถานะจริง
+- commit งานค้างของ 2026-07-07 ที่ตกค้างใน working tree มา ~1 เดือน (`9cd76d6`)
+- `.gitignore`: เพิ่ม `BackUp/` (สำเนาก่อนแก้ตาม WORKING_RULES — มีข้อมูลจริง ห้ามขึ้น remote)
+- ตรวจแล้ว: pytest 60/60 · ruff clean · `npm run build` ผ่าน · DEP-PM `:8400` กับ d_CEO `:8000`
+  รันคู่กันได้จริง (health ตอบทั้งคู่)
+
 ## 2026-07-07 — เคลียร์ technical debt #3/#5/#7 + หน้า Deployments + ruff
 
 - **Reviewer fail-safe (debt #3):** review ที่ parse ไม่ได้ → retry 1 ครั้ง → ยังไม่ได้ =
