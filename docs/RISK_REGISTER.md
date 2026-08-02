@@ -40,7 +40,7 @@
 | # | Risk | ปิดยังไง |
 |---|---|---|
 | C1 | **งานพัฒนา ~1 เดือนค้างใน working tree ไม่เคย commit** | commit `9cd76d6` (สำรอง DB ก่อนตาม WORKING_RULES) |
-| C2 | **พอร์ต 8400 vs 8000 ชนกับ d_CEO** — เอกสารบอกให้รันที่ :8000 ซึ่งรันไม่ขึ้นจริง | ย้ายทั้งระบบเป็น 8400 + จดตาราง port ของ ecosystem ไว้ใน `AGENTS.md` §3.1 และ `runbook.md` |
+| C2 | **พอร์ต 8500 vs 8000 ชนกับ d_CEO** — เอกสารบอกให้รันที่ :8000 ซึ่งรันไม่ขึ้นจริง | ย้ายทั้งระบบเป็น 8500 + จดตาราง port ของ ecosystem ไว้ใน `AGENTS.md` §3.1 และ `runbook.md` |
 | C3 | **AGENTS.md ประกาศตัวเป็นต้นฉบับแต่เนื้อหาว่าง** (`Need confirmation` ทั้งไฟล์) ขณะที่ของจริงอยู่ใน CLAUDE.md | ย้ายเนื้อหาจริงเข้า AGENTS.md · CLAUDE.md/GEMINI.md เป็น pointer |
 | C4 | Reviewer parse-fail = auto-approve (งานไม่ถูกตรวจหลุดเป็น done) | retry 1 → reject → เข้า revision/escalation ปกติ |
 | C5 | `depends_on` ไม่มี referential integrity (dangling id ทำให้ task ไม่มีวัน runnable แบบเงียบ) | validate ตอน create (400) + `DELETE /api/tasks/:id` ปฏิเสธถ้ามีตัวอ้าง (409) |

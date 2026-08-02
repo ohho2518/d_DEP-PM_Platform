@@ -99,9 +99,15 @@ Vinit (CEO) ──สั่ง──► d_Jarvis ──REST──► d_CEO ─�
 | พอร์ต | เจ้าของ |
 |---|---|
 | 8000 | **d_CEO / Solo_CEO API** — รันค้างตลอดผ่าน Task Scheduler, d_Jarvis พึ่งพาอยู่ **ห้ามหยุด** |
-| 8100 | d_OCR_Engine · 8200 d_STT_Engine · 8300 d_InnoHub |
-| **8400** | **DEP-PM backend (repo นี้)** |
+| 8100 | d_OCR_Engine · **8200** d_STT_Engine · **8300** d_InnoHub |
+| 8400 | **d_Jarvis web channel** (`run_web.py`, `WEB_PORT` — รันค้างผ่าน Task Scheduler เช่นกัน) |
+| **8500** | **DEP-PM backend (repo นี้)** |
 | 3000 | DEP-PM frontend (`next dev`) |
+
+> ⚠️ **ตรวจพอร์ตด้วยของจริงก่อนจอง อย่าเชื่อเอกสารอย่างเดียว** — 2026-08-02 เคยเลือก 8400
+> เพราะอ่าน `.env.example` ของ Jarvis เฉพาะบรรทัด base URL ของ client แล้วพลาดบรรทัด `WEB_PORT=8400`
+> ผลคือ Windows ยอมให้ bind ซ้อน (`127.0.0.1` ทับ `0.0.0.0`) แล้ว**บังหน้าเว็บ Jarvis เงียบ ๆ**
+> — คำสั่งตรวจ: `Get-NetTCPConnection -LocalPort <port> -State Listen`
 
 ---
 
@@ -113,7 +119,7 @@ Vinit (CEO) ──สั่ง──► d_Jarvis ──REST──► d_CEO ─�
 |---|---|
 | Language | Python 3.12+ (backend) · TypeScript (frontend) |
 | Framework | FastAPI 0.115 (backend) · **Next.js 16.2.10** App Router (frontend) |
-| Runtime | uvicorn (dev, port **8400**) · node (next dev, port 3000) |
+| Runtime | uvicorn (dev, port **8500**) · node (next dev, port 3000) |
 | Package manager | pip (backend) · npm (frontend) |
 | Database | SQLite (dev) → PostgreSQL (staging/prod) — ADR-01 |
 | ORM | SQLAlchemy 2.x + Alembic |
@@ -182,7 +188,7 @@ cp .env.example .env                         # ใส่ ANTHROPIC_API_KEY เ�
 # Development — Backend
 cd backend
 alembic upgrade head                         # สร้าง schema + seed Claude Solo agent (SQLite)
-uvicorn app.main:app --reload --port 8400    # http://127.0.0.1:8400  (docs: /docs)
+uvicorn app.main:app --reload --port 8500    # http://127.0.0.1:8500  (docs: /docs)
 
 # Development — Frontend (อีก terminal; ครั้งแรก: npm install + cp .env.local.example .env.local)
 cd frontend
@@ -230,7 +236,7 @@ FRONTEND_ORIGIN=       # CORS origin เดียว (ไม่ใช่ *)
 **`frontend/.env.local`**
 
 ```env
-NEXT_PUBLIC_API_URL=   # base URL ของ backend — ค่าปัจจุบัน http://127.0.0.1:8400
+NEXT_PUBLIC_API_URL=   # base URL ของ backend — ค่าปัจจุบัน http://127.0.0.1:8500
 ```
 
 ---

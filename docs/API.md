@@ -1,13 +1,13 @@
 # API.md — DEP-PM Platform
 
 > API Documentation (MASTER PROMPT §12) | อัปเดต: 2026-07-06 (หลัง Sprint 4)
-> Interactive docs: รัน backend แล้วเปิด `http://127.0.0.1:8400/docs` (OpenAPI อัตโนมัติ)
+> Interactive docs: รัน backend แล้วเปิด `http://127.0.0.1:8500/docs` (OpenAPI อัตโนมัติ)
 
 ## ภาพรวม
 
 | หัวข้อ | ค่า |
 |--------|-----|
-| Base URL (dev) | `http://127.0.0.1:8400` (**ไม่ใช่ 8000** — พอร์ตนั้นเป็นของ d_CEO) |
+| Base URL (dev) | `http://127.0.0.1:8500` (**ไม่ใช่ 8000** — พอร์ตนั้นเป็นของ d_CEO) |
 | Content-Type | `application/json` ทุก endpoint |
 | **Authentication** | **ไม่มี** (single-user MVP — ดู SECURITY.md) |
 | Rate limit | ไม่มี (MVP) |

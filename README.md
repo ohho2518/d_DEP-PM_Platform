@@ -30,7 +30,7 @@ python -m venv .venv && .venv\Scripts\activate     # *nix: source .venv/bin/acti
 pip install -r requirements.txt
 cp .env.example .env                                # ใส่ ANTHROPIC_API_KEY เพื่อเปิด agent จริง
 alembic upgrade head
-uvicorn app.main:app --reload --port 8400           # http://127.0.0.1:8400/docs
+uvicorn app.main:app --reload --port 8500           # http://127.0.0.1:8500/docs
 
 # Frontend (terminal 2)
 cd frontend
@@ -38,7 +38,7 @@ npm install && cp .env.local.example .env.local
 npm run dev                                         # http://localhost:3000
 ```
 
-> **พอร์ต 8400 ไม่ใช่ 8000** — :8000 เป็นของ d_CEO ที่รันค้างตลอดในเครื่องนี้
+> **พอร์ต 8500 ไม่ใช่ 8000** — :8000 เป็นของ d_CEO ที่รันค้างตลอดในเครื่องนี้
 > ไม่ใส่ `ANTHROPIC_API_KEY` ระบบยังเดินครบวงจรด้วย fallback executor (deterministic, ไม่ต่อเน็ต)
 
 ---

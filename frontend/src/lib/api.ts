@@ -15,8 +15,8 @@ import type {
   TaskStatus,
 } from "./types";
 
-// พอร์ต 8400 — :8000 เป็นของ d_CEO ที่รันค้างตลอด (ดู AGENTS.md §Ecosystem)
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8400";
+// พอร์ต 8500 — :8000 เป็นของ d_CEO ที่รันค้างตลอด (ดู AGENTS.md §Ecosystem)
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8500";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

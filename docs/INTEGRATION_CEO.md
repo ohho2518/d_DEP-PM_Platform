@@ -96,7 +96,7 @@ PATCH http://127.0.0.1:8000/tasks/{id}
 token: input 1,234 · output 567
 
 ## อ้างอิง
-DEP-PM project `<uuid>` — เปิดบอร์ด/บทสนทนา agent ย้อนหลังได้ที่ `/projects/<uuid>` (backend `:8400`)
+DEP-PM project `<uuid>` — เปิดบอร์ด/บทสนทนา agent ย้อนหลังได้ที่ `/projects/<uuid>` (backend `:8500`)
 ```
 
 ---
@@ -157,4 +157,4 @@ DEP-PM project `<uuid>` — เปิดบอร์ด/บทสนทนา ag
 3. **ยืนยันกติกาการมอบงาน:** งานที่ต้องการให้ DEP-PM ทำ ต้องตั้ง `assigned_team_id`
    = ทีม Research & Development ตอน `POST /tasks` (ไม่งั้นเราไม่เห็นในคิว)
 4. (ทางเลือก) ถ้าอยากให้ DEP-PM รับงานอัตโนมัติแทนการกดปุ่ม — ต้องตกลงเรื่องความถี่ poll
-   หรือให้ d_CEO ยิง webhook มาที่ `:8400` แทน
+   หรือให้ d_CEO ยิง webhook มาที่ `:8500` แทน

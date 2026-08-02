@@ -12,18 +12,21 @@
 cd backend
 .venv\Scripts\activate            # ครั้งแรก: python -m venv .venv && pip install -r requirements.txt
 alembic upgrade head
-uvicorn app.main:app --reload --port 8400   # http://127.0.0.1:8400 (docs: /docs)
+uvicorn app.main:app --reload --port 8500   # http://127.0.0.1:8500 (docs: /docs)
 
 # Frontend (terminal 2)
 cd frontend
 npm run dev                       # http://localhost:3000 (ครั้งแรก: npm install + cp .env.local.example .env.local)
 ```
 
-ตรวจสุขภาพ: `curl http://127.0.0.1:8400/health` → `{"status":"ok","agent_enabled":...}`
+ตรวจสุขภาพ: `curl http://127.0.0.1:8500/health` → `{"status":"ok","agent_enabled":...}`
 
-> **⚠️ ห้ามใช้พอร์ต 8000** — เป็นของ **d_CEO / Solo_CEO API** ที่รันค้างตลอดผ่าน Task Scheduler
-> และ d_Jarvis พึ่งพาอยู่ (ห้ามหยุด) · พอร์ตที่จองแล้วในเครื่อง: `8000` d_CEO · `8100` d_OCR ·
-> `8200` d_STT · `8300` d_InnoHub · **`8400` DEP-PM (ตัวนี้)**
+> **⚠️ ห้ามใช้พอร์ต 8000 และ 8400** — ทั้งคู่รันค้างตลอดผ่าน Task Scheduler และ d_Jarvis
+> พึ่งพาอยู่ (ห้ามหยุด) · ทะเบียนพอร์ตของเครื่อง: `8000` d_CEO API · `8100` d_OCR ·
+> `8200` d_STT · `8300` d_InnoHub · `8400` **d_Jarvis web** · **`8500` DEP-PM (ตัวนี้)**
+>
+> ตรวจก่อนจองพอร์ตใหม่เสมอ: `Get-NetTCPConnection -LocalPort <port> -State Listen`
+> (Windows ยอมให้ bind `127.0.0.1` ซ้อน `0.0.0.0` ได้ — จะบังบริการอื่นเงียบ ๆ โดยไม่ error)
 
 ## 2. เปิดความสามารถแต่ละส่วน (env ใน `backend/.env`)
 
@@ -33,7 +36,7 @@ npm run dev                       # http://localhost:3000 (ครั้งแร
 | Team Mode (dev=OpenAI, SR=Gemini) | `AGENT_MODE=team` + `OPENAI_API_KEY` + `GEMINI_API_KEY` (ขาด key ไหน role นั้น fallback → Claude → deterministic) | breakdown/run แล้วดู payload ใน message log |
 | Deploy dispatch จริง | `GITHUB_TOKEN` (fine-grained PAT, contents:write) + `GITHUB_REPO=owner/repo` | `POST /api/deployments` → `dispatched: true` |
 | Auto-deploy staging เมื่อ task done | `AUTO_DEPLOY_ENABLED=true` | run orchestrator → deployment record เกิด |
-| **รับงานจากเลขา (d_CEO)** | `CEO_API_BASE=http://127.0.0.1:8000` (+`CEO_TEAM_NAME` ถ้าเปลี่ยนชื่อทีม) | `curl 127.0.0.1:8400/api/ceo/status` → `online: true` + `team_id` ไม่ใช่ null |
+| **รับงานจากเลขา (d_CEO)** | `CEO_API_BASE=http://127.0.0.1:8000` (+`CEO_TEAM_NAME` ถ้าเปลี่ยนชื่อทีม) | `curl 127.0.0.1:8500/api/ceo/status` → `online: true` + `team_id` ไม่ใช่ null |
 
 **เปลี่ยน env แล้วต้อง restart uvicorn** (Settings cache ต่อ process)
 
@@ -120,5 +123,5 @@ driver (`psycopg[binary]`) อยู่ใน requirements แล้ว; โค�
    ให้ deliverable เป็นเอกสาร/โค้ด หรือให้คนรับ task ประเภท infra เอง
 
 ## 8. Security notes (ก่อน expose ออกนอกเครื่อง)
-ดู `docs/SECURITY.md` — สำคัญสุด: **ยังไม่มี authentication** ห้าม expose พอร์ต 8400
+ดู `docs/SECURITY.md` — สำคัญสุด: **ยังไม่มี authentication** ห้าม expose พอร์ต 8500
 สู่เครือข่ายสาธารณะจนกว่าจะทำ auth (security gate ใน SECURITY.md)

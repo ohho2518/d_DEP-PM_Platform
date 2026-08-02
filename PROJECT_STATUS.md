@@ -7,9 +7,10 @@
 ## สถานะการใช้งาน (สำคัญสำหรับ session ถัดไป)
 
 - **`backend/dep_pm.db` = ข้อมูลจริงของผู้ใช้ — ห้ามลบเด็ดขาด** (สำรองล่าสุด `BackUp/Phase0Cleanup_20260802_224442/`)
-- **พอร์ตเปลี่ยนเป็น 8400 แล้ว** — `uvicorn app.main:app --reload --port 8400`
-  · :8000 เป็นของ **d_CEO** ที่รันค้างตลอดผ่าน Task Scheduler และ d_Jarvis พึ่งพาอยู่ **ห้ามหยุด**
-  · ยืนยันแล้ววันนี้ว่า DEP-PM :8400 กับ d_CEO :8000 รันคู่กันได้ ทั้งคู่ `/health` ตอบ ok
+- **พอร์ตของ DEP-PM = 8500** — `uvicorn app.main:app --reload --port 8500`
+  · ทะเบียนพอร์ต: `8000` d_CEO API · `8100` d_OCR · `8200` d_STT · `8300` d_InnoHub ·
+  `8400` **d_Jarvis web** · `8500` DEP-PM — สองตัวแรกและ 8400 รันค้างผ่าน Task Scheduler **ห้ามหยุด**
+  · ⚠️ เมื่อเช้าเคยตั้งเป็น 8400 ผิด (ชน Jarvis web) — แก้แล้วตอนปิดงาน ดู CHANGELOG
 - `backend/.env` มี key จริงครบ: ANTHROPIC (Solo Mode live), GITHUB_TOKEN+REPO (`ohho2518/d_DEP-PM_Platform`)
 - โปรเจกต์ในระบบ: "Demo: Booking API" (4 done), "d_ACC" (17 backlog), "Deploy UAT"
 - DB migrate เป็น head `c7d4e2a9b1f3` แล้ว · servers ไม่ได้รันค้างไว้ (สตาร์ตเองตาม runbook)
@@ -69,7 +70,7 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 
 - **commit งานค้าง ~1 เดือน** (`9cd76d6`) — debt #3/#5/#7 + หน้า `/deployments` + ruff
   ที่ค้างใน working tree ตั้งแต่ 2026-07-07 (สำรอง DB ก่อนตาม WORKING_RULES Rule 3)
-- **ย้ายพอร์ต 8000 → 8400 ทุกจุด** (runbook, API.md, ARCHITECTURE, SECURITY, backend/README,
+- **ย้ายพอร์ต 8000 → 8400 ทุกจุด** *(ภายหลังแก้เป็น 8500 — ดูหมายเหตุท้ายวัน)* (runbook, API.md, ARCHITECTURE, SECURITY, backend/README,
   `api.ts` fallback, `.env.local` + example) + จดตารางพอร์ตของ ecosystem ไว้กันชนซ้ำ
 - **AGENTS.md เป็นต้นฉบับกติกา** ตามมติผู้ใช้ — ย้ายเนื้อหาจริงจาก CLAUDE.md เข้ามาครบ
   พร้อมเพิ่ม §3.1 ตำแหน่งใน ecosystem + ตารางพอร์ต · `CLAUDE.md`/`GEMINI.md` เหลือเป็น pointer
@@ -156,7 +157,8 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
    ถ้า d_CEO เปลี่ยนรูปแบบ id เราไม่พัง
 2. **AGENTS.md เป็น single source of truth** ของกติกา AI agent · CLAUDE.md/GEMINI.md เป็น pointer
    (ตรงกับ convention ของ d_Jarvis / d_CEO / d_InnoHub)
-3. **พอร์ต DEP-PM = 8400** ถาวร — เอกสารทุกไฟล์อัปเดตแล้ว ห้ามย้ายกลับ 8000
+3. **พอร์ต DEP-PM = 8500** ถาวร (แก้จาก 8400 ที่ชน d_Jarvis web) — เอกสารทุกไฟล์อัปเดตแล้ว
+   · กติกาใหม่: **ตรวจพอร์ตด้วย `Get-NetTCPConnection` ก่อนจองเสมอ อย่าเชื่อเอกสารอย่างเดียว**
 4. **การเชื่อมกับ d_CEO ใช้รูปแบบ consumer** — DEP-PM poll/patch เอง **ไม่ขอให้ d_CEO แก้โค้ด**
    (ตรวจแล้วว่า API ปัจจุบันของเขาพอครบ: `GET /teams`, `GET /tasks`, `PATCH /tasks/{id}`)
 5. **สำรองก่อนแตะทุกครั้งตาม `_CANON\WORKING_RULES.md`** — โฟลเดอร์ `BackUp/` ถูก gitignore

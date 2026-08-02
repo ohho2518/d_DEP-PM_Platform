@@ -1,5 +1,19 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-08-02 — Fix: ย้ายพอร์ตอีกครั้ง 8400 → **8500** (8400 เป็นของ d_Jarvis)
+
+- **⚠️ Breaking (dev) ทับของเมื่อเช้า:** พอร์ต backend ที่ถูกต้องคือ **8500**
+  `uvicorn app.main:app --reload --port 8500` · ต้องแก้ `NEXT_PUBLIC_API_URL` ตาม
+- **เหตุ:** ตอนเลือก 8400 อ่าน `.env.example` ของ Jarvis เฉพาะบรรทัด base URL ของ client
+  (8000/8100/8200/8300) แล้ว**พลาดบรรทัด `WEB_PORT=8400`** ซึ่งเป็น web channel ของ Jarvis
+  ที่รันค้างผ่าน Task Scheduler · Windows ยอมให้ bind `127.0.0.1:8400` ซ้อน `0.0.0.0:8400`
+  ได้โดยไม่ error → ระหว่างทดสอบ **DEP-PM บังหน้าเว็บ Jarvis บน localhost เงียบ ๆ**
+  (ไม่กระทบข้อมูล และหยุด process ของเราแล้ว Jarvis กลับมาปกติทันที)
+- **ทะเบียนพอร์ตฉบับถูกต้อง:** `8000` d_CEO API · `8100` d_OCR · `8200` d_STT ·
+  `8300` d_InnoHub · `8400` **d_Jarvis web** · **`8500` DEP-PM**
+- **กติกาใหม่ใน AGENTS.md + runbook:** ตรวจพอร์ตด้วย
+  `Get-NetTCPConnection -LocalPort <port> -State Listen` ก่อนจองเสมอ **อย่าเชื่อเอกสารอย่างเดียว**
+
 ## 2026-08-02 — Fix: งานที่ escalate แล้วเคยเงียบหาย ไม่ถูกรายงานกลับเลขา
 
 - **บั๊กที่พบจาก UAT จริง:** เกณฑ์ "รายงานเมื่องานจบครบ" นับ task สถานะ `planned` เป็น

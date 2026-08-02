@@ -297,7 +297,7 @@ def build_report(db: Session, project: Project) -> ReportResult:
         "",
         "## อ้างอิง",
         f"DEP-PM project `{project.id}` — เปิดบอร์ด/บทสนทนา agent ย้อนหลังได้ที่ "
-        f"`/projects/{project.id}` (backend `:8400`)",
+        f"`/projects/{project.id}` (backend `:8500`)",
     ]
 
     return ReportResult(

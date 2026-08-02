@@ -76,7 +76,7 @@ _ทุกข้อคือความเสี่ยงจนกว่าจ�
 |---|---|
 | Budget | ต้นทุน LLM ต่อ task ต้องคุมได้ — `MAX_TOKENS_PER_TASK` + token counter ต่อ task |
 | Timeline | MVP 4 สปรินต์ (~8 สัปดาห์) — เสร็จแล้ว งานถัดไปคือการต่อเข้า ecosystem |
-| Technical | Schema ต้อง portable SQLite↔PostgreSQL (ห้าม dialect-specific SQL) · ไม่เพิ่ม infrastructure ก่อนจำเป็น · **พอร์ต 8400** (8000 เป็นของ d_CEO) |
+| Technical | Schema ต้อง portable SQLite↔PostgreSQL (ห้าม dialect-specific SQL) · ไม่เพิ่ม infrastructure ก่อนจำเป็น · **พอร์ต 8500** (8000 เป็นของ d_CEO) |
 | Regulatory / Legal | PDPA — ห้ามให้ข้อมูลส่วนบุคคล/ความลับหลุดเข้า prompt (ยังไม่มี masking — เป็นงานก่อนใช้กับข้อมูลลูกค้าจริง) |
 | Team | คนเดียว + AI agents — เลือกสถาปัตยกรรมที่ debug ง่ายกว่าเสมอ |
 

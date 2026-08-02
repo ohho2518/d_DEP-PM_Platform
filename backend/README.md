@@ -16,7 +16,7 @@ cp .env.example .env          # fill in ANTHROPIC_API_KEY to enable the PM Agent
 
 ```bash
 alembic upgrade head          # create schema + seed the Claude Solo agent (SQLite dev)
-uvicorn app.main:app --reload --port 8400   # http://127.0.0.1:8400  (docs at /docs)
+uvicorn app.main:app --reload --port 8500   # http://127.0.0.1:8500  (docs at /docs)
 ```
 
 ## Test

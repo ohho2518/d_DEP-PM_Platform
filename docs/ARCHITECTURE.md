@@ -89,7 +89,7 @@ flowchart TB
         P & N & K --> LIB
     end
 
-    subgraph Backend["Backend — FastAPI (port 8400)"]
+    subgraph Backend["Backend — FastAPI (port 8500)"]
         subgraph API["api/"]
             R1[projects.py] & R2[tasks.py] & R3[agent_messages.py] & R4[portfolio.py]
         end
@@ -164,7 +164,7 @@ sequenceDiagram
 flowchart LR
     subgraph DevMachine["Windows Dev Machine"]
         BROWSER[Browser] --> NEXT["node: next start :3000"]
-        NEXT -->|"NEXT_PUBLIC_API_URL"| UVI["python: uvicorn :8400"]
+        NEXT -->|"NEXT_PUBLIC_API_URL"| UVI["python: uvicorn :8500"]
         UVI --> SQLITE[("dep_pm.db (SQLite file)")]
     end
     UVI -.->|"HTTPS (optional)"| ANTH["api.anthropic.com"]

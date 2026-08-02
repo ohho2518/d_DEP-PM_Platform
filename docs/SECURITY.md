@@ -21,7 +21,7 @@
 ### Trust boundaries (ปัจจุบัน)
 ```mermaid
 flowchart LR
-    B[Browser localhost:3000] -->|"no auth"| API[FastAPI 127.0.0.1:8400]
+    B[Browser localhost:3000] -->|"no auth"| API[FastAPI 127.0.0.1:8500]
     API -->|HTTPS + key| ANTH[Anthropic API]
     API --> DB[(SQLite local file)]
 ```
