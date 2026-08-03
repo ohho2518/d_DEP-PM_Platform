@@ -27,6 +27,9 @@ REVIEW_PARSE_RETRIES = 1
 class ReviewResult:
     approved: bool
     comment: str
+    #: งานติดเพราะขาดข้อมูล/สิทธิ์ที่ agent หามาเองไม่ได้ → escalate ทันที ไม่วน revision
+    #: (ค่าปริยาย False = พฤติกรรมเดิมทุกประการ; provider ที่ไม่รู้จักฟิลด์นี้ไม่กระทบ)
+    needs_human: bool = False
 
 
 def _as_reply(value: LLMReply | str) -> LLMReply:
@@ -65,7 +68,11 @@ def _review_prompt(task: Task, work: str) -> str:
 def _parse_review(text: str) -> ReviewResult | None:
     try:
         data = json.loads(_extract_json(text))
-        return ReviewResult(approved=bool(data["approved"]), comment=str(data.get("comment", "")))
+        return ReviewResult(
+            approved=bool(data["approved"]),
+            comment=str(data.get("comment", "")),
+            needs_human=bool(data.get("needs_human", False)),
+        )
     except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         return None
 

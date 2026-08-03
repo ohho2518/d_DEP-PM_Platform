@@ -84,6 +84,7 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 ### `app/agents/runtime.py` — Executor abstraction
 - **`PersonaExecutor` (Protocol):** `execute(task, role, feedback=None, context=None) -> str` และ `review(task, work) -> ReviewResult` — orchestrator เห็นแค่นี้ (จุดเสียบ Team Mode)
   - ⚠️ **`context` = ผลงานจริงของงานก่อนหน้า (เพิ่ม 2026-08-03)** — provider ใหม่ **ต้องส่งต่อให้โมเดล** ไม่งั้นงานประเภท "ทำต่อจากของเดิม" จะผลิตได้แค่โครงเปล่าแล้วถูก reviewer ปฏิเสธจน escalate (บั๊กจริงจาก UAT — ดู `engine.upstream_context`)
+  - **`ReviewResult(approved, comment, needs_human=False)`** — `needs_human` เพิ่ม 2026-08-03 มีค่าปริยาย จึงไม่กระทบ provider/เทสต์ที่สร้างแค่ 2 ฟิลด์แรก · ความหมายและเหตุผลอยู่ที่ §9 Escalation Rule
 - **`FallbackExecutor`:** deterministic — execute คืนข้อความ `(fallback:role) …` พร้อมจำนวนผลงานก่อนหน้าที่ได้รับ, review approve เสมอ → happy path E2E รันได้โดยไม่มี network
 - **`ClaudeExecutor`:** key เดียวทุก persona (Solo Mode); review parse JSON ผ่าน `_extract_json` เดิม
   - **การตัดสินใจสำคัญ (แก้แล้ว 2026-07-07 — debt #3):** review parse ไม่ได้ → retry 1 ครั้ง → ยังไม่ได้ = **reject** เข้า revision/escalation ปกติ (เดิม auto-approve ทำให้งานที่ไม่ถูกตรวจจริงหลุดเป็น done) | loop ถูก bound ด้วย `MAX_REVISIONS` จึงไม่วนไม่จบ
@@ -202,6 +203,7 @@ stateDiagram-v2
     review --> done: reviewer approve
     review --> in_progress: revision (ครั้งที่ < MAX)
     review --> escalated: reject ครบ MAX_REVISIONS (2)
+    review --> escalated: needs_human (ตั้งแต่รีวิวแรก)
     escalated --> in_progress: คน/Senior ลงมือต่อเอง
     escalated --> planned: ตีกลับเข้าคิว (แก้เหตุแล้ว ให้ agent ลองใหม่)
     done --> deployed: (Sprint 4 pipeline)
@@ -221,6 +223,22 @@ reject → revision_count += 1
   └─ revision_count == 2 → escalated + broadcast question ถึงผู้ใช้
 ```
 (ตัดสินใจบันทึกใน PROJECT_STATUS Sprint 2 — ตีความตามตัวอักษร "fail 2 ครั้ง")
+
+**ทางที่สองเข้า `escalated`: `needs_human` (2026-08-03)** — `ReviewResult.needs_human = True`
+(ฟิลด์ที่ 3 ใน JSON ของ reviewer, ปริยาย `False`) → escalate **ทันทีตั้งแต่รีวิวแรก
+โดยไม่บวก `revision_count`** เพราะไม่ใช่ความผิดของงาน:
+```
+reject + needs_human → escalated  (revision_count เท่าเดิม)
+   audit reason  : "needs human input"
+   broadcast     : "ต้องการข้อมูล/การตัดสินใจจากคน — <คอมเมนต์ 400 ตัวแรก>"
+```
+- ใช้กับงานที่ติดเพราะ**ขาดข้อมูล/สิทธิ์ที่ agent หามาเองไม่ได้** เท่านั้น (ไฟล์ต้นทาง, credential,
+  คำตอบจากคน) — งานที่ agent แก้เองได้ยังเป็น revision loop ปกติ
+- ⚠️ **อย่าถอยกลับไปให้ reviewer เลือกได้แค่ approve/revision** — UAT รอบ 3 (runbook §7) วัดได้ว่า
+  ทางเลือกแค่ 2 ทางทำให้เกิดทั้ง 2 ความเสียหายพร้อมกัน: reviewer สั่งให้ agent ไป "escalate จริง"
+  ซึ่งทำไม่ได้ (**บีบให้กุการกระทำ**) และ approve งานที่ไม่มีเนื้อหาเป็น `done` (**รายงานเกินจริง**)
+- ทั้งสองเหตุใช้ `_escalate()` ตัวเดียวกันใน `engine.py` — ต่างกันแค่ `reason` ที่ไปโผล่ในรายงาน
+  ถึง d_CEO ผ่าน `ceo_sync._escalation_reasons` (คอมเมนต์เต็มอยู่ใน `last_comment` เสมอ)
 
 ### Decision Tree — Breakdown source
 ```
@@ -287,7 +305,8 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 | test_scan.py | mock scan → 3 backlog tasks; reject type=new |
 | test_tasks.py | PATCH + messages |
 | test_state_machine.py | **transition matrix ทุกคู่ (64)** , audit, 409 ผ่าน API, เดินครบ lifecycle |
-| test_orchestrator.py | E2E happy path (API), audit ครบ 4 transitions, revision→done, **escalation ที่ MAX_REVISIONS**, dependency ordering, dependent ของ escalated ค้าง planned, **context: เห็นผลงานทั้งกราฟบรรพบุรุษ / ใช้ฉบับล่าสุดหลัง revision / ตัดพร้อม marker / เพดานรวมตัดตัวเก่าก่อน** |
+| test_orchestrator.py | E2E happy path (API), audit ครบ 4 transitions, revision→done, **escalation ที่ MAX_REVISIONS**, **`needs_human` → escalate ตั้งแต่รีวิวแรก / revision_count ไม่ขยับ / reason แยกจาก "review ไม่ผ่าน" / flag ลง Message Log**, dependency ordering, dependent ของ escalated ค้าง planned, **context: เห็นผลงานทั้งกราฟบรรพบุรุษ / ใช้ฉบับล่าสุดหลัง revision / ตัดพร้อม marker / เพดานรวมตัดตัวเก่าก่อน** |
+| test_personas.py | กติกาห้ามกุหลักฐานอยู่ครบทุก persona ที่ผลิตงาน + ครบ 6 ประเภทหลักฐาน + ทางออก (`ต้องการข้อมูลจากคน` / `[ตัวอย่างสมมติ]`) + **ห้ามกุ "การกระทำ"**, reviewer: จับการกุก่อนเรื่องอื่น + **verdict `needs_human` / ห้าม approve งานที่ติดว่าเสร็จ / ห้ามสั่ง revision ที่ agent ทำไม่ได้**, **parser อ่านฟิลด์ที่ prompt สัญญาไว้จริง**, PM ยังจบด้วยคำสั่ง JSON |
 | test_routing_bus.py | routing keywords, publish persist+dispatch, endpoint 201/404 |
 | test_deployments.py | stub mode, invalid env 400, callback → task deployed, terminal immutable 409, portfolio, auto-deploy on/off |
 | test_team_mode.py | mode switch ด้วย config, role→provider mapping ตรง Blueprint, fallback chain, provider injection |

@@ -136,6 +136,68 @@ def test_escalation_after_max_revisions(db_session):
 
 
 # ---------------------------------------------------------------------------
+# needs_human — งานติดเพราะขาดข้อมูลจากคน → escalate ตั้งแต่รีวิวแรก ไม่วน revision
+# (UAT รอบ 3 2026-08-03: reviewer สั่งให้ agent "ยืนยันว่า escalate ไปแล้วจริง" ซึ่งทำไม่ได้
+#  → agent เขียนว่าทำแล้ว = กุการกระทำ · เสียไป 2 รอบแล้วได้คำตอบเดิม)
+# ---------------------------------------------------------------------------
+class NeedsHumanReviewer:
+    """Reviewer ที่ตัดสินว่างานติดเพราะต้องให้คนป้อนข้อมูล."""
+
+    def __init__(self) -> None:
+        self.reviews = 0
+
+    def execute(self, task, role, feedback=None, context=None):
+        return "ต้องการข้อมูลจากคน: ขอไฟล์ timesheet ของทีม"
+
+    def review(self, task, work):
+        self.reviews += 1
+        return ReviewResult(
+            approved=False,
+            comment="ต้องให้เจ้าของข้อมูลส่งไฟล์ timesheet ก่อน — agent หาเองไม่ได้",
+            needs_human=True,
+        )
+
+
+def test_needs_human_escalates_on_first_review_without_burning_revisions(db_session):
+    project, tasks = _project_with_planned_tasks(db_session, ["Do D"])
+    executor = NeedsHumanReviewer()
+    summary = run_project(db_session, project.id, executor=executor)
+
+    task = db_session.get(Task, tasks[0].id)
+    assert task.status == "escalated"
+    assert executor.reviews == 1  # ไม่วนขอ revision ที่ agent ทำตามไม่ได้
+    assert task.revision_count == 0  # ไม่ใช่ความผิดของงาน จึงไม่นับเป็น revision
+    assert summary.counts == {"escalated": 1}
+
+
+def test_needs_human_reason_tells_the_reader_it_is_waiting_on_a_person(db_session):
+    """เหตุผลนี้ไปโผล่ในรายงานถึง d_CEO — ต้องแยกจาก "review ไม่ผ่าน N ครั้ง" ให้ออก."""
+    project, _ = _project_with_planned_tasks(db_session, ["Do E"])
+    run_project(db_session, project.id, executor=NeedsHumanReviewer())
+
+    question = db_session.execute(
+        select(AgentMessage).where(AgentMessage.message_type == "question")
+    ).scalars().one()
+    assert question.payload["escalated"] is True
+    assert "ต้องการข้อมูล" in question.payload["reason"]
+    assert "review ไม่ผ่าน" not in question.payload["reason"]
+    # คอมเมนต์เต็มยังอยู่ครบสำหรับคนที่เปิดอ่านบนบอร์ด
+    assert "timesheet" in question.payload["last_comment"]
+
+
+def test_review_comment_records_the_needs_human_flag(db_session):
+    """Message Log ต้องบอกได้ว่ารอบนั้น reviewer ตัดสินว่า "ต้องใช้คน" ไม่ใช่ "งานไม่ผ่าน"."""
+    project, _ = _project_with_planned_tasks(db_session, ["Do F"])
+    run_project(db_session, project.id, executor=NeedsHumanReviewer())
+
+    comment = db_session.execute(
+        select(AgentMessage).where(AgentMessage.message_type == "review_comment")
+    ).scalars().one()
+    assert comment.payload["needs_human"] is True
+    assert comment.payload["approved"] is False
+
+
+# ---------------------------------------------------------------------------
 # Dependencies — task ที่รอ dependency จะรันหลัง dependency เสร็จ
 # ---------------------------------------------------------------------------
 def test_dependency_ordering(db_session):

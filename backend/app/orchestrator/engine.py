@@ -38,6 +38,10 @@ ORCHESTRATOR_ID = "orchestrator"
 UPSTREAM_WORK_CHAR_LIMIT = 6_000
 UPSTREAM_CONTEXT_CHAR_LIMIT = 24_000
 
+# เหตุผล escalate ไปโผล่เป็น bullet เดียวในรายงานถึง d_CEO — ยาวกว่านี้อ่านไม่รู้เรื่อง
+# (คอมเมนต์เต็มยังอยู่ใน `last_comment` และใน Message Log ของบอร์ด)
+ESCALATION_REASON_CHAR_LIMIT = 400
+
 
 @dataclass
 class TaskOutcome:
@@ -192,6 +196,30 @@ def _maybe_auto_deploy(db: Session, task: Task) -> None:
     )
 
 
+def _escalate(
+    db: Session, task: Task, *, audit_reason: str, reason: str, last_comment: str
+) -> None:
+    """หยุด task ไว้ที่ ``escalated`` แล้ว broadcast ให้คนเห็นบนบอร์ด/ในรายงานถึง d_CEO.
+
+    เข้าทางนี้ได้ 2 เหตุ: review ไม่ผ่านครบ ``MAX_REVISIONS`` · reviewer ชี้ว่าต้องใช้คน
+    (``needs_human``) — ``reason`` คือข้อความที่ `ceo_sync._escalation_reasons` หยิบไปแสดง
+    """
+    transition(
+        db, task, TaskStatus.ESCALATED,
+        actor_type=ActorType.AGENT, actor_id=ORCHESTRATOR_ID,
+        reason=audit_reason,
+    )
+    publish(
+        db,
+        project_id=task.project_id,
+        task_id=task.id,
+        from_agent_id=ORCHESTRATOR_ID,
+        to_agent_id=None,  # broadcast ถึงผู้ใช้/dashboard
+        message_type=MessageType.QUESTION,
+        payload={"escalated": True, "reason": reason, "last_comment": last_comment},
+    )
+
+
 def _run_task(db: Session, task: Task, executor: PersonaExecutor) -> TaskOutcome:
     # 1) Routing + assign
     role = route_task(db, task)
@@ -235,7 +263,11 @@ def _run_task(db: Session, task: Task, executor: PersonaExecutor) -> TaskOutcome
             from_agent_id=AgentRole.REVIEWER.value,
             to_agent_id=role.value,
             message_type=MessageType.REVIEW_COMMENT,
-            payload={"approved": review.approved, "comment": review.comment},
+            payload={
+                "approved": review.approved,
+                "comment": review.comment,
+                "needs_human": review.needs_human,
+            },
         )
 
         if review.approved:
@@ -247,26 +279,27 @@ def _run_task(db: Session, task: Task, executor: PersonaExecutor) -> TaskOutcome
             _maybe_auto_deploy(db, task)
             break
 
+        if review.needs_human:
+            # งานติดเพราะขาดข้อมูล/สิทธิ์ที่ agent หามาเองไม่ได้ — วน revision ต่อไม่มีประโยชน์
+            # (ได้คำตอบเดิม) และคำสั่ง "ไปตามข้อมูลมา" เคยบีบให้ agent เขียนว่า "escalate แล้ว"
+            # ทั้งที่ทำไม่ได้ = กุการกระทำ · ไม่นับเป็น revision เพราะไม่ใช่ความผิดของงาน
+            # (UAT รอบ 3 + QC ของ d_CEO 2026-08-03 — ดู runbook §7)
+            _escalate(
+                db, task,
+                audit_reason="needs human input",
+                reason=f"ต้องการข้อมูล/การตัดสินใจจากคน — {clip_work(review.comment, ESCALATION_REASON_CHAR_LIMIT)}",
+                last_comment=review.comment,
+            )
+            break
+
         task.revision_count += 1
         if task.revision_count >= MAX_REVISIONS:
             # Escalation Rule: review fail ครบ MAX_REVISIONS → หยุดรอคน/Senior รับช่วง
-            transition(
-                db, task, TaskStatus.ESCALATED,
-                actor_type=ActorType.AGENT, actor_id=ORCHESTRATOR_ID,
-                reason=f"review failed {task.revision_count} times",
-            )
-            publish(
-                db,
-                project_id=task.project_id,
-                task_id=task.id,
-                from_agent_id=ORCHESTRATOR_ID,
-                to_agent_id=None,  # broadcast ถึงผู้ใช้/dashboard
-                message_type=MessageType.QUESTION,
-                payload={
-                    "escalated": True,
-                    "reason": f"review ไม่ผ่าน {task.revision_count} ครั้ง — ต้องการคนหรือ Senior Agent รับช่วง",
-                    "last_comment": review.comment,
-                },
+            _escalate(
+                db, task,
+                audit_reason=f"review failed {task.revision_count} times",
+                reason=f"review ไม่ผ่าน {task.revision_count} ครั้ง — ต้องการคนหรือ Senior Agent รับช่วง",
+                last_comment=review.comment,
             )
             break
 
