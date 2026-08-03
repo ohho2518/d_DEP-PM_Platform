@@ -151,8 +151,8 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
   · **Phase 2 ไม่มี migration** (ทะเบียนรอบรันอยู่ในหน่วยความจำ ไม่แตะ schema)
 - **ของทดสอบที่ยังค้างในระบบ:** d_CEO task `d89c03a8` (สถานะ `qc_review` รอ QC ของเขาตรวจ)
   + DEP-PM project `a07f1fb2` — จะเก็บไว้เป็นตัวอย่างหรือลบก็ได้
-- git: main สะอาด (Phase 2 = commit `f8848f0`) · **ยังไม่ push — ล้ำ origin อยู่ 7 commits**
-  (เก่าสุด `902dbcb` ของ 25 ก.ค.)
+- git: main สะอาด (Phase 2 = commit `f8848f0`) · **push ขึ้น GitHub แล้ว 2026-08-03**
+  (`ohho2518/d_DEP-PM_Platform` — ยกงานที่ค้างมาตั้งแต่ 25 ก.ค. ขึ้นครบ 7 commits ในรอบนี้)
 
 ## Next Tasks
 
@@ -218,9 +218,7 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 
 ## Questions for the User
 
-1. **commit Phase 2 + push ขึ้น GitHub เลยไหม** (ตอนนี้ค้างใน working tree · ยังไม่เคย push
-   ตั้งแต่ 6 ก.ค. — ล้ำ origin 5 commits)
-2. **สร้าง task ทดสอบใน d_CEO ให้ทีม R&D ได้ไหม** เพื่อทดสอบวงจรเต็มรอบใหม่บน `/run` แบบ async —
+1. **สร้าง task ทดสอบใน d_CEO ให้ทีม R&D ได้ไหม** เพื่อทดสอบวงจรเต็มรอบใหม่บน `/run` แบบ async —
    เป็นการเขียนข้อมูลจริงในระบบเลขา จึงยังไม่ทำเอง
-3. อยากได้ **ปุ่มยกเลิกรอบรัน** ไหม (ตอนนี้ยกเลิกไม่ได้ ต้องรอจบหรือ restart backend)
-4. PostgreSQL / OPENAI+GEMINI keys — อันไหนพร้อมก่อน (กระทบลำดับ Phase 3)
+2. อยากได้ **ปุ่มยกเลิกรอบรัน** ไหม (ตอนนี้ยกเลิกไม่ได้ ต้องรอจบหรือ restart backend)
+3. PostgreSQL / OPENAI+GEMINI keys — อันไหนพร้อมก่อน (กระทบลำดับ Phase 3)
