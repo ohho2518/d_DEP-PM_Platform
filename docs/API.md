@@ -140,7 +140,7 @@ Response `200`: รูปเดียวกับ §7 แต่ค่าอั�
   "error": null, "finished_at": "2026-08-03T02:29:48.268239+00:00",
   "outcomes": [ { "task_id": "…", "title": "…", "final_status": "done", "revisions": 1 } ] }
 ```
-- `status` ∈ `running` | `succeeded` | `failed` (คนละชุดกับ `TaskStatus`) · `failed` → ดู `error`
+- `status` ∈ `running` | `succeeded` | `failed` | `cancelled` (คนละชุดกับ `TaskStatus`) · `failed` → ดู `error`
   (ผลงานที่ commit ไปแล้วก่อนพังยังอยู่ — engine commit ต่อ task)
 - `processed` < `total` ตอนจบ = ปกติ: task ที่รอ dependency ซึ่ง escalated จะค้าง `planned` ทั้งรอบ
 - `ceo_report` = `null` เมื่อโปรเจกต์ไม่ได้มาจาก d_CEO — ถ้ามาจาก d_CEO และงานจบครบ
@@ -149,6 +149,17 @@ Response `200`: รูปเดียวกับ §7 แต่ค่าอั�
 - **404** = โปรเจกต์นี้ยังไม่เคยรันในโปรเซสนี้ — ทะเบียนรอบรันอยู่ในหน่วยความจำ
   (restart backend = ประวัติหาย แต่ผลงานจริงใน `tasks`/`audit_log` ไม่หาย) ·
   ส่ง `run_id` ของโปรเจกต์อื่นก็ 404
+
+---
+
+### 7.2) `POST /api/projects/:id/run/cancel` — ขอให้รอบรันหยุด
+Query (optional): `run_id` — ไม่ส่ง = รอบล่าสุดของโปรเจกต์นี้
+Response `200`: snapshot เดียวกับ §7.1 โดย `cancel_requested: true`
+- **หยุดหลัง task ที่กำลังทำอยู่จบ ไม่ตัดกลางคัน** — ตัดกลางจะเหลือ task ค้างสถานะกลางทาง
+  ให้มาแก้มือ และจ่ายค่า token ไปแล้วโดยไม่ได้ผลงาน
+- รอบที่หยุดแล้วมี `status: "cancelled"` · **ไม่รายงานกลับ d_CEO** (รอบยังไม่จบ)
+  · งานที่เสร็จแล้วยังอยู่ครบ — กด Run ใหม่ทำต่อเฉพาะ `planned` ที่เหลือ
+- **404** = ไม่มีรอบรันของโปรเจกต์นี้ · **409** = รอบนั้นจบไปแล้ว
 
 ---
 

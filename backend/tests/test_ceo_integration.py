@@ -428,3 +428,32 @@ def test_report_says_out_loud_when_work_products_are_dropped(
 
     assert "ก" * 30 in output  # ตัวแรกได้ที่
     assert "ตัดผลงานของ 1 รายการออก" in output and "งานสอง" in output  # บอกตรง ๆ ว่าตัดอะไร
+
+
+def test_cancelled_run_does_not_report_to_ceo(client, stub_ceo, db_session, monkeypatch, wait_run):
+    """ยกเลิกกลางคัน = รอบยังไม่จบ → ห้ามส่งอะไรเข้า QC gate."""
+    import threading
+
+    from app.services import runs
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def _fake(db, project_id, *, on_outcome=None, should_continue=None, **kwargs):
+        started.set()
+        release.wait(10)
+
+    monkeypatch.setattr(runs, "run_project", _fake)
+    project = _project_from_ceo(db_session)
+    db_session.add(Task(project_id=project.id, title="งาน", status=TaskStatus.DONE.value))
+    db_session.commit()
+
+    run_id = client.post(f"/api/projects/{project.id}/run").json()["run_id"]
+    assert started.wait(10)
+    client.post(f"/api/projects/{project.id}/run/cancel")
+    release.set()
+
+    record = wait_run(run_id)
+    assert record.status == "cancelled"
+    assert record.ceo_report is None
+    assert stub_ceo.patches == []  # ไม่แตะ d_CEO เลย

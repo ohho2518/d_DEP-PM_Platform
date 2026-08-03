@@ -14,6 +14,8 @@ from collections.abc import Sequence
 from alembic import op
 import sqlalchemy as sa
 
+from app.db.types import GUID
+
 revision: str = "b2f1c0d3e4a5"
 down_revision: str | None = "a14314b6f9a2"
 branch_labels: str | Sequence[str] | None = None
@@ -24,9 +26,13 @@ _SOLO_AGENT_ID = "00000000-0000-0000-0000-000000000001"
 
 
 def upgrade() -> None:
+    # `id` ต้องเป็น GUID ไม่ใช่ String: บน PostgreSQL คอลัมน์จริงเป็น native UUID
+    # ส่ง str เปล่า ๆ ทำให้ INSERT ตาย ("column id is of type uuid but expression is of
+    # type character varying") → `alembic upgrade head` บน PG พังทั้งชุด (พบ 2026-08-03
+    # ตอนปิด DoD ของ ADR-01) · บน SQLite ผลเหมือนเดิมทุกประการ — GUID bind เป็น str(uuid)
     agents = sa.table(
         "agents",
-        sa.column("id", sa.String),
+        sa.column("id", GUID),
         sa.column("name", sa.String),
         sa.column("role", sa.String),
         sa.column("provider", sa.String),

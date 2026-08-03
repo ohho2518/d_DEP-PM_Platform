@@ -128,7 +128,7 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 - `_run_task`: ดู flow ใน §9 | commit ไม่อยู่ในนี้ (caller จัดการ)
 - `_ancestor_tasks(db, task)`: task ทั้งหมดที่อยู่เหนือในกราฟพึ่งพา — DFS post-order (ต้นน้ำก่อนปลายน้ำ) กันวงด้วย `seen` · **ห้ามเรียงด้วย `created_at`** นาฬิกา Windows หยาบพอที่ task ซึ่งสร้างติดกันจะได้เวลาเท่ากันแล้วลำดับสลับไปมา (เจอจริงตอนเขียนเทสต์ 2026-08-03)
 - `upstream_context(db, task)`: ประกอบ "ผลงานจริงของงานก่อนหน้า" เป็นข้อความให้ agent อ่าน — **ผลงานล่าสุดของทั้งกราฟ** (ไม่ใช่แค่ dependency ตรง) · เพดาน `UPSTREAM_WORK_CHAR_LIMIT` = 6,000 ต่อชิ้น และ `UPSTREAM_CONTEXT_CHAR_LIMIT` = 24,000 รวม — เกินแล้ว**ตัดตัวเก่าสุดก่อน** พร้อมบอกจำนวนที่ตัดไว้ในหัวข้อความ · ประกอบครั้งเดียวก่อนเข้า revision loop
-- `run_project(db, project_id, executor=None, max_tasks=None, on_outcome=None)`: วนจน `_next_runnable` คืน None; **commit ต่อ task**; executor param = จุด inject mock ใน tests; `on_outcome` ถูกเรียกหลัง commit ของแต่ละ task (Phase 2: run manager ใช้ทำ progress — engine ไม่รู้จักผู้ฟัง)
+- `run_project(db, project_id, executor=None, max_tasks=None, on_outcome=None, should_continue=None)`: วนจน `_next_runnable` คืน None; **commit ต่อ task**; executor param = จุด inject mock ใน tests; `on_outcome` ถูกเรียกหลัง commit ของแต่ละ task (Phase 2: run manager ใช้ทำ progress — engine ไม่รู้จักผู้ฟัง) · `should_continue` ถูกถามก่อนหยิบ task ถัดไป คืน False = หยุดรอบ (ปุ่มยกเลิก)
 - `planned_task_count(db, project_id)`: จำนวน task `planned` ตอนนี้ — run manager ใช้ตั้ง "เป้า" ของรอบรัน
 - **Thread safety:** ตัว engine ไม่ thread-safe — ความปลอดภัยมาจาก **lock ต่อโปรเจกต์ใน `services/runs.py`** (ยิง `/run` ซ้อนโปรเจกต์เดิม = 409) และ 1 รอบรัน = 1 session
 
@@ -136,7 +136,8 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 `/run` เดิมรันจนจบใน request เดียว (UAT จริง: 6 tasks = 297 วิ ขณะที่ d_Jarvis timeout 5 นาที) — ตอนนี้รับงานแล้วตอบ `202 + run_id` ทันที
 - `start_run(project_id, session_factory, ceo_client, total) -> RunRecord`: จองโปรเจกต์ (มีรอบค้าง → `RunAlreadyActive` → 409) แล้วสตาร์ต **daemon thread**
 - `get_run(run_id)` / `latest_run_for_project(project_id)`: ให้ `GET /:id/run` · `wait_for_run` ใช้ใน tests · `reset_runs` ล้างทะเบียน (tests)
-- `RunRecord`: `status` (`RunStatus` = running/succeeded/failed), `total`/`processed`/`counts`/`outcomes`, `ceo_report`, `error`, `started_at`/`finished_at` → `snapshot()` = body ที่ API ตอบ
+- `cancel_run(run_id)`: ตั้งธง `cancel_requested` — engine ถาม `should_continue()` **ก่อนหยิบ task ถัดไป** จึงหยุด "ระหว่างช่อง" ไม่ตัดกลาง task (ตัดกลาง = task ค้างสถานะ + จ่าย token ฟรี) · รอบที่ถูกยกเลิก **ไม่รายงานกลับ d_CEO**
+- `RunRecord`: `status` (`RunStatus` = running/succeeded/failed/cancelled), `total`/`processed`/`counts`/`outcomes`, `ceo_report`, `error`, `started_at`/`finished_at` → `snapshot()` = body ที่ API ตอบ
 - **ทะเบียนอยู่ในหน่วยความจำของโปรเซส** เหมือน bus (ADR-03) — restart แล้วประวัติรอบรันหาย แต่ผลงานจริงใน `tasks`/`audit_log`/`agent_messages` ไม่หาย (เก็บประวัติล่าสุด `MAX_HISTORY` = 50 รอบ)
 - งานเบื้องหลังเปิด session ของตัวเอง (`get_session_factory`) — ใช้ session ของ request ไม่ได้เพราะถูกปิดพร้อม response
 - รายงานกลับ d_CEO อัตโนมัติหลังรอบรันจบ (ย้ายมาจาก `api/projects.py`) — ล้มเหลว = เก็บใน `ceo_report.detail` **ไม่ทำให้รอบรันเป็น failed**

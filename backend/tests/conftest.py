@@ -1,5 +1,7 @@
-"""pytest fixtures: an isolated in-memory SQLite DB and a TestClient per test."""
+"""pytest fixtures: an isolated DB (SQLite in-memory by default) + TestClient per test."""
 from __future__ import annotations
+
+import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -47,17 +49,30 @@ def _clean_run_registry():
     runs.reset_runs()
 
 
+#: ปริยาย = SQLite ในหน่วยความจำ (เร็ว ไม่ต้องมี service) · ตั้ง `TEST_DATABASE_URL`
+#: ชี้ PostgreSQL เพื่อรันชุดเดียวกันบน engine จริง — DoD ของ ADR-01 (ดู runbook §4)
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite://")
+
+
 @pytest.fixture()
 def db_factory():
-    """โรงงาน session ผูกกับ schema ในหน่วยความจำชุดเดียวของ test นี้ (StaticPool = 1 connection).
+    """โรงงาน session ผูกกับ schema สะอาดชุดเดียวของ test นี้.
 
     งานเบื้องหลังเปิด session ของตัวเอง จึงต้องแยกโรงงานออกมาจาก ``db_session``
+    · SQLite ใช้ StaticPool (1 connection ร่วมกันทั้ง test) · PostgreSQL ใช้ pool ปกติ
+    → เธรดเบื้องหลังได้ connection ของตัวเองจริง ซึ่งใกล้เคียง production มากกว่า
     """
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    if TEST_DATABASE_URL.startswith("sqlite"):
+        engine = create_engine(
+            TEST_DATABASE_URL,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+    else:
+        engine = create_engine(TEST_DATABASE_URL, future=True)
+
+    # drop ตอนเริ่ม (ไม่ใช่ตอนจบ) — ตอนจบอาจมีเธรดเบื้องหลังค้าง lock อยู่แล้ว DROP ค้าง
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     try:

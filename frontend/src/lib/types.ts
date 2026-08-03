@@ -78,7 +78,7 @@ export interface Portfolio {
 }
 
 /** สถานะของ **รอบรัน** (คนละชุดกับ TaskStatus) — backend: `constants.RunStatus` */
-export type RunState = "running" | "succeeded" | "failed";
+export type RunState = "running" | "succeeded" | "failed" | "cancelled";
 
 /** รอบรัน orchestrator — Phase 2 เป็นงานเบื้องหลัง: `POST /run` คืนตัวนี้ทันที (202)
  *  แล้วถามความคืบหน้าต่อที่ `GET /run` (ค่าเดิมของ run เดียวกัน อัปเดตไปเรื่อย ๆ) */
@@ -95,6 +95,8 @@ export interface RunSummary {
   ceo_report: CeoReport | null;
   /** เหตุที่รอบรันล้ม (status = "failed" เท่านั้น) */
   error: string | null;
+  /** ผู้ใช้กดยกเลิกแล้ว — รอ task ปัจจุบันจบก่อนถึงจะหยุดจริง */
+  cancel_requested: boolean;
   /** ISO 8601 **UTC** */
   started_at: string;
   finished_at: string | null;

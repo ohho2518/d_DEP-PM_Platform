@@ -30,6 +30,8 @@ const COLUMN_ACCENT: Record<TaskStatus, string> = {
 function runNotice(run: RunSummary): string {
   if (run.status === "failed")
     return `❌ รอบรันล้มเหลว: ${run.error ?? "ไม่ทราบสาเหตุ"} (ผลงานที่ทำเสร็จก่อนหน้ายังอยู่)`;
+  if (run.status === "cancelled")
+    return `⏹ หยุดรอบรันแล้ว — ทำไป ${run.processed}/${run.total} งาน (ที่เสร็จแล้วยังอยู่ครบ กด Run ใหม่เพื่อทำต่อ · ยังไม่ส่งผลกลับเลขา)`;
   if (run.processed === 0) return "ไม่มี task สถานะ planned ให้รัน (ยืนยัน scope ก่อน)";
 
   const parts = Object.entries(run.counts)
@@ -120,6 +122,15 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
     }
   }
 
+  async function cancelRun() {
+    setNotice("⏹ ขอหยุดแล้ว — รอ task ที่กำลังทำอยู่ให้จบก่อน (ไม่ตัดกลางคันเพื่อไม่ให้งานค้างสถานะ)");
+    try {
+      setRun(await api.cancelRun(projectId));
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function reportToCeo() {
     setReporting(true);
     setNotice(null);
@@ -165,6 +176,16 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
           {project?.ceo_task_id && (
             <button onClick={reportToCeo} disabled={reporting || running} className="btn-ghost">
               {reporting ? "กำลังส่ง…" : "📤 ส่งผลกลับเลขา"}
+            </button>
+          )}
+          {running && (
+            <button
+              onClick={cancelRun}
+              disabled={run?.cancel_requested}
+              className="btn-ghost"
+              title="หยุดหลัง task ที่กำลังทำอยู่จบ — ไม่ตัดกลางคัน"
+            >
+              {run?.cancel_requested ? "⏹ กำลังหยุด…" : "⏹ หยุดรอบรัน"}
             </button>
           )}
           <button onClick={runOrchestrator} disabled={running} className="btn-primary">

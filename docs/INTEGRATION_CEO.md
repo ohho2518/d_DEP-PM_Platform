@@ -2,7 +2,7 @@
 
 > **มุมมองฝั่ง consumer.** เจ้าของ contract (provider) = **d_CEO** (`D:\Dev_Proj\0_CORE\d_CEO`)
 > ผู้เรียก (consumer) = **DEP-PM** ผ่านไฟล์เดียว `backend/app/integrations/ceo_client.py`
-> **Contract version:** `v1` (ฝั่งเรา) · **Last synced:** 2026-08-02
+> **Contract version:** `v1` (ฝั่งเรา) · **Last synced:** 2026-08-03
 > **สถานะ:** ⚠️ **ยังไม่ได้ให้ฝั่ง d_CEO ยืนยัน** — ดู §7
 
 ---
@@ -153,11 +153,19 @@ DEP-PM project `<uuid>` — เปิดบอร์ด/บทสนทนา ag
   **d_CEO ได้สถานะ `qc_review` + output 1,040 ตัวอักษร** · token 19,150 in / 18,512 out
 - 🐛 **บั๊กที่ UAT จับได้ (แก้แล้ว):** เกณฑ์ readiness เดิมนับ `planned` เป็น "ยังเดินอยู่"
   ทำให้โปรเจกต์ที่มี escalated ไม่เคยรายงานเลย → d_CEO ค้าง `in_progress` ตลอดกาล
-- ⬜ ยังไม่ได้ทดสอบ: งานที่จบ 100% โดยไม่มี escalated · การรับหลายงานพร้อมกัน
+- ✅ **UAT รอบ 2 (2026-08-03, task `4936aa9e`) — ผ่าน QC gate จริง:** 8 tasks กราฟ 4 ชั้น →
+  **done 8 / escalated 0** ใน 613 วินาที → รายงาน 31,820 ตัวอักษร (มีตัวชิ้นงาน) →
+  **QC ตอบ `PASS` → task เป็น `done`** · ปิดช่อง "งานที่จบ 100% โดยไม่มี escalated" แล้ว
+- 🐛 **บั๊กที่รอบ 1 ของวันเดียวกันจับได้ (`80dd3ff9` → `rejected`):** รายงานมีแต่สรุปสถานะ
+  ไม่มีตัวชิ้นงาน + agent ไม่ได้รับผลงานของ task ที่ตัวเอง depend อยู่ — แก้ทั้งคู่แล้ว (Phase 3a)
+- ⬜ ยังไม่ได้ทดสอบ: การรับหลายงานพร้อมกัน · d_CEO ล่มกลางรอบรายงาน
 
 ---
 
 ## 7. สิ่งที่ต้องขอจากฝั่ง d_CEO
+
+> 📨 **ร่างจดหมายพร้อมส่งอยู่ที่ [`REQUEST_TO_CEO.md`](./REQUEST_TO_CEO.md)**
+> (มีหลักฐาน UAT 3 รอบ + คำขอครบ) — ส่งให้ session ของรีโป `d_CEO` อ่าน **ห้ามไปแก้เอง**
 
 1. **ยืนยัน contract นี้** แล้วออก `docs/INTEGRATION_DEPPM.md` ฝั่ง provider (ตามแบบ
    `INTEGRATION_JARVIS.md` / `INTEGRATION_MOS.md`) — ปัจจุบัน d_CEO **ยังไม่มีเอกสารใด

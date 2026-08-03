@@ -292,6 +292,7 @@ def run_project(
     executor: PersonaExecutor | None = None,
     max_tasks: int | None = None,
     on_outcome: Callable[[TaskOutcome], None] | None = None,
+    should_continue: Callable[[], bool] | None = None,
 ) -> RunSummary:
     """รัน task ที่ planned ทั้งหมดของโปรเจกต์จนหมด (หรือครบ ``max_tasks``).
 
@@ -300,11 +301,17 @@ def run_project(
 
     ``on_outcome`` ถูกเรียกหลัง commit ของแต่ละ task — ใช้รายงานความคืบหน้าออกไปข้างนอก
     (Phase 2: run manager อัปเดต progress ของรอบรัน) โดย engine ไม่ต้องรู้จักผู้ฟัง
+
+    ``should_continue`` ถูกถาม **ก่อนหยิบ task ถัดไป** — คืน False = หยุดรอบรันตรงนั้น
+    (ผู้ใช้กดยกเลิก) · จงใจไม่ตัดกลาง task: งานที่ agent ทำค้างจะกลายเป็นสถานะกำพร้า
+    ต้องมาแก้มือ และเราจ่ายค่า token ไปแล้วโดยไม่ได้ผลงาน — engine ไม่รู้ว่าใครสั่งหยุด
     """
     executor = executor or get_executor()
     summary = RunSummary(project_id=str(project_id))
 
     while max_tasks is None or len(summary.outcomes) < max_tasks:
+        if should_continue is not None and not should_continue():
+            break
         task = _next_runnable(db, project_id)
         if task is None:
             break

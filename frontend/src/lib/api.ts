@@ -61,6 +61,10 @@ export const api = {
   runOrchestrator: (projectId: string) =>
     request<RunSummary>(`/api/projects/${projectId}/run`, { method: "POST" }),
 
+  /** ขอให้รอบรันหยุด — หยุดหลัง task ปัจจุบันจบ · 409 = รอบนี้จบไปแล้ว */
+  cancelRun: (projectId: string) =>
+    request<RunSummary>(`/api/projects/${projectId}/run/cancel`, { method: "POST" }),
+
   /** ความคืบหน้าของรอบรัน — ไม่ส่ง runId = รอบล่าสุด · 404 = ยังไม่เคยรันในโปรเซสนี้ */
   getRun: (projectId: string, runId?: string) =>
     request<RunSummary>(

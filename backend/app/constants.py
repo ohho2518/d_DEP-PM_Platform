@@ -100,6 +100,8 @@ class RunStatus(str, Enum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    # ผู้ใช้สั่งหยุด — orchestrator หยุด "ระหว่างช่อง" ระหว่าง task ไม่ตัดกลาง task
+    CANCELLED = "cancelled"
 
 
 # Escalation Rule — Max Revision = 2 (Blueprint §5 / DEVELOPMENT_PLAN §4).

@@ -1,5 +1,30 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-08-03 — ปุ่มหยุดรอบรัน · ปิด DoD PostgreSQL · ทบทวน escalation
+
+**⏹ หยุดรอบรันได้แล้ว**
+- ปุ่ม **"หยุดรอบรัน"** บนหน้าบอร์ด + `POST /api/projects/:id/run/cancel`
+- **หยุดหลัง task ที่กำลังทำอยู่จบ ไม่ตัดกลางคัน** — ตัดกลางจะเหลือ task ค้างสถานะให้แก้มือ
+  และจ่ายค่า token ไปแล้วโดยไม่ได้ผลงาน · รอบที่หยุดได้สถานะ `cancelled`
+  **ไม่รายงานกลับเลขา** (รอบยังไม่จบ) · งานที่เสร็จแล้วอยู่ครบ กด Run ใหม่ทำต่อได้
+
+**🐘 test suite รันบน PostgreSQL ได้จริงแล้ว (ปิด DoD ของ ADR-01)**
+- `TEST_DATABASE_URL=postgresql+psycopg://…` → **pytest 107/107 ผ่านบน PostgreSQL 17.10**
+  (ชุดเดียวกับ SQLite) · ไม่ตั้ง = SQLite ในหน่วยความจำเหมือนเดิม
+- 🐛 **DoD จับบั๊กจริงได้ทันที:** migration `b2f1c0d3e4a5` (seed agent) ประกาศ `id` เป็น
+  `sa.String` แต่คอลัมน์จริงบน PG เป็น native `uuid` → **`alembic upgrade head` ตายทั้งชุด**
+  แปลว่าคำสัญญา "แค่เปลี่ยน `DATABASE_URL`" ใช้ไม่ได้จริงมาตลอด — แก้เป็น `GUID` แล้ว
+  (ผลบน SQLite เหมือนเดิมทุกประการ · ยืนยันด้วย suite ทั้งชุดบนทั้งสอง engine)
+
+**📊 ทบทวน escalation จากข้อมูลจริง** (`runbook` §7)
+- งานที่จบแล้วทั้งหมด 23 รายการ · escalated 2 = **8.7%** (เป้า < 10%)
+- **escalation ทั้ง 2 ครั้งมีสาเหตุเดียวกัน: agent ไม่ได้รับผลงานของงานก่อนหน้า** —
+  ข้อสรุปเดิมที่ว่า "reviewer เข้มเกินไป" **ผิด** reviewer ถูกทั้งสองครั้ง
+- หลัง Phase 3a: escalated 0 และ revision เฉลี่ยลดจาก 0.67 → 0.12 ในโจทย์เดียวกัน
+
+**📨 `docs/REQUEST_TO_CEO.md`** — จดหมายพร้อมส่งถึง session ของ d_CEO (ยืนยัน contract,
+แก้เอกสารที่ยังเขียนว่าให้ยุบรวม DEP-PM, กติกามอบงาน) **ไม่แก้ข้ามรีโป**
+
 ## 2026-08-03 — CI callback มี authentication แล้ว (ปิด Risk #1)
 
 - **`PATCH /api/deployments/:id` ต้องแนบ header `X-DEP-PM-Secret`** ให้ตรงกับ

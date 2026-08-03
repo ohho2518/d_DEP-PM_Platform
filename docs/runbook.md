@@ -61,10 +61,19 @@ docker run -d --name dep-pm-pg -e POSTGRES_PASSWORD=<pass> -e POSTGRES_DB=dep_pm
 #    DATABASE_URL=postgresql+psycopg://postgres:<pass>@localhost:5432/dep_pm
 # 3) สร้าง schema + seed:
 alembic upgrade head
-# 4) DoD: รัน test suite เดิมทั้งชุดบน PG:
-DATABASE_URL=postgresql+psycopg://... pytest
+# 4) DoD: รัน test suite เดิมทั้งชุดบน PG (ใช้ TEST_DATABASE_URL ไม่ใช่ DATABASE_URL):
+TEST_DATABASE_URL=postgresql+psycopg://postgres:<pass>@127.0.0.1:5432/dep_pm_pytest pytest
 ```
 driver (`psycopg[binary]`) อยู่ใน requirements แล้ว; โค้ด portable ตาม ADR-01 (GUID/JSON decorators)
+
+> ✅ **ทำจริงแล้ว 2026-08-03 บน PostgreSQL 17.10** — migration ครบ 4 ตัว + **pytest 107/107 ผ่าน**
+> (ชุดเดียวกับที่รันบน SQLite) · `tasks.id`/`project_id` เป็น native `uuid`, `depends_on` เป็น `json`
+>
+> 🐛 **บั๊กที่ DoD นี้จับได้:** migration `b2f1c0d3e4a5` (seed agent) ประกาศ `id` เป็น `sa.String`
+> ทำให้ `alembic upgrade head` **ตายทั้งชุดบน PostgreSQL** ("column id is of type uuid but
+> expression is of type character varying") — แก้เป็น `GUID` แล้ว ผลบน SQLite เหมือนเดิมทุกประการ
+>
+> `TEST_DATABASE_URL` ว่าง = SQLite ในหน่วยความจำเหมือนเดิม (ไม่ต้องมี service ตอนพัฒนาปกติ)
 
 ## 4.1 รับงานจากเลขา (d_CEO) — ใช้งานประจำวัน
 
@@ -77,6 +86,8 @@ driver (`psycopg[binary]`) อยู่ใน requirements แล้ว; โค�
    · ตั้งแต่ Phase 2 การรันเป็น**งานเบื้องหลัง** — ปุ่มตอบกลับทันที แถบความคืบหน้าเดินเอง
    **ปิดแท็บ/รีเฟรชหน้าได้ งานไม่หยุด** (เปิดหน้าบอร์ดใหม่แล้วเห็นความคืบหน้าต่อ)
    · **ห้ามปิด uvicorn ระหว่างรอบรัน** — งานอยู่ในโปรเซสนั้น (task ที่จบแล้วยังอยู่ใน DB)
+   · อยากหยุดกลางทาง กด **⏹ หยุดรอบรัน** — หยุดหลัง task ปัจจุบันจบ (ไม่ตัดกลางคัน)
+     แล้วกด Run ใหม่ทำต่อได้ · รอบที่ถูกยกเลิก **ไม่ถูกรายงานกลับเลขา**
 6. งานจบครบ → รายงานกลับเข้า **QC gate** ของ d_CEO ให้อัตโนมัติ (สถานะ `qc_review`)
    · รอบอัตโนมัติล้มเหลว → กดปุ่ม **📤 ส่งผลกลับเลขา** บนหน้าบอร์ดซ้ำได้
 
@@ -131,6 +142,30 @@ driver (`psycopg[binary]`) อยู่ใน requirements แล้ว; โค�
 3. Reviewer จริงเข้มกว่า fallback มาก — task ที่ acceptance criteria ต้องการ artifact จริง
    (repo, CI รันจริง) จะ escalate เสมอใน MVP เพราะ agent ผลิตได้แค่ข้อความ → เขียน spec
    ให้ deliverable เป็นเอกสาร/โค้ด หรือให้คนรับ task ประเภท infra เอง
+
+**ทบทวน escalation จากข้อมูลจริงทั้งหมดใน `dep_pm.db` (2026-08-03):**
+
+| โปรเจกต์ | ผล | revision เฉลี่ย |
+|---|---|---|
+| Demo: Booking API | done 4 | 0.00 |
+| งานเลขา 2 ส.ค. | done 4 · **escalated 1** · ค้าง 1 | 0.40 |
+| งานเลขา 3 ส.ค. รอบ 1 | done 5 · **escalated 1** | 0.67 |
+| งานเลขา 3 ส.ค. รอบ 2 (หลัง Phase 3a) | **done 8 · escalated 0** | **0.12** |
+
+รวมงานที่จบแล้ว 23 รายการ · escalated 2 = **8.7%** (เป้า < 10% → ผ่าน)
+
+- **escalation ทั้ง 2 ครั้งในประวัติมีสาเหตุเดียวกัน: task ต้องใช้ผลงานของงานก่อนหน้า
+  แต่ไม่ได้รับมา** — reviewer เขียนไว้ตรง ๆ ทั้งสองครั้ง ("มีเพียงข้อความขอข้อมูลเพิ่มเติม
+  จาก T2/T3/T4", "ไม่มีเอกสารต้นฉบับให้ตรวจจริง ผู้ทำงานเลือกสร้างเอกสารขึ้นมาเองแล้วรีวิว
+  เอกสารที่ตัวเองแต่งขึ้น")
+- ⇒ **ข้อสรุปเดิมที่ว่า "reviewer เข้มเกินไป" ผิด** — reviewer ถูกทั้งสองครั้ง ปัญหาอยู่ที่
+  input ของ agent · หลังแก้ที่ต้นเหตุ (Phase 3a ส่ง context ทั้งกราฟ) escalation เป็น 0
+  และ revision เฉลี่ยลดจาก 0.67 → 0.12 ในโจทย์เดียวกัน
+- **ยังไม่ต้องปรับ prompt reviewer** — ให้เก็บข้อมูลอีก 2-3 รอบก่อน ถ้า escalation ยังต่ำ
+  ถือว่าปิดประเด็นนี้ได้
+- 📌 reviewer จับ "แต่งชิ้นงานขึ้นมาเองทั้งชิ้น" ได้ (เคส 3 ส.ค. รอบ 1) แต่ **จับ "แต่งหลักฐาน
+  ประกอบในชิ้นงานที่ดูสมบูรณ์" ไม่ได้** (เคสอ้างชื่อคน/quote/timestamp ในรอบ 2 — QC ของเลขา
+  เป็นคนจับ) → เป็นเหตุผลว่าทำไมต้องเติมกติกาห้ามกุหลักฐานที่ persona prompt ไม่ใช่แค่ที่ reviewer
 
 ## 8. Security notes (ก่อน expose ออกนอกเครื่อง)
 ดู `docs/SECURITY.md` — สำคัญสุด: **ยังไม่มี authentication** ห้าม expose พอร์ต 8500

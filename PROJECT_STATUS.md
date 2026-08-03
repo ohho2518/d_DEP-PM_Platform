@@ -21,9 +21,11 @@
 
 ---
 
-> อัปเดตล่าสุด: 2026-08-03 | สถานะโดยรวม: **Phase 0 + 1 + 2 + 3a เสร็จ · UAT รอบ 2 QC ผ่าน**
-> — วงจร Vinit → เลขา → DEP-PM → QC gate **เดินครบและผ่านการตรวจจริงแล้ว**
-> (`done 8/8`, QC verdict `PASS`) · CI callback มี shared secret แล้ว (ปิด Risk #1)
+> อัปเดตล่าสุด: 2026-08-03 | สถานะโดยรวม: **Phase 0-3a เสร็จ · UAT ผ่าน QC gate จริง**
+> — วงจร Vinit → เลขา → DEP-PM → QC **เดินครบและผ่านการตรวจแล้ว** (`done 8/8`, verdict `PASS`)
+> · ปิดความเสี่ยงค้าง 2 ข้อในวันเดียว: CI callback auth (Risk #1) + **test suite บน
+> PostgreSQL 107/107** (DoD ของ ADR-01) · หยุดรอบรันกลางทางได้แล้ว
+> · **งานถัดไป: ห้าม agent กุหลักฐาน** (QC จับได้ — Next Tasks #1)
 
 ## สถานะการใช้งาน (สำคัญสำหรับ session ถัดไป)
 
@@ -36,7 +38,10 @@
 - `backend/.env` มี key จริงครบ: ANTHROPIC (Solo Mode live), GITHUB_TOKEN+REPO (`ohho2518/d_DEP-PM_Platform`)
 - โปรเจกต์ในระบบ: "Demo: Booking API" (4 done), "d_ACC" (17 backlog), "Deploy UAT",
   + งานทดสอบจากเลขา 2 ตัว (`a07f1fb2` ของ 2 ส.ค., `7ffa2d4f` ของ 3 ส.ค. — เก็บไว้เป็นหลักฐาน UAT)
-- DB migrate เป็น head `e5a91c73b204` แล้ว · servers ไม่ได้รันค้างไว้ (สตาร์ตเองตาม runbook)
+- DB migrate เป็น head `e5a91c73b204` แล้ว · uvicorn/next ไม่ได้รันค้างไว้ (สตาร์ตเองตาม runbook)
+- 🐘 **มี Docker container `dep-pm-pg-test` (PostgreSQL 17, พอร์ต 5432) รันค้างอยู่** —
+  ตั้งใจเก็บไว้ให้รัน suite บน PG ซ้ำได้เร็ว (`TEST_DATABASE_URL=postgresql+psycopg://postgres:deppmtest@127.0.0.1:5432/dep_pm_pytest pytest`)
+  · ไม่ใช้แล้วสั่ง `docker stop dep-pm-pg-test` ได้ · **ไม่ใช่ DB ของงานจริง** (ของจริงยังเป็น SQLite)
 
 ## ตำแหน่งใน ecosystem (ยืนยันโดย Vinit 2026-08-02)
 
@@ -51,6 +56,22 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 - ยึด **1 task ธุรกิจใน d_CEO = 1 project ที่นี่** (ไม่สร้างทะเบียนงานธุรกิจซ้อน)
 
 ## Completed Work
+
+### ปุ่มหยุดรอบรัน · PostgreSQL DoD · ทบทวน escalation (2026-08-03)
+
+- **⏹ ยกเลิกรอบรัน:** `POST /:id/run/cancel` + ปุ่มบนบอร์ด · engine รับ `should_continue`
+  ถามก่อนหยิบ task ถัดไป → **หยุดระหว่างช่อง ไม่ตัดกลาง task** · สถานะ `cancelled`
+  ไม่รายงานกลับเลขา · lock ถูกปลด กด Run ใหม่ทำต่อได้
+- **🐘 ปิด DoD ของ ADR-01:** conftest รับ `TEST_DATABASE_URL` → **pytest 107/107 ผ่านบน
+  PostgreSQL 17.10** และบน SQLite เหมือนเดิม
+  · 🐛 **จับบั๊กได้ทันทีที่ทำ:** seed migration `b2f1c0d3e4a5` ใช้ `sa.String` กับคอลัมน์ที่
+  เป็น native `uuid` บน PG → `alembic upgrade head` **ตายทั้งชุด** (แก้เป็น `GUID`)
+  · ⚠️ **แก้ migration ที่ apply แล้ว** ซึ่งปกติกติกาห้าม — ไม่มีทางอื่นเพราะตัวที่พังรันก่อน
+  migration ใหม่เสมอ · ผลบน SQLite เหมือนเดิมทุกไบต์ (ยืนยันด้วย suite ทั้งชุดสองเอนจิน)
+- **📊 escalation จากข้อมูลจริง:** 23 งานที่จบแล้ว · escalated 2 = **8.7%** · ทั้ง 2 ครั้ง
+  สาเหตุเดียวกันคือไม่ได้รับผลงานของงานก่อนหน้า → **"reviewer เข้มเกินไป" เป็นข้อสรุปที่ผิด**
+  (สรุปเต็มใน `runbook` §7) · หลัง Phase 3a escalated 0 · revision เฉลี่ย 0.67 → 0.12
+- **📨 `docs/REQUEST_TO_CEO.md`** — จดหมายพร้อมส่งถึง session ของ d_CEO (ยังไม่ได้ส่ง)
 
 ### UAT รอบ 2 — **QC ของเลขาตอบ PASS** (2026-08-03)
 
@@ -206,6 +227,16 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 
 ## Files Changed
 
+**หยุดรอบรัน + PostgreSQL DoD (2026-08-03)**
+- **ใหม่:** `docs/REQUEST_TO_CEO.md`
+- **แก้:** `backend/app/constants.py` (+`RunStatus.CANCELLED`), `backend/app/orchestrator/engine.py`
+  (+`should_continue`), `backend/app/services/runs.py` (+`cancel`), `backend/app/api/projects.py`
+  (+`/run/cancel`), `backend/alembic/versions/b2f1c0d3e4a5_*.py` (`sa.String` → `GUID`),
+  `backend/tests/{conftest,test_runs,test_ceo_integration}.py`,
+  `frontend/src/lib/{types,api}.ts`, `frontend/src/app/projects/[id]/page.tsx`,
+  `docs/{API,SYSTEM_DOCUMENTATION,runbook,RISK_REGISTER,INTEGRATION_CEO}.md`
+- **สำรอง:** `BackUp/CancelRun_20260803_135508/` (gitignored)
+
 **CI callback auth (2026-08-03)**
 - **แก้:** `backend/app/config.py` (+`deploy_callback_secret`, `callback_auth_enabled`),
   `backend/app/api/deployments.py` (+`require_callback_secret`), `backend/.env.example`,
@@ -287,6 +318,8 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 - 🔴 **agent กุ "หลักฐาน" ขึ้นมาเองได้** — UAT รอบ 2 พบ task รวบรวมข้อมูลอ้างชื่อคนจริง
   พร้อม quote/timestamp/screenshot ที่ไม่มีอยู่จริง (QC จับได้และเตือนไว้) · รอบนั้นไม่หลุด
   ออกไปเพราะถูกตัดตอนรวมเล่ม **แต่ต้องใส่กติกาใน persona prompt ก่อนใช้กับงานลูกค้า**
+- ⚠️ **PostgreSQL ผ่านเทสต์แล้วแต่ยังไม่เคยรันของจริง** — DB ที่ใช้งานจริงยังเป็น SQLite
+  (ย้ายเมื่อ infra พร้อม ตาม runbook §4)
 - ⚠️ **CI callback secret ยังไม่ได้ตั้งค่าจริง** — โค้ดพร้อมแล้วแต่ `DEPLOY_CALLBACK_SECRET`
   ยังว่าง = โหมดไม่ตรวจ (ตั้งใจสำหรับ dev) ต้องตั้งทั้ง 2 ฝั่งก่อนเปิดพอร์ตออกนอกเครื่อง
 - OpenAI/Gemini executors ยังไม่เคยรันกับ service จริง → token accounting 2 provider นี้ยังไม่ verify

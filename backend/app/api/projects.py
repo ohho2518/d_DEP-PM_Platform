@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.pm import breakdown_requirement
-from app.constants import ActorType, ProjectType, TaskStatus
+from app.constants import ActorType, ProjectType, RunStatus, TaskStatus
 from app.db.session import get_db, get_session_factory
 from app.integrations.ceo_client import CeoClient, get_ceo_client
 from app.metadata.provider import get_metadata_provider
@@ -234,6 +234,29 @@ def run_orchestrator(
         )
     except runs.RunAlreadyActive as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return record.snapshot()
+
+
+@router.post("/{project_id}/run/cancel")
+def cancel_run(
+    project_id: uuid.UUID,
+    run_id: str | None = None,
+    db: Session = Depends(get_db),
+) -> dict:
+    """ขอให้รอบรันที่กำลังเดินอยู่หยุด — **หยุดหลัง task ปัจจุบันจบ** ไม่ตัดกลางคัน.
+
+    ตัดกลาง task ไม่ได้โดยเจตนา: จะเหลือ task ค้างสถานะกลางทางให้มาแก้มือ และจ่ายค่า token
+    ไปแล้วโดยไม่ได้ผลงาน · 404 = ไม่มีรอบรันของโปรเจกต์นี้ · รอบที่จบไปแล้ว = 409
+    """
+    _get_project_or_404(db, project_id)
+    record = runs.get_run(run_id) if run_id else runs.latest_run_for_project(project_id)
+    if record is None or record.project_id != str(project_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ไม่พบรอบรันของโปรเจกต์นี้")
+    if record.status != RunStatus.RUNNING.value:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"รอบรันนี้จบไปแล้ว (สถานะ {record.status})"
+        )
+    runs.cancel_run(record.run_id)
     return record.snapshot()
 
 

@@ -65,6 +65,7 @@ class RunRecord:
     error: str | None = None
     started_at: datetime = field(default_factory=utcnow)
     finished_at: datetime | None = None
+    cancel_requested: bool = False
     done: threading.Event = field(default_factory=threading.Event, repr=False, compare=False)
 
     def snapshot(self) -> dict:
@@ -83,6 +84,7 @@ class RunRecord:
             "outcomes": list(self.outcomes),
             "ceo_report": self.ceo_report,
             "error": self.error,
+            "cancel_requested": self.cancel_requested,
             "started_at": self.started_at.isoformat(),
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
         }
@@ -142,6 +144,18 @@ class RunManager:
                     return record
         return None
 
+    def cancel(self, run_id: str) -> RunRecord | None:
+        """ขอให้รอบรันหยุด — **หยุดหลัง task ที่กำลังทำอยู่จบ** ไม่ตัดกลางคัน.
+
+        คืน None ถ้าไม่รู้จัก run นี้ · รอบที่จบไปแล้วถือว่าไม่มีอะไรให้ยกเลิก (คืน record เดิม)
+        """
+        with self._lock:
+            record = self._runs.get(run_id)
+            if record is None or record.status != RunStatus.RUNNING.value:
+                return record
+            record.cancel_requested = True
+            return record
+
     def wait(self, run_id: str, timeout: float = 60.0) -> RunRecord | None:
         """รอรอบรันจบ — ใช้ใน test และตอนปิดระบบ (production ไม่ควรเรียก)."""
         record = self.get(run_id)
@@ -178,9 +192,19 @@ class RunManager:
         """ตัวงานจริงใน thread — engine commit ต่อ task อยู่แล้ว ที่นี่จึงไม่ commit ซ้ำ."""
         db = session_factory()
         try:
-            run_project(db, project_id, on_outcome=lambda o: self._record_outcome(record, o))
-            self._report_to_ceo(record, db, project_id, ceo_client)
-            self._finish(record, RunStatus.SUCCEEDED)
+            run_project(
+                db,
+                project_id,
+                on_outcome=lambda o: self._record_outcome(record, o),
+                should_continue=lambda: not record.cancel_requested,
+            )
+            if record.cancel_requested:
+                # ยกเลิกกลางคัน = รอบนี้ยังไม่จบ → **ไม่รายงานกลับ d_CEO**
+                # (งานที่ทำเสร็จไปแล้วยังอยู่ ผู้ใช้กด Run ใหม่ทำต่อ หรือกดส่งผลเองได้)
+                self._finish(record, RunStatus.CANCELLED)
+            else:
+                self._report_to_ceo(record, db, project_id, ceo_client)
+                self._finish(record, RunStatus.SUCCEEDED)
         except Exception as exc:  # noqa: BLE001 — thread ห้ามตายเงียบ ต้องเก็บเหตุไว้ให้ UI เห็น
             logger.exception("run %s ของโปรเจกต์ %s ล้มเหลว", record.run_id, record.project_id)
             db.rollback()
@@ -269,6 +293,10 @@ def get_run(run_id: str) -> RunRecord | None:
 
 def latest_run_for_project(project_id: uuid.UUID | str) -> RunRecord | None:
     return _manager.latest_for_project(project_id)
+
+
+def cancel_run(run_id: str) -> RunRecord | None:
+    return _manager.cancel(run_id)
 
 
 def wait_for_run(run_id: str, timeout: float = 60.0) -> RunRecord | None:

@@ -175,3 +175,59 @@ def test_failed_run_keeps_error_and_releases_lock(client, db_session, monkeypatc
     assert body["error"]
     # ล้มแล้วต้องไม่ค้าง lock ไว้ ไม่งั้นโปรเจกต์นั้นรันไม่ได้อีกเลยจนกว่าจะ restart
     assert client.post(f"/api/projects/{project.id}/run").status_code == 202
+
+
+# --- ยกเลิกรอบรัน -------------------------------------------------------------
+
+
+def test_cancel_stops_before_the_next_task(client, db_session, monkeypatch, wait_run):
+    """หยุด "ระหว่างช่อง" — task ที่ทำไปแล้วยังนับ ตัวถัดไปไม่ถูกหยิบ."""
+    first_done = threading.Event()
+    release = threading.Event()
+
+    def _fake(db, project_id, *, on_outcome=None, should_continue=None, **kwargs):
+        for i in range(5):
+            if should_continue is not None and not should_continue():
+                break
+            on_outcome(
+                TaskOutcome(
+                    task_id=f"t-{i}", title=f"งาน {i}", final_status=TaskStatus.DONE.value, revisions=0
+                )
+            )
+            if i == 0:
+                first_done.set()
+                release.wait(10)
+
+    monkeypatch.setattr(runs, "run_project", _fake)
+    project = _project_with_planned(db_session, count=5)
+
+    run_id = client.post(f"/api/projects/{project.id}/run").json()["run_id"]
+    assert first_done.wait(10)
+
+    resp = client.post(f"/api/projects/{project.id}/run/cancel")
+    assert resp.status_code == 200
+    assert resp.json()["cancel_requested"] is True
+
+    release.set()
+    record = wait_run(run_id)
+    assert record.status == RunStatus.CANCELLED.value
+    assert record.processed == 1  # ตัวที่ 2 ไม่ถูกหยิบ
+    assert record.ceo_report is None  # รอบยังไม่จบ = ไม่รายงานกลับเลขา
+
+    # lock ต้องถูกปลด — กด Run ใหม่ได้ทันที
+    assert client.post(f"/api/projects/{project.id}/run").status_code == 202
+
+
+def test_cancel_without_any_run_is_404(client, db_session):
+    project = _project_with_planned(db_session, count=1)
+    assert client.post(f"/api/projects/{project.id}/run/cancel").status_code == 404
+
+
+def test_cancel_finished_run_is_409(client, db_session, wait_run):
+    project = _project_with_planned(db_session, count=1)
+    run_id = client.post(f"/api/projects/{project.id}/run").json()["run_id"]
+    wait_run(run_id)
+
+    resp = client.post(f"/api/projects/{project.id}/run/cancel")
+    assert resp.status_code == 409
+    assert "จบไปแล้ว" in resp.json()["detail"]
