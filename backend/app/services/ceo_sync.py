@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.pm import breakdown_requirement
+from app.bus import clip_work, latest_work_by_task
 from app.config import get_settings
 from app.constants import ActorType, MessageType, ProjectType, TaskStatus
 from app.integrations.ceo_client import (
@@ -37,6 +38,10 @@ from app.services.audit import record_audit
 from app.services.tasks import persist_task_plan
 
 CEO_ACTOR_ID = "ceo-sync"
+
+# เพดานตัวชิ้นงานที่แนบในรายงานถึง d_CEO (ตัวอักษร) — ต่อ 1 task และรวมทั้งรายงาน
+REPORT_WORK_CHAR_LIMIT = 8_000
+REPORT_WORK_TOTAL_CHAR_LIMIT = 40_000
 
 # task ที่ orchestrator กำลังถืออยู่ (มีคน/agent ทำค้างอยู่จริง)
 IN_FLIGHT_STATUSES = frozenset(
@@ -193,6 +198,41 @@ def _escalation_reasons(db: Session, task_ids: list[uuid.UUID]) -> dict[uuid.UUI
     return reasons
 
 
+def _work_product_section(db: Session, finished: list[Task]) -> list[str]:
+    """หัวข้อ "ผลงาน" — ตัวชิ้นงานจริงของ **ทุก task ที่เสร็จ** เรียงตามลำดับที่วางแผนไว้.
+
+    QC ของ d_CEO ต้องอ่านของจริงถึงจะตรวจได้ (มติจาก UAT 2026-08-03: ส่งแต่สรุปสถานะ =
+    `rejected` ทันที) · คุมความยาวสองชั้นเหมือนฝั่ง orchestrator เพราะ `output` ของ d_CEO
+    เป็นคอลัมน์ข้อความเดียว — รายงานที่ยาวเกินไปก็ไม่มีใครอ่าน
+    """
+    if not finished:
+        return []
+    works = latest_work_by_task(db, [t.id for t in finished])
+    if not works:
+        return []
+
+    section = ["## ผลงาน (ตัวชิ้นงานจริง)", ""]
+    budget = REPORT_WORK_TOTAL_CHAR_LIMIT
+    omitted: list[str] = []
+    for task in finished:
+        work = works.get(task.id)
+        if not work:
+            continue
+        block = clip_work(work, REPORT_WORK_CHAR_LIMIT)
+        if len(block) > budget:
+            omitted.append(task.title)
+            continue
+        budget -= len(block)
+        section += [f"### {task.title}", "", block, ""]
+    if omitted:
+        section += [
+            f"> หมายเหตุ: ตัดผลงานของ {len(omitted)} รายการออกเพราะรายงานยาวเกินเพดาน "
+            f"({', '.join(omitted)}) — เปิดดูฉบับเต็มได้บนบอร์ด DEP-PM",
+            "",
+        ]
+    return section
+
+
 def build_report(db: Session, project: Project) -> ReportResult:
     """ประเมินว่าโปรเจกต์พร้อมรายงานไหม แล้วประกอบ `output` เป็น markdown.
 
@@ -291,6 +331,9 @@ def build_report(db: Session, project: Project) -> ReportResult:
             ]
             lines.append(f"- [{t.priority}] {t.title} — รอ: {', '.join(waiting_on) or 'ไม่ทราบ'}")
         lines.append("")
+    # ตัวชิ้นงานจริง — QC ของ d_CEO ปฏิเสธรอบ 2026-08-03 เพราะ "ไม่มี artifact ให้ตรวจ"
+    # (รายงานเดิมมีแต่ชื่อ task กับตัวเลข) · ผลงานอยู่ใน agent_messages มาตลอด แค่ไม่ถูกหยิบมา
+    lines += _work_product_section(db, finished)
     lines += [
         "## ต้นทุน",
         f"token: input {tokens_in:,} · output {tokens_out:,}",

@@ -11,6 +11,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.constants import MessageType
@@ -57,3 +58,45 @@ def publish(
     for handler in list(_subscribers):
         handler(message)
     return message
+
+
+def clip_work(text: str, limit: int) -> str:
+    """ตัดผลงานให้พอดีเพดาน พร้อม**บอกตรง ๆ ว่าถูกตัด**.
+
+    สำคัญกว่าที่คิด: ถ้าตัดเงียบ ๆ agent ที่อ่านต่อจะเข้าใจว่านี่คือของครบแล้วทำงานผิด
+    และ QC ที่อ่านรายงานจะตัดสินจากของไม่ครบโดยไม่รู้ตัว
+    """
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}\n…(ตัดเหลือ {limit:,} ตัวอักษรแรก จากทั้งหมด {len(text):,})"
+
+
+def latest_work_by_task(db: Session, task_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+    """ผลงาน (work product) **ล่าสุด** ของแต่ละ task — จากข้อความ ``result`` บน bus.
+
+    ตาราง ``agent_messages`` เป็นที่เดียวที่เก็บตัวชิ้นงานจริง (task เก็บแค่ metadata)
+    ทั้ง orchestrator (ส่งเป็น context ให้ task ที่ depend อยู่) และ ceo_sync
+    (แนบในรายงานถึง d_CEO) ต้องใช้ข้อมูลชุดเดียวกัน จึงอ่านผ่านฟังก์ชันนี้ที่เดียว
+
+    "ล่าสุด" = หลัง revision ครั้งสุดท้าย — งานรอบก่อนถูกทับ แต่ยังอยู่ในตารางให้ตรวจย้อนหลังได้
+    """
+    if not task_ids:
+        return {}
+    rows = (
+        db.execute(
+            select(AgentMessage)
+            .where(
+                AgentMessage.task_id.in_(task_ids),
+                AgentMessage.message_type == MessageType.RESULT.value,
+            )
+            .order_by(AgentMessage.created_at)
+        )
+        .scalars()
+        .all()
+    )
+    works: dict[uuid.UUID, str] = {}
+    for message in rows:  # ตัวหลังทับตัวหน้า = ได้ผลงานล่าสุด
+        work = (message.payload or {}).get("work")
+        if message.task_id is not None and work:
+            works[message.task_id] = str(work)
+    return works

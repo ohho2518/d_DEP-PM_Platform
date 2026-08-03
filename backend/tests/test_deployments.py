@@ -126,7 +126,7 @@ def test_portfolio_shows_last_deployment(client):
 # Auto-deploy hook (orchestrator done -> staging deployment เมื่อเปิด flag)
 # ---------------------------------------------------------------------------
 class _ApproveAll:
-    def execute(self, task, role, feedback=None):
+    def execute(self, task, role, feedback=None, context=None):
         return "work"
 
     def review(self, task, work):

@@ -1,9 +1,8 @@
 # PROJECT_STATUS.md — DEP-PM Platform
 
-> อัปเดตล่าสุด: 2026-08-03 | สถานะโดยรวม: **Phase 0 + 1 + 2 เสร็จ · UAT รอบใหม่ผ่านกลไก
-> แต่ QC ของเลขาปฏิเสธผลงาน**
-> — `/run` ไม่ block ผู้เรียกแล้ว (202 + `run_id`) · **งานถัดไปคือคุณภาพของสิ่งที่ส่งออก:
-> ส่งผลงานให้ task ที่ depend อยู่ + แนบตัวชิ้นงานในรายงาน** (Next Tasks #1-2)
+> อัปเดตล่าสุด: 2026-08-03 | สถานะโดยรวม: **Phase 0 + 1 + 2 + 3a เสร็จ**
+> — `/run` ไม่ block ผู้เรียกแล้ว (202 + `run_id`) · agent เห็นผลงานของงานก่อนหน้าแล้ว ·
+> รายงานถึงเลขาแนบตัวชิ้นงานจริงแล้ว — **เหลือพิสูจน์กับ QC ของเลขาอีกรอบ** (Next Tasks #1)
 
 ## สถานะการใช้งาน (สำคัญสำหรับ session ถัดไป)
 
@@ -31,6 +30,21 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 - ยึด **1 task ธุรกิจใน d_CEO = 1 project ที่นี่** (ไม่สร้างทะเบียนงานธุรกิจซ้อน)
 
 ## Completed Work
+
+### Phase 3a — ปิดช่องที่ QC จับได้ (2026-08-03)
+
+- **`engine.upstream_context`** — ส่ง **ผลงานล่าสุดของ task ที่อยู่เหนือทั้งกราฟ** ไปกับ prompt
+  · `_ancestor_tasks` เดินกราฟแบบ DFS post-order (ต้นน้ำก่อนปลายน้ำ, กันวง)
+  · **ห้ามเรียงด้วย `created_at`** — นาฬิกา Windows หยาบจน task ที่สร้างติดกันได้เวลาเท่ากัน
+    แล้วลำดับสลับ (เทสต์ไม่นิ่ง เจอตอนเขียนเทสต์วันนี้)
+  · เพดาน 6,000 ตัวอักษร/ชิ้น · 24,000 รวม — ตัดตัวเก่าก่อน **พร้อมบอกว่าตัด**
+- **`PersonaExecutor.execute(..., context=None)`** — ทุก provider ต้องส่งต่อให้โมเดล
+  (เขียนเป็นกติกาใน AGENTS.md §9.1.7 แล้ว)
+- **`ceo_sync._work_product_section`** — รายงานถึงเลขามีหัวข้อ "## ผลงาน (ตัวชิ้นงานจริง)"
+  แนบผลงานฉบับล่าสุดของทุก task ที่เสร็จ · เพดาน 8,000/task · 40,000 รวม
+- **`bus.latest_work_by_task` + `bus.clip_work`** — ตัวอ่านผลงานที่ orchestrator กับ ceo_sync
+  ใช้ร่วมกัน (agent_messages เป็นที่เดียวที่เก็บตัวชิ้นงานจริง)
+- pytest 90 → **97** (นิ่ง 3 รอบติด) · ruff clean · `npm run build` ผ่าน
 
 ### Phase 2 — `/run` เป็นงานเบื้องหลัง (2026-08-03)
 
@@ -142,6 +156,15 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 
 ## Files Changed
 
+**Phase 3a (2026-08-03)**
+- **แก้:** `backend/app/bus/{dispatcher,__init__}.py` (+`latest_work_by_task`, `clip_work`),
+  `backend/app/orchestrator/engine.py` (+`_ancestor_tasks`, `upstream_context`),
+  `backend/app/agents/runtime.py` (Protocol + 3 executors รับ `context`),
+  `backend/app/services/ceo_sync.py` (+`_work_product_section`),
+  `backend/tests/{test_orchestrator,test_ceo_integration,test_deployments}.py`,
+  `docs/{SYSTEM_DOCUMENTATION,INTEGRATION_CEO}.md`, `AGENTS.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`
+- **สำรอง:** `BackUp/Phase3aWorkProducts_20260803_111337/` (gitignored)
+
 **Phase 2 (2026-08-03)**
 - **ใหม่:** `backend/app/services/runs.py`, `backend/tests/test_runs.py`
 - **แก้:** `backend/app/api/{projects,ceo}.py`, `backend/app/constants.py` (+`RunStatus`),
@@ -186,21 +209,16 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 
 ## Next Tasks
 
-1. **ส่งผลงานจริงให้ task ที่ depend อยู่ (Phase 3a)** ← สำคัญสุด · root cause ของงาน
-   "รวมเล่ม" ที่ถูกปฏิเสธทุกครั้ง — ตอนนี้ agent ได้แค่ title/spec ของตัวเอง ไม่ได้เห็น
-   ผลงานของ dependency · แก้ที่จุดประกอบ context ก่อนเรียก executor (ต้องคุมขนาด: ตัด/
-   ย่อเมื่อยาวเกิน `MAX_TOKENS_PER_TASK`) — **ไม่ต้องแตะ state machine**
-2. **รายงานกลับเลขาต้องแนบตัวชิ้นงาน (Phase 3a)** — `ceo_sync.build_report` เพิ่มผลงานจริง
-   ของ task ปลายทาง (result payload ล่าสุด) · ต้องตัดสินใจ: แนบทุก task หรือเฉพาะ task
-   ที่ไม่มีใคร depend ต่อ (= deliverable ตัวจริง) และเพดานความยาวเท่าไร
-3. **ทบทวนกติกา escalation กับงานเอกสาร** — หลังแก้ข้อ 1 แล้วค่อยประเมินซ้ำ
+1. **ยิงงานทดสอบกับ d_CEO ซ้ำอีกรอบ** ← สำคัญสุด · เป็นตัววัดเดียวว่า Phase 3a แก้ตรงจุดไหม
+   (ต้นทุนจริง ~30-60k token ต่อรอบ) · ถ้า QC ยังปฏิเสธ ให้ดูว่าเหตุผลเปลี่ยนไปไหม
+2. **ทบทวนกติกา escalation กับงานเอกสาร** — หลังรอบทดสอบข้างบนค่อยประเมินซ้ำ
    ว่ายังต้องปรับ prompt reviewer อีกไหม (บทเรียนเดิมใน runbook §7)
-4. **ขอจากฝั่ง d_CEO** (ดู `docs/INTEGRATION_CEO.md` §7): ยืนยัน contract + ออก
+3. **ขอจากฝั่ง d_CEO** (ดู `docs/INTEGRATION_CEO.md` §7): ยืนยัน contract + ออก
    `INTEGRATION_DEPPM.md` · แก้เอกสารที่ยังเขียนว่า "merge DEP-PM เข้า Solo_CEO"
    (`d_Jarvis\docs\VISION.md` §5, `d_CEO\project_plan_solo_ceo.md` §9.1) — **ห้ามแก้ข้ามรีโป**
-5. **Phase 3b — ปิด UAT/ความปลอดภัยที่ค้าง:** callback shared-secret · test suite บน PostgreSQL
+4. **Phase 3b — ปิด UAT/ความปลอดภัยที่ค้าง:** callback shared-secret · test suite บน PostgreSQL
    (DoD ADR-01) · Team Mode กับ OPENAI/GEMINI keys จริง
-6. ก่อน deploy สาธารณะ: security gate ใน `docs/SECURITY.md` — ควรทำพร้อมทั้ง ecosystem
+5. ก่อน deploy สาธารณะ: security gate ใน `docs/SECURITY.md` — ควรทำพร้อมทั้ง ecosystem
 
 ## Known Issues
 
@@ -208,11 +226,8 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 - **ทะเบียนรอบรันอยู่ในหน่วยความจำโปรเซสเดียว** — restart uvicorn ระหว่างรอบรัน = งานหยุด
   และประวัติรอบรันหาย (`GET /run` → 404) **ผลงานที่ commit แล้วไม่หาย** กด Run ใหม่ทำต่อได้
   · ยังไม่มีปุ่ม "ยกเลิกรอบรัน"
-- 🔴 **task ที่ depend อยู่ไม่ได้รับผลงานของ dependency** — agent เห็นแค่ title/spec ของตัวเอง
-  → งานประเภท "รวมเนื้อหา/ต่อยอดจากงานก่อนหน้า" ทำจริงไม่ได้ ผลิตได้แค่โครงว่าง แล้วถูก
-  reviewer ปฏิเสธจนเข้า escalated (ยืนยันจาก UAT 3 ส.ค. — agent บอกเองว่าไม่มีเนื้อหาต้นฉบับ)
-- 🔴 **รายงานที่ส่งเลขาไม่มีตัวชิ้นงาน** มีแต่สรุปสถานะ task → **QC ปฏิเสธ** (`rejected` 3 ส.ค.)
-  · ผลงานจริงอยู่ครบใน `agent_messages` แล้ว แค่ไม่ถูกหยิบมาใส่รายงาน
+- ⚠️ **Phase 3a แก้ 2 ข้อที่ QC จับได้แล้ว แต่ยังไม่ได้พิสูจน์กับงานจริง** — ต้องยิงงานทดสอบ
+  ซ้ำอีกรอบถึงจะรู้ว่า QC ผ่านไหม (unit test บอกได้แค่ว่า context/ผลงานถูกส่งไปจริง)
 - OpenAI/Gemini executors ยังไม่เคยรันกับ service จริง → token accounting 2 provider นี้ยังไม่ verify
 - Task ที่ acceptance criteria ต้องการ artifact จริง (repo/CI) จะ escalate เสมอ — พฤติกรรมถูกต้อง
   แต่ต้องเขียน spec ให้ deliverable เป็นเอกสาร/โค้ด (บทเรียน UAT ใน runbook §7)

@@ -73,10 +73,11 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
   เปิดด้วย `AUTO_DEPLOY_ENABLED`) hardcode `staging`; `production` มาจาก POST มือเท่านั้น
 
 ### `app/agents/runtime.py` — Executor abstraction
-- **`PersonaExecutor` (Protocol):** `execute(task, role, feedback) -> str` และ `review(task, work) -> ReviewResult` — orchestrator เห็นแค่นี้ (จุดเสียบ Team Mode)
-- **`FallbackExecutor`:** deterministic — execute คืนข้อความ `(fallback:role) …`, review approve เสมอ → happy path E2E รันได้โดยไม่มี network
+- **`PersonaExecutor` (Protocol):** `execute(task, role, feedback=None, context=None) -> str` และ `review(task, work) -> ReviewResult` — orchestrator เห็นแค่นี้ (จุดเสียบ Team Mode)
+  - ⚠️ **`context` = ผลงานจริงของงานก่อนหน้า (เพิ่ม 2026-08-03)** — provider ใหม่ **ต้องส่งต่อให้โมเดล** ไม่งั้นงานประเภท "ทำต่อจากของเดิม" จะผลิตได้แค่โครงเปล่าแล้วถูก reviewer ปฏิเสธจน escalate (บั๊กจริงจาก UAT — ดู `engine.upstream_context`)
+- **`FallbackExecutor`:** deterministic — execute คืนข้อความ `(fallback:role) …` พร้อมจำนวนผลงานก่อนหน้าที่ได้รับ, review approve เสมอ → happy path E2E รันได้โดยไม่มี network
 - **`ClaudeExecutor`:** key เดียวทุก persona (Solo Mode); review parse JSON ผ่าน `_extract_json` เดิม
-  - **การตัดสินใจสำคัญ:** review parse ไม่ได้ → **auto-approve** พร้อม comment `(unparseable review — auto-approved)` — เลือกฝั่งนี้เพราะฝั่งตรงข้าม (treat เป็น reject) จะ escalate ทุก task เมื่อ model ตอบเพี้ยน ซึ่งแย่กว่า | **ความเสี่ยงที่ยอมรับ:** งานคุณภาพต่ำอาจหลุด review เมื่อ output เพี้ยน → ทบทวนเมื่อใช้ key จริง (บันทึกใน §22)
+  - **การตัดสินใจสำคัญ (แก้แล้ว 2026-07-07 — debt #3):** review parse ไม่ได้ → retry 1 ครั้ง → ยังไม่ได้ = **reject** เข้า revision/escalation ปกติ (เดิม auto-approve ทำให้งานที่ไม่ถูกตรวจจริงหลุดเป็น done) | loop ถูก bound ด้วย `MAX_REVISIONS` จึงไม่วนไม่จบ
 - **`TeamExecutor` (Sprint 4):** map role→provider ตาม Blueprint §9 — DEV→openai (Codex),
   SENIOR_ARCHITECT→google (Gemini), PM/REVIEWER→anthropic; fallback chain ต่อ role:
   provider → anthropic → deterministic (ไม่ล้มกลางงานแม้ key ขาดบางตัว)
@@ -108,8 +109,13 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
     "ยังเดินอยู่" ทำให้โปรเจกต์ที่มี escalated (dependent ค้าง planned ถาวร) **ไม่เคยรายงานเลย**
     และ d_CEO ค้าง `in_progress` ตลอดกาล — บั๊กจริงที่ UAT 2026-08-02 จับได้ **อย่าถอยกลับ**
   - escalated + blocked ถือว่าจบรอบ แต่ระบุในรายงานให้คนตัดสิน — เราไม่ตัดสินเองว่างานล้มเหลว
-- `report_project(...)`: PATCH `qc_review` + output + audit `ceo.reported`
-- **Complexity:** O(T) ต่อโปรเจกต์ + 1 query สำหรับเหตุผล escalation จาก `agent_messages`
+- `_work_product_section(db, finished)`: หัวข้อ **"ผลงาน (ตัวชิ้นงานจริง)"** — ผลงานล่าสุดของ**ทุก task ที่เสร็จ**
+  · เพดาน `REPORT_WORK_CHAR_LIMIT` = 8,000 ต่อ task และ `REPORT_WORK_TOTAL_CHAR_LIMIT` = 40,000 รวม
+  — ตัดแล้วต้องเขียนบอกในรายงานว่าตัดของใครไป
+  - ⚠️ **ห้ามถอยกลับไปส่งแต่สรุปสถานะ** — QC ของ d_CEO ปฏิเสธงานรอบ 2026-08-03 ด้วยเหตุผล
+    "ไม่มี artifact ให้ตรวจ = ไม่ผ่านตามกฎด่านตรวจ" (ผลงานอยู่ใน `agent_messages` มาตลอด แค่ไม่ถูกหยิบมา)
+- `report_project(...)`: PATCH `qc_review` + output + audit `ceo.reported` (**commit เองในฟังก์ชันนี้**)
+- **Complexity:** O(T) ต่อโปรเจกต์ + 2 query จาก `agent_messages` (เหตุผล escalation + ผลงานล่าสุด)
 - **ทำไมอยู่ใน services ไม่ใช่ orchestrator:** engine ไม่ต้องแก้แม้แต่บรรทัดเดียวเพื่อรองรับ
   การเชื่อมต่อ (เจตนาเดียวกับ Team Mode ใน Sprint 4) — `api/projects.py` เป็นคนเรียกหลัง `/run`
 
@@ -120,6 +126,8 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 - `_deps_met(db, task)`: ทุก id ใน depends_on ต้อง**มีอยู่จริงและ** done/deployed — id หาย = ถือว่า dep ไม่ครบ (ปลอดภัยฝั่ง fail-closed)
 - `_next_runnable`: planned tasks เรียง created_at → ตัวแรกที่ deps ครบ | O(P×D) ต่อรอบ — พอสำหรับโปรเจกต์ระดับร้อย task
 - `_run_task`: ดู flow ใน §9 | commit ไม่อยู่ในนี้ (caller จัดการ)
+- `_ancestor_tasks(db, task)`: task ทั้งหมดที่อยู่เหนือในกราฟพึ่งพา — DFS post-order (ต้นน้ำก่อนปลายน้ำ) กันวงด้วย `seen` · **ห้ามเรียงด้วย `created_at`** นาฬิกา Windows หยาบพอที่ task ซึ่งสร้างติดกันจะได้เวลาเท่ากันแล้วลำดับสลับไปมา (เจอจริงตอนเขียนเทสต์ 2026-08-03)
+- `upstream_context(db, task)`: ประกอบ "ผลงานจริงของงานก่อนหน้า" เป็นข้อความให้ agent อ่าน — **ผลงานล่าสุดของทั้งกราฟ** (ไม่ใช่แค่ dependency ตรง) · เพดาน `UPSTREAM_WORK_CHAR_LIMIT` = 6,000 ต่อชิ้น และ `UPSTREAM_CONTEXT_CHAR_LIMIT` = 24,000 รวม — เกินแล้ว**ตัดตัวเก่าสุดก่อน** พร้อมบอกจำนวนที่ตัดไว้ในหัวข้อความ · ประกอบครั้งเดียวก่อนเข้า revision loop
 - `run_project(db, project_id, executor=None, max_tasks=None, on_outcome=None)`: วนจน `_next_runnable` คืน None; **commit ต่อ task**; executor param = จุด inject mock ใน tests; `on_outcome` ถูกเรียกหลัง commit ของแต่ละ task (Phase 2: run manager ใช้ทำ progress — engine ไม่รู้จักผู้ฟัง)
 - `planned_task_count(db, project_id)`: จำนวน task `planned` ตอนนี้ — run manager ใช้ตั้ง "เป้า" ของรอบรัน
 - **Thread safety:** ตัว engine ไม่ thread-safe — ความปลอดภัยมาจาก **lock ต่อโปรเจกต์ใน `services/runs.py`** (ยิง `/run` ซ้อนโปรเจกต์เดิม = 409) และ 1 รอบรัน = 1 session
@@ -137,6 +145,8 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 ### `app/bus/dispatcher.py`
 - `publish(db, …) -> AgentMessage`: persist เสมอ (flush ไม่ commit) → fan-out ไป subscribers ใน process
 - `subscribe/clear_subscribers`: module-level list — MVP ยังไม่มี subscriber ถาวร (tests ใช้)
+- `latest_work_by_task(db, ids)`: ผลงาน (work product) **ล่าสุด** ของแต่ละ task จากข้อความ `result` — `agent_messages` เป็นที่เดียวที่เก็บตัวชิ้นงานจริง (task เก็บแค่ metadata) · ผู้ใช้ 2 ราย: orchestrator (ส่งเป็น context) กับ ceo_sync (แนบในรายงาน) จึงอ่านผ่านฟังก์ชันเดียว
+- `clip_work(text, limit)`: ตัดผลงานพร้อม**บอกว่าถูกตัด** — ตัดเงียบ = agent/QC ตัดสินจากของไม่ครบโดยไม่รู้ตัว
 - **Upgrade path:** เปลี่ยน transport เป็น Redis Streams โดย signature `publish` คงเดิม (ADR-03)
 
 ### `app/services/`
@@ -257,7 +267,7 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 - Retry: PM breakdown retry 1 (โครงสร้าง JSON); anthropic SDK มี HTTP retry ในตัว
 - ยังไม่มี: structured logging, error tracking (Sentry ฯลฯ) — หลัง MVP
 
-## 18. Testing (90 เคส — `backend/tests/`)
+## 18. Testing (97 เคส — `backend/tests/`)
 | ไฟล์ | ครอบคลุม |
 |------|----------|
 | conftest.py | in-memory SQLite ต่อ test (StaticPool) + TestClient override `get_db` · `db_factory` (session ของงานเบื้องหลัง) · `wait_run` (รอรอบรันจบ + `expire_all`) · ล้างทะเบียนรอบรันทุก test |
@@ -266,12 +276,12 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 | test_scan.py | mock scan → 3 backlog tasks; reject type=new |
 | test_tasks.py | PATCH + messages |
 | test_state_machine.py | **transition matrix ทุกคู่ (64)** , audit, 409 ผ่าน API, เดินครบ lifecycle |
-| test_orchestrator.py | E2E happy path (API), audit ครบ 4 transitions, revision→done, **escalation ที่ MAX_REVISIONS**, dependency ordering, dependent ของ escalated ค้าง planned |
+| test_orchestrator.py | E2E happy path (API), audit ครบ 4 transitions, revision→done, **escalation ที่ MAX_REVISIONS**, dependency ordering, dependent ของ escalated ค้าง planned, **context: เห็นผลงานทั้งกราฟบรรพบุรุษ / ใช้ฉบับล่าสุดหลัง revision / ตัดพร้อม marker / เพดานรวมตัดตัวเก่าก่อน** |
 | test_routing_bus.py | routing keywords, publish persist+dispatch, endpoint 201/404 |
 | test_deployments.py | stub mode, invalid env 400, callback → task deployed, terminal immutable 409, portfolio, auto-deploy on/off |
 | test_team_mode.py | mode switch ด้วย config, role→provider mapping ตรง Blueprint, fallback chain, provider injection |
 | test_runs.py | 202 + `run_id` + `total` จาก planned, progress ระหว่างรัน, `run_id` ของโปรเจกต์อื่น → 404, **ยิงซ้อน → 409**, lock เป็นราย project ไม่ใช่ global, รอบรันล้ม → `failed` + `error` + **ปลด lock** |
-| test_ceo_integration.py | **guardrail ห้ามส่ง done/awaiting_approval**, **escalated บล็อก dependent → ต้องรายงาน** (บั๊กจริงจาก UAT), runnable planned → ยังไม่รายงาน, backlog → ยังไม่ยืนยัน scope, inbox กรองทีม+งานที่ดึงแล้ว, pull สร้าง project+breakdown+ack, pull ซ้ำไม่ซ้ำซ้อน, report ส่ง `qc_review` พร้อม output, degrade เมื่อ d_CEO ออฟไลน์, auto-report หลัง `/run` |
+| test_ceo_integration.py | **guardrail ห้ามส่ง done/awaiting_approval**, **escalated บล็อก dependent → ต้องรายงาน** (บั๊กจริงจาก UAT), runnable planned → ยังไม่รายงาน, backlog → ยังไม่ยืนยัน scope, inbox กรองทีม+งานที่ดึงแล้ว, pull สร้าง project+breakdown+ack, pull ซ้ำไม่ซ้ำซ้อน, report ส่ง `qc_review` พร้อม output, degrade เมื่อ d_CEO ออฟไลน์, auto-report หลัง `/run`, **แนบตัวชิ้นงานจริง (ฉบับล่าสุดเท่านั้น) / ไม่มี result ก็ยังรายงานได้ / ตัดแล้วบอกว่าตัดอะไร** |
 
 - **Mocking strategy:** ไม่ mock HTTP — inject `RejectingReviewer` ผ่าน `executor` param และ inject
   `StubCeoClient` ผ่าน dependency override ของ `get_ceo_client` (ทดสอบ logic จริง ไม่ผูก SDK/เครือข่าย)

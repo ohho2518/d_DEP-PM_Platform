@@ -9,6 +9,7 @@ from app.models.agent_message import AgentMessage
 from app.models.audit_log import AuditLog
 from app.models.project import Project
 from app.models.task import Task
+from app.orchestrator import engine
 from app.orchestrator.engine import run_project
 
 
@@ -18,8 +19,10 @@ class RejectingReviewer:
     def __init__(self, reject_times: int | None = None) -> None:
         self.reject_times = reject_times
         self.reviews = 0
+        self.contexts: list[str | None] = []  # context ที่ orchestrator ส่งมาแต่ละครั้ง
 
-    def execute(self, task, role, feedback=None):
+    def execute(self, task, role, feedback=None, context=None):
+        self.contexts.append(context)
         return f"work v{self.reviews + 1}" + (f" (fixed: {feedback})" if feedback else "")
 
     def review(self, task, work):
@@ -155,3 +158,93 @@ def test_dependent_of_escalated_task_stays_planned(db_session):
     assert summary.counts == {"escalated": 1}
     child = db_session.get(Task, tasks[1].id)
     assert child.status == "planned"
+
+
+# ---------------------------------------------------------------------------
+# Upstream context — task ที่ depend อยู่ต้องได้ "ผลงานจริง" ของงานก่อนหน้าทั้งสาย
+# (บั๊กจาก UAT 2026-08-03: agent เห็นแค่ title/spec ของตัวเอง งาน "รวมเล่ม" จึงทำไม่ได้)
+# ---------------------------------------------------------------------------
+class ContextSpy:
+    """เก็บ context ที่ได้รับ + คืนผลงานที่ระบุตัวตนได้ว่ามาจาก task ไหน."""
+
+    def __init__(self, work_by_title: dict[str, str] | None = None) -> None:
+        self.work_by_title = work_by_title or {}
+        self.seen: dict[str, str | None] = {}  # title -> context ครั้งแรกที่ถูกเรียก
+
+    def execute(self, task, role, feedback=None, context=None):
+        self.seen.setdefault(task.title, context)
+        return self.work_by_title.get(task.title, f"ผลงานของ {task.title}")
+
+    def review(self, task, work):
+        return ReviewResult(approved=True, comment="ok")
+
+
+def test_dependent_task_receives_whole_upstream_graph(db_session):
+    # A → B → C : C ต้องเห็นผลงานของ **ทั้ง A และ B** ไม่ใช่แค่ B ที่เป็น dependency ตรง
+    project, _ = _project_with_planned_tasks(
+        db_session, ["A", "B", "C"], deps={"B": [0], "C": [1]}
+    )
+    spy = ContextSpy()
+    run_project(db_session, project.id, executor=spy)
+
+    assert spy.seen["A"] is None  # ไม่มีงานก่อนหน้า = ไม่ต้องมี context
+    assert "ผลงานของ A" in spy.seen["B"]
+
+    ctx_c = spy.seen["C"]
+    assert "ผลงานของ A" in ctx_c and "ผลงานของ B" in ctx_c
+    assert ctx_c.index("ผลงานของ A") < ctx_c.index("ผลงานของ B")  # เรียงตามลำดับแผน
+    assert "ห้ามสมมติเนื้อหาเอง" in ctx_c  # สั่งชัดว่าห้ามใส่ placeholder
+
+
+def test_context_uses_latest_work_after_revision(db_session):
+    """งานที่ถูกแก้รอบสอง ต้องส่ง "ผลงานล่าสุด" ให้ตัวถัดไป ไม่ใช่ฉบับที่ถูกปฏิเสธ."""
+
+    class ReviseOnce:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.seen: dict[str, str | None] = {}
+
+        def execute(self, task, role, feedback=None, context=None):
+            self.seen.setdefault(task.title, context)
+            if task.title == "Base":
+                self.calls += 1
+                return f"ฉบับที่ {self.calls}"
+            return "งานต่อยอด"
+
+        def review(self, task, work):
+            approved = not (task.title == "Base" and work == "ฉบับที่ 1")
+            return ReviewResult(approved=approved, comment="แก้ก่อน")
+
+    project, _ = _project_with_planned_tasks(
+        db_session, ["Base", "Child"], deps={"Child": [0]}
+    )
+    executor = ReviseOnce()
+    run_project(db_session, project.id, executor=executor)
+
+    ctx = executor.seen["Child"]
+    assert "ฉบับที่ 2" in ctx and "ฉบับที่ 1" not in ctx
+
+
+def test_long_upstream_work_is_clipped_with_a_visible_marker(db_session):
+    project, _ = _project_with_planned_tasks(db_session, ["Big", "Next"], deps={"Next": [0]})
+    huge = "ก" * (engine.UPSTREAM_WORK_CHAR_LIMIT + 500)
+    spy = ContextSpy({"Big": huge})
+    run_project(db_session, project.id, executor=spy)
+
+    ctx = spy.seen["Next"]
+    assert len(ctx) < len(huge) + 500
+    assert "ตัดเหลือ" in ctx  # ต้องบอกว่าถูกตัด ไม่ตัดเงียบ
+
+
+def test_context_total_budget_drops_oldest_first(db_session, monkeypatch):
+    # เพดานรวมเล็กจนใส่ได้แค่ชิ้นเดียว → ต้องเก็บตัวที่ใกล้ที่สุด (B) และทิ้ง A พร้อมบอกจำนวน
+    monkeypatch.setattr(engine, "UPSTREAM_CONTEXT_CHAR_LIMIT", 60)
+    project, _ = _project_with_planned_tasks(
+        db_session, ["A", "B", "C"], deps={"B": [0], "C": [0, 1]}
+    )
+    spy = ContextSpy({"A": "ผ" * 50, "B": "ญ" * 20})
+    run_project(db_session, project.id, executor=spy)
+
+    ctx = spy.seen["C"]
+    assert "ญ" * 20 in ctx  # ตัวใกล้ตัวเราถูกเก็บไว้
+    assert "ตัดผลงานของงานเก่า 1 รายการ" in ctx

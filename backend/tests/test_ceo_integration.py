@@ -10,11 +10,13 @@ import uuid
 
 import pytest
 
-from app.constants import TaskStatus
+from app.bus import publish
+from app.constants import MessageType, TaskStatus
 from app.integrations.ceo_client import CeoClient, CeoTask, CeoUnavailable, get_ceo_client
 from app.main import app
 from app.models.project import Project
 from app.models.task import Task
+from app.services import ceo_sync
 
 RND_TEAM_ID = "4406dde7-64ec-44b6-9139-4abc61b58aa6"
 OTHER_TEAM_ID = "0b95b1a0-0781-45ac-b17d-fc1b596b6577"
@@ -364,3 +366,65 @@ def test_run_on_normal_project_does_not_touch_ceo(client, stub_ceo, db_session, 
     run = wait_run(client.post(f"/api/projects/{project.id}/run").json()["run_id"])
     assert run.ceo_report is None
     assert stub_ceo.patches == []
+
+
+# --- ตัวชิ้นงานจริงในรายงาน (UAT 2026-08-03: QC ปฏิเสธเพราะ "ไม่มี artifact ให้ตรวจ") ---
+
+
+def _done_task_with_work(db_session, project: Project, title: str, works: list[str]) -> Task:
+    """task ที่เสร็จแล้วพร้อมผลงานบน bus — `works` เรียงเก่า→ใหม่ (จำลอง revision)."""
+    task = Task(project_id=project.id, title=title, status=TaskStatus.DONE.value)
+    db_session.add(task)
+    db_session.flush()
+    for revision, work in enumerate(works):
+        publish(
+            db_session,
+            project_id=project.id,
+            task_id=task.id,
+            from_agent_id="dev",
+            to_agent_id="reviewer",
+            message_type=MessageType.RESULT,
+            payload={"work": work, "revision": revision},
+        )
+    db_session.commit()
+    return task
+
+
+def test_report_attaches_the_real_work_product(client, stub_ceo, db_session):
+    project = _project_from_ceo(db_session)
+    _done_task_with_work(
+        db_session, project, "เขียนคู่มือ", ["ฉบับร่างที่ถูกตีกลับ", "# คู่มือฉบับจริง\nเนื้อหาครบ"]
+    )
+
+    client.post(f"/api/ceo/report/{project.id}")
+    output = stub_ceo.patches[-1]["output"]
+
+    assert "## ผลงาน (ตัวชิ้นงานจริง)" in output
+    assert "# คู่มือฉบับจริง" in output and "เนื้อหาครบ" in output
+    assert "ฉบับร่างที่ถูกตีกลับ" not in output  # ส่งเฉพาะ **ฉบับล่าสุด**
+
+
+def test_report_without_work_products_still_reports(client, stub_ceo, db_session):
+    """task เสร็จแต่ไม่มีข้อความ result (เช่นคนปิดงานเองผ่าน PATCH) — ต้องไม่พัง."""
+    project = _project_from_ceo(db_session)
+    db_session.add(Task(project_id=project.id, title="คนทำเอง", status=TaskStatus.DONE.value))
+    db_session.commit()
+
+    body = client.post(f"/api/ceo/report/{project.id}").json()
+    assert body["reported"] is True
+    assert "## ผลงาน (ตัวชิ้นงานจริง)" not in stub_ceo.patches[-1]["output"]
+
+
+def test_report_says_out_loud_when_work_products_are_dropped(
+    client, stub_ceo, db_session, monkeypatch
+):
+    monkeypatch.setattr(ceo_sync, "REPORT_WORK_TOTAL_CHAR_LIMIT", 40)
+    project = _project_from_ceo(db_session)
+    _done_task_with_work(db_session, project, "งานแรก", ["ก" * 30])
+    _done_task_with_work(db_session, project, "งานสอง", ["ข" * 30])
+
+    client.post(f"/api/ceo/report/{project.id}")
+    output = stub_ceo.patches[-1]["output"]
+
+    assert "ก" * 30 in output  # ตัวแรกได้ที่
+    assert "ตัดผลงานของ 1 รายการออก" in output and "งานสอง" in output  # บอกตรง ๆ ว่าตัดอะไร

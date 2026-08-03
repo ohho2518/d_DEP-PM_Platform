@@ -279,6 +279,8 @@ NEXT_PUBLIC_API_URL=   # base URL ของ backend — ค่าปัจจุ
 5. **ADR-01 (portability):** ห้าม raw SQL เฉพาะ dialect · UUID ผ่าน `GUID` · JSON ผ่าน SQLAlchemy `JSON` · ห้าม PostgreSQL array type
 6. **Frontend↔Backend sync:** แก้ status/transition/response shape ฝั่ง backend → แก้ `frontend/src/lib/types.ts` (`ALLOWED_TRANSITIONS`, `STATUS_ORDER`, สี) **ในคอมมิตเดียวกัน**
 7. **จุดเสียบ อย่า bypass:** provider ใหม่ = implement `PersonaExecutor` · metadata จริง = implement `MetadataProvider` · อย่าแก้ orchestrator เพื่อ special-case provider ใดตัวหนึ่ง
+   · `execute(task, role, feedback=None, **context=None**)` — **ต้องส่ง `context` ต่อให้โมเดลด้วย**
+   (ผลงานจริงของงานก่อนหน้า) ไม่งั้นงานที่ต้องทำต่อจากของเดิมจะได้แค่โครงเปล่าแล้วโดนปฏิเสธ
 8. **ห้ามลบ fallback path** (no-key → fallback) — เป็นคุณสมบัติเชิงสัญญา ไม่ใช่โค้ดชั่วคราว
 9. Enums กลางอยู่ `constants.py` ที่เดียว — ห้าม string literal ของ status/role ในโค้ดใหม่
 10. **สถานะของ d_CEO เป็นคนละชุดกับ `TaskStatus` ของเรา** — ใช้ค่าคงที่ `CEO_STATUS_*`

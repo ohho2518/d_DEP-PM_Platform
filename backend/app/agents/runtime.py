@@ -40,12 +40,15 @@ def _add_usage(task: Task, reply: LLMReply) -> None:
     task.tokens_output = (task.tokens_output or 0) + reply.output_tokens
 
 
-def _execute_prompt(task: Task, feedback: str | None) -> str:
+def _execute_prompt(task: Task, feedback: str | None, context: str | None = None) -> str:
     prompt = (
         f"Task: {task.title}\n"
         f"Description: {task.description or '-'}\n"
         f"Spec / acceptance criteria: {task.spec or '-'}"
     )
+    if context:
+        # วางก่อน feedback: agent ต้องเห็น "ของที่มีให้ใช้" ก่อนคำสั่งแก้ไขรอบก่อน
+        prompt += f"\n\n--- ผลงานของงานก่อนหน้า ---\n{context}"
     if feedback:
         prompt += f"\n\nReview comment รอบก่อน (ต้องแก้): {feedback}"
     return prompt
@@ -87,10 +90,24 @@ def _review_with_retry(task: Task, call: ProviderCall, prompt: str) -> ReviewRes
 
 
 class PersonaExecutor(Protocol):
-    """สัญญาที่ Orchestrator ใช้เรียก agent ทำงานและตรวจงาน."""
+    """สัญญาที่ Orchestrator ใช้เรียก agent ทำงานและตรวจงาน.
 
-    def execute(self, task: Task, role: AgentRole, feedback: str | None = None) -> str:
-        """ผลิต work product สำหรับ task (feedback = review comment รอบก่อน ถ้ามี)."""
+    ``execute`` รับ ``context`` เพิ่มตั้งแต่ 2026-08-03 — ผลงานจริงของ task ที่อยู่เหนือ
+    ในกราฟพึ่งพา · **provider ใหม่ต้องส่งต่อให้โมเดลด้วย** ไม่งั้นงานประเภท "ทำต่อจาก
+    ของเดิม" จะผลิตได้แค่โครงเปล่า (บทเรียน UAT — ดู `orchestrator.upstream_context`)
+    """
+
+    def execute(
+        self,
+        task: Task,
+        role: AgentRole,
+        feedback: str | None = None,
+        context: str | None = None,
+    ) -> str:
+        """ผลิต work product สำหรับ task.
+
+        ``feedback`` = review comment รอบก่อน · ``context`` = ผลงานของงานก่อนหน้า
+        """
         ...
 
     def review(self, task: Task, work: str) -> ReviewResult:
@@ -104,9 +121,17 @@ class FallbackExecutor:
     ทำให้ E2E happy path รันได้โดยไม่มี API key — response ระบุชัดว่าเป็น (fallback).
     """
 
-    def execute(self, task: Task, role: AgentRole, feedback: str | None = None) -> str:
+    def execute(
+        self,
+        task: Task,
+        role: AgentRole,
+        feedback: str | None = None,
+        context: str | None = None,
+    ) -> str:
         note = f" (แก้ตาม feedback: {feedback})" if feedback else ""
-        return f"(fallback:{role.value}) ดำเนินการ '{task.title}' ตาม spec แล้ว{note}"
+        # บอกจำนวนงานก่อนหน้าที่ได้รับมา เพื่อให้ test/ผู้ใช้เห็นว่า context ถูกส่งมาจริง
+        upstream = f" [ใช้ผลงานก่อนหน้า {context.count('### ')} ชิ้น]" if context else ""
+        return f"(fallback:{role.value}) ดำเนินการ '{task.title}' ตาม spec แล้ว{note}{upstream}"
 
     def review(self, task: Task, work: str) -> ReviewResult:
         return ReviewResult(approved=True, comment="(fallback) ตรวจตาม spec แล้ว — approve")
@@ -144,8 +169,14 @@ class ClaudeExecutor:
             output_tokens=response.usage.output_tokens,
         )
 
-    def execute(self, task: Task, role: AgentRole, feedback: str | None = None) -> str:
-        reply = self._call(PERSONA_PROMPTS[role], _execute_prompt(task, feedback))
+    def execute(
+        self,
+        task: Task,
+        role: AgentRole,
+        feedback: str | None = None,
+        context: str | None = None,
+    ) -> str:
+        reply = self._call(PERSONA_PROMPTS[role], _execute_prompt(task, feedback, context))
         _add_usage(task, reply)
         return reply.text
 
@@ -181,11 +212,17 @@ class TeamExecutor:
         provider = self.ROLE_PROVIDER[role]
         return self._calls.get(provider) or self._calls.get("anthropic")
 
-    def execute(self, task: Task, role: AgentRole, feedback: str | None = None) -> str:
+    def execute(
+        self,
+        task: Task,
+        role: AgentRole,
+        feedback: str | None = None,
+        context: str | None = None,
+    ) -> str:
         call = self._call_for(role)
         if call is None:
-            return self._fallback.execute(task, role, feedback)
-        reply = _as_reply(call(PERSONA_PROMPTS[role], _execute_prompt(task, feedback)))
+            return self._fallback.execute(task, role, feedback, context)
+        reply = _as_reply(call(PERSONA_PROMPTS[role], _execute_prompt(task, feedback, context)))
         _add_usage(task, reply)
         return reply.text
 

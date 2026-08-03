@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.routing import route_task
 from app.agents.runtime import PersonaExecutor, get_executor
-from app.bus import publish
+from app.bus import clip_work, latest_work_by_task, publish
 from app.constants import (
     MAX_REVISIONS,
     ActorType,
@@ -31,6 +31,12 @@ from app.orchestrator.state_machine import transition
 # Agent id ที่ seed ไว้ใน migration b2f1c0d3e4a5 (Claude Solo).
 SOLO_AGENT_ID = "00000000-0000-0000-0000-000000000001"
 ORCHESTRATOR_ID = "orchestrator"
+
+# เพดานผลงานของงานก่อนหน้าที่ส่งเป็น context (ตัวอักษร) — ต่อ 1 ชิ้น และรวมทั้งก้อน
+# ราว ๆ 24,000 ตัวอักษร ≈ 8k token ของ input ซึ่งยังห่างจากเพดาน context ของโมเดลมาก
+# แต่กันเคส task ปลายกราฟที่มีบรรพบุรุษสิบกว่าตัวไม่ให้ prompt บวมจนต้นทุนพุ่ง
+UPSTREAM_WORK_CHAR_LIMIT = 6_000
+UPSTREAM_CONTEXT_CHAR_LIMIT = 24_000
 
 
 @dataclass
@@ -77,6 +83,77 @@ def planned_task_count(db: Session, project_id: uuid.UUID) -> int:
             .where(Task.project_id == project_id, Task.status == TaskStatus.PLANNED.value)
         ).scalar_one()
     )
+
+
+def _ancestor_tasks(db: Session, task: Task) -> list[Task]:
+    """ทุก task ที่อยู่ "เหนือ" task นี้ในกราฟพึ่งพา (dependency ตรง + ของมันต่อ ๆ ไป).
+
+    คืนแบบ **topological**: ต้นน้ำมาก่อนปลายน้ำเสมอ (DFS post-order) — อ่านต่อกันเป็นเรื่องได้
+    · ห้ามเรียงด้วย ``created_at``: นาฬิกาบน Windows หยาบพอที่ task ซึ่งถูกสร้างติด ๆ กัน
+    จะได้เวลาเท่ากัน แล้วลำดับจะสลับไปมา (เจอจริงตอนเขียนเทสต์ 2026-08-03)
+    · ``seen`` กันกราฟที่มีวง (แผนจาก LLM อ้างวนกันเองได้)
+    """
+    rows = (
+        db.execute(select(Task).where(Task.project_id == task.project_id)).scalars().all()
+    )
+    by_id = {str(row.id): row for row in rows}
+    ordered: list[Task] = []
+    seen: set[str] = {str(task.id)}
+
+    def visit(node: Task) -> None:
+        for dep_id in node.depends_on or []:
+            dep = by_id.get(dep_id)
+            if dep is None or dep_id in seen:
+                continue
+            seen.add(dep_id)
+            visit(dep)  # dependency ของ dependency ออกก่อน
+            ordered.append(dep)
+
+    visit(task)
+    return ordered
+
+
+def upstream_context(db: Session, task: Task) -> str | None:
+    """ผลงานล่าสุดของ task ที่อยู่เหนือขึ้นไป **ทั้งกราฟ** — ประกอบเป็นข้อความให้ agent อ่าน.
+
+    ทำไมต้องมี: ก่อนหน้านี้ agent เห็นแค่ title/spec ของ task ตัวเอง งานประเภท
+    "รวมเนื้อหาจากงานก่อนหน้า" จึงผลิตได้แค่โครงเปล่าแล้วถูก reviewer ปฏิเสธจน escalate
+    (UAT 2026-08-03: agent เขียนไว้เองว่า "ไม่มีเนื้อหาต้นฉบับของ T2, T3, T4 แนบมาด้วย")
+
+    คุมขนาดสองชั้นเพราะ context ทั้งกราฟโตเร็ว: ต่อชิ้น ``UPSTREAM_WORK_CHAR_LIMIT``
+    และรวม ``UPSTREAM_CONTEXT_CHAR_LIMIT`` — ตัดตัวเก่าสุดออกก่อน (ตัวใกล้ตัวเรามักสำคัญกว่า)
+    """
+    ancestors = _ancestor_tasks(db, task)
+    if not ancestors:
+        return None
+    works = latest_work_by_task(db, [t.id for t in ancestors])
+    if not works:
+        return None
+
+    blocks: list[str] = []
+    budget = UPSTREAM_CONTEXT_CHAR_LIMIT
+    dropped = 0
+    for ancestor in reversed(ancestors):  # ใกล้ตัวเราก่อน แล้วค่อยไล่ขึ้นไป
+        work = works.get(ancestor.id)
+        if not work:
+            continue
+        block = f"### {ancestor.title}\n{clip_work(work, UPSTREAM_WORK_CHAR_LIMIT)}"
+        if len(block) > budget:
+            dropped += 1
+            continue
+        budget -= len(block)
+        blocks.append(block)
+    if not blocks:
+        return None
+
+    blocks.reverse()  # คืนลำดับตามแผน (เก่า → ใหม่) ให้อ่านต่อกันเป็นเรื่อง
+    header = (
+        "ผลงานจริงของงานก่อนหน้าที่ task นี้ต้องใช้ต่อ — ใช้เนื้อหาข้างล่างนี้ทำงาน "
+        "**ห้ามสมมติเนื้อหาเองหรือใส่ placeholder**"
+    )
+    if dropped:
+        header += f"\n(ตัดผลงานของงานเก่า {dropped} รายการออกเพราะยาวเกินเพดานรวม)"
+    return f"{header}\n\n" + "\n\n".join(blocks)
 
 
 def _next_runnable(db: Session, project_id: uuid.UUID) -> Task | None:
@@ -134,9 +211,11 @@ def _run_task(db: Session, task: Task, executor: PersonaExecutor) -> TaskOutcome
 
     # 2) Work / review loop (Max Revision = MAX_REVISIONS — Blueprint §5)
     transition(db, task, TaskStatus.IN_PROGRESS, actor_type=ActorType.AGENT, actor_id=role.value)
+    # ผลงานของงานก่อนหน้าไม่เปลี่ยนระหว่างรอบ revision — ประกอบครั้งเดียวพอ
+    context = upstream_context(db, task)
     feedback: str | None = None
     while True:
-        work = executor.execute(task, role, feedback=feedback)
+        work = executor.execute(task, role, feedback=feedback, context=context)
         publish(
             db,
             project_id=task.project_id,
