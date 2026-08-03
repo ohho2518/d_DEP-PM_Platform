@@ -1,8 +1,8 @@
 # PROJECT_STATUS.md — DEP-PM Platform
 
-> อัปเดตล่าสุด: 2026-08-03 | สถานะโดยรวม: **Phase 0 + 1 + 2 + 3a เสร็จ**
-> — `/run` ไม่ block ผู้เรียกแล้ว (202 + `run_id`) · agent เห็นผลงานของงานก่อนหน้าแล้ว ·
-> รายงานถึงเลขาแนบตัวชิ้นงานจริงแล้ว — **เหลือพิสูจน์กับ QC ของเลขาอีกรอบ** (Next Tasks #1)
+> อัปเดตล่าสุด: 2026-08-03 | สถานะโดยรวม: **Phase 0 + 1 + 2 + 3a เสร็จ · UAT รอบ 2 QC ผ่าน**
+> — วงจร Vinit → เลขา → DEP-PM → QC gate **เดินครบและผ่านการตรวจจริงแล้ว**
+> (`done 8/8`, QC verdict `PASS`) · CI callback มี shared secret แล้ว (ปิด Risk #1)
 
 ## สถานะการใช้งาน (สำคัญสำหรับ session ถัดไป)
 
@@ -30,6 +30,35 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 - ยึด **1 task ธุรกิจใน d_CEO = 1 project ที่นี่** (ไม่สร้างทะเบียนงานธุรกิจซ้อน)
 
 ## Completed Work
+
+### UAT รอบ 2 — **QC ของเลขาตอบ PASS** (2026-08-03)
+
+d_CEO task `4936aa9e` → DEP-PM project `4d8004ff` — โจทย์เดียวกับรอบแรกทุกตัวอักษร
+
+| | รอบ 1 (ก่อน Phase 3a) | รอบ 2 (หลัง Phase 3a) |
+|---|---|---|
+| tasks | 6 (กราฟ 3 ชั้น) | **8 (กราฟ 4 ชั้น)** |
+| ผลรัน | done 5 · **escalated 1** | **done 8 · escalated 0** |
+| เวลา | 507 วิ | 613 วิ |
+| งาน "รวมเนื้อหา" (depend 3) | ผลิต `[[placeholder]]` → ปฏิเสธ 2 รอบ → escalated | **ผ่านรอบแรก 0 revision** |
+| รายงานถึงเลขา | 2,652 ตัวอักษร (สรุปสถานะ) | **31,820 ตัวอักษร (มีตัวชิ้นงาน)** |
+| **QC verdict** | ❌ `rejected` — "ไม่มี artifact ให้ตรวจ" | ✅ **`PASS` → task เป็น `done`** |
+
+QC ไล่ตรวจ chain การผลิตทั้งสาย (T1 → outline → เนื้อหา → รวม → ขัดเกลา → ส่งมอบ)
+แล้วสรุปว่า "สอดคล้องกัน ไม่มีหัวข้อตกหล่นหรือขัดแย้งระหว่างเวอร์ชัน"
+
+> **สิ่งที่ QC ฝากไว้ (ไม่บล็อก แต่ต้องแก้ก่อนใช้กับงานจริง):** task แรก **กุหลักฐานขึ้นมาเอง** —
+> อ้างชื่อคน ("คุณธนกฤต ว."), quote คำต่อคำ, timestamp, screenshot ที่ตรวจย้อนกลับไม่ได้
+> รอบนี้ไม่กระทบเพราะถูกตัดออกจาก deliverable สุดท้าย แต่ในงานจริง = ข้อมูลเท็จในเอกสารส่งออก
+
+### CI callback authentication — ปิด Risk #1 (2026-08-03)
+
+- `PATCH /api/deployments/:id` ต้องแนบ `X-DEP-PM-Secret` ให้ตรง `DEPLOY_CALLBACK_SECRET`
+  · ไม่ตั้งค่า = ไม่ตรวจ (dev/localhost) — **ต้องตั้งก่อน expose พอร์ต**
+- เทียบเป็น bytes ผ่าน `hmac.compare_digest` — เวอร์ชัน str รับแต่ ASCII ทำให้ secret
+  ภาษาไทยกลายเป็น 500 แทน 401 (เจอจากเทสต์)
+- workflow template + runbook §3 เพิ่มขั้นตอนตั้ง `DEP_PM_CALLBACK_SECRET` ฝั่งรีโปเป้าหมาย
+- pytest 97 → **103**
 
 ### Phase 3a — ปิดช่องที่ QC จับได้ (2026-08-03)
 
@@ -156,6 +185,13 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 
 ## Files Changed
 
+**CI callback auth (2026-08-03)**
+- **แก้:** `backend/app/config.py` (+`deploy_callback_secret`, `callback_auth_enabled`),
+  `backend/app/api/deployments.py` (+`require_callback_secret`), `backend/.env.example`,
+  `backend/tests/{conftest,test_deployments}.py`,
+  `docs/{API,SECURITY,RISK_REGISTER,runbook,github-workflow-example.yml}`, `AGENTS.md`
+- **สำรอง:** `BackUp/DeployCallbackAuth_20260803_113958/` (gitignored)
+
 **Phase 3a (2026-08-03)**
 - **แก้:** `backend/app/bus/{dispatcher,__init__}.py` (+`latest_work_by_task`, `clip_work`),
   `backend/app/orchestrator/engine.py` (+`_ancestor_tasks`, `upstream_context`),
@@ -209,10 +245,11 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 
 ## Next Tasks
 
-1. **ยิงงานทดสอบกับ d_CEO ซ้ำอีกรอบ** ← สำคัญสุด · เป็นตัววัดเดียวว่า Phase 3a แก้ตรงจุดไหม
-   (ต้นทุนจริง ~30-60k token ต่อรอบ) · ถ้า QC ยังปฏิเสธ ให้ดูว่าเหตุผลเปลี่ยนไปไหม
-2. **ทบทวนกติกา escalation กับงานเอกสาร** — หลังรอบทดสอบข้างบนค่อยประเมินซ้ำ
-   ว่ายังต้องปรับ prompt reviewer อีกไหม (บทเรียนเดิมใน runbook §7)
+1. **ห้าม agent กุหลักฐาน** ← สำคัญสุดก่อนใช้กับงานลูกค้า · เติมกติกาใน `agents/personas.py`
+   ว่าห้ามอ้างชื่อคน/quote/timestamp/หลักฐานที่ไม่ได้รับมาใน context — ถ้าไม่มีข้อมูลให้เขียนว่า
+   "ต้องการข้อมูลจากคน" แทน · เพิ่มเคสใน reviewer ให้จับด้วย (QC ของเลขาจับได้ แต่ไม่ควรพึ่งด่านสุดท้าย)
+2. **ทบทวนกติกา escalation กับงานเอกสาร** — รอบ 2 ไม่มี escalated เลย ให้ดูอีก 1-2 รอบ
+   ก่อนสรุปว่าปัญหาเดิมหายจริง (บทเรียนเดิมใน runbook §7)
 3. **ขอจากฝั่ง d_CEO** (ดู `docs/INTEGRATION_CEO.md` §7): ยืนยัน contract + ออก
    `INTEGRATION_DEPPM.md` · แก้เอกสารที่ยังเขียนว่า "merge DEP-PM เข้า Solo_CEO"
    (`d_Jarvis\docs\VISION.md` §5, `d_CEO\project_plan_solo_ceo.md` §9.1) — **ห้ามแก้ข้ามรีโป**
@@ -226,8 +263,11 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 - **ทะเบียนรอบรันอยู่ในหน่วยความจำโปรเซสเดียว** — restart uvicorn ระหว่างรอบรัน = งานหยุด
   และประวัติรอบรันหาย (`GET /run` → 404) **ผลงานที่ commit แล้วไม่หาย** กด Run ใหม่ทำต่อได้
   · ยังไม่มีปุ่ม "ยกเลิกรอบรัน"
-- ⚠️ **Phase 3a แก้ 2 ข้อที่ QC จับได้แล้ว แต่ยังไม่ได้พิสูจน์กับงานจริง** — ต้องยิงงานทดสอบ
-  ซ้ำอีกรอบถึงจะรู้ว่า QC ผ่านไหม (unit test บอกได้แค่ว่า context/ผลงานถูกส่งไปจริง)
+- 🔴 **agent กุ "หลักฐาน" ขึ้นมาเองได้** — UAT รอบ 2 พบ task รวบรวมข้อมูลอ้างชื่อคนจริง
+  พร้อม quote/timestamp/screenshot ที่ไม่มีอยู่จริง (QC จับได้และเตือนไว้) · รอบนั้นไม่หลุด
+  ออกไปเพราะถูกตัดตอนรวมเล่ม **แต่ต้องใส่กติกาใน persona prompt ก่อนใช้กับงานลูกค้า**
+- ⚠️ **CI callback secret ยังไม่ได้ตั้งค่าจริง** — โค้ดพร้อมแล้วแต่ `DEPLOY_CALLBACK_SECRET`
+  ยังว่าง = โหมดไม่ตรวจ (ตั้งใจสำหรับ dev) ต้องตั้งทั้ง 2 ฝั่งก่อนเปิดพอร์ตออกนอกเครื่อง
 - OpenAI/Gemini executors ยังไม่เคยรันกับ service จริง → token accounting 2 provider นี้ยังไม่ verify
 - Task ที่ acceptance criteria ต้องการ artifact จริง (repo/CI) จะ escalate เสมอ — พฤติกรรมถูกต้อง
   แต่ต้องเขียน spec ให้ deliverable เป็นเอกสาร/โค้ด (บทเรียน UAT ใน runbook §7)

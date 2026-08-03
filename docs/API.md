@@ -235,9 +235,14 @@ Response `200`: deployment object (id, status, environment, commit_sha, …)
 
 ### 15) `PATCH /api/deployments/:id` — callback จาก CI workflow
 Request: `{ "status": "success|failed|running", "commit_sha": "…"(optional) }`
+Header: `X-DEP-PM-Secret: <DEPLOY_CALLBACK_SECRET>` — **บังคับเมื่อตั้งค่า secret แล้ว**
 - ย้อนสถานะ / แก้ terminal (success/failed) → **409**
 - `success` + มี task_id + task ยัง `done` → เลื่อน task → `deployed` อัตโนมัติ (สะท้อนบอร์ด)
 - ผู้เรียกที่ตั้งใจ: GitHub workflow (ดู `docs/github-workflow-example.yml`)
+- **401** = ไม่แนบ header หรือค่าไม่ตรง · **ไม่ตั้ง `DEPLOY_CALLBACK_SECRET` = ไม่ตรวจเลย**
+  (ค่าปริยายสำหรับ dev บน localhost — 🔴 ต้องตั้งก่อนเปิดพอร์ตออกนอกเครื่อง, Risk #1)
+- **endpoint เดียวในระบบที่มี auth** เพราะเป็นจุดเดียวที่ผู้เรียกอยู่นอกเครื่อง
+  (§13/§13.1/§14 เป็นของ UI ในเครื่อง — MVP ยังไม่มี auth โดยเจตนา ดู `SECURITY.md`)
 
 ---
 

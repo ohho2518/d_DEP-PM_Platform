@@ -20,7 +20,7 @@
 
 | # | Severity | Risk | Impact if it happens | Likelihood | Mitigation | Status |
 |---|---|---|---|---|---|---|
-| 1 | 🔴 | **CI callback `PATCH /api/deployments/:id` ไม่มี authentication** | ใครก็ตามที่ยิงถึงพอร์ตได้ เลื่อน task เป็น `deployed` ปลอมได้ | ต่ำตราบใดที่ bind localhost | ห้าม expose พอร์ตออกนอกเครื่อง · แผน: shared-secret header | **Open** |
+| 1 | 🟡 | **CI callback `PATCH /api/deployments/:id` ไม่มี authentication** | ใครก็ตามที่ยิงถึงพอร์ตได้ เลื่อน task เป็น `deployed` ปลอมได้ | ต่ำตราบใดที่ bind localhost | **แก้แล้ว 2026-08-03:** shared secret ผ่าน header `X-DEP-PM-Secret` (`DEPLOY_CALLBACK_SECRET`) · ⚠️ **ไม่ตั้งค่า = ไม่ตรวจ** ตามค่าปริยาย dev — ต้องตั้งจริงก่อน expose พอร์ต | **Mitigated (ต้องตั้งค่า)** |
 | 2 | 🔴 | **ข้อมูลอ่อนไหวหลุดเข้า prompt (PDPA)** | ข้อมูลลูกค้าไปอยู่ที่ผู้ให้บริการ LLM | ต่ำตอนนี้ (ยังไม่ใช้ข้อมูลลูกค้าจริง) | กติกาห้าม secrets ใน task spec · **ยังไม่มี field masking** (ต้องมีก่อนใช้กับข้อมูลจริง) | **Open** |
 | 3 | 🟢 | ~~**`/run` synchronous + ไม่ thread-safe ต่อโปรเจกต์**~~ | UX ค้างยาว · ยิงซ้อนโปรเจกต์เดียวกัน = สถานะเพี้ยน · **บล็อกการรับงานจาก d_CEO** (ของเขาวัดจริง 1 task = 192 วิ) | — | **แก้แล้ว 2026-08-03 (Phase 2):** 202 + `run_id` + thread เบื้องหลัง + lock ต่อโปรเจกต์ (ซ้อน = 409) + `GET /:id/run` · เหลือข้อจำกัด: ทะเบียนรอบรันอยู่ในหน่วยความจำโปรเซสเดียว (restart = ประวัติหาย ผลงานไม่หาย) และยังไม่มีปุ่มยกเลิกรอบรัน | **Mitigated** |
 | 4 | 🟠 | **ต้นทุน API เกินงบเมื่อเปิด Team Mode** | ค่าใช้จ่ายบานปลาย | กลาง | `MAX_TOKENS_PER_TASK` + เก็บ token ต่อ task แล้ว · **ยังไม่มีงบรวมต่อโปรเจกต์/alert** | **Partially mitigated** |

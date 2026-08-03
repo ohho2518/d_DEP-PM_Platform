@@ -7,13 +7,15 @@
 """
 from __future__ import annotations
 
+import hmac
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.constants import ActorType, DeploymentStatus, DeploymentTrigger, TaskStatus
 from app.db.session import get_db
 from app.models.deployment import Deployment
@@ -34,6 +36,34 @@ _CALLBACK_ALLOWED: dict[str, set[str]] = {
     DeploymentStatus.SUCCESS.value: set(),
     DeploymentStatus.FAILED.value: set(),
 }
+
+
+CALLBACK_SECRET_HEADER = "X-DEP-PM-Secret"
+
+
+def require_callback_secret(
+    secret: str | None = Header(default=None, alias=CALLBACK_SECRET_HEADER),
+) -> None:
+    """ตรวจ shared secret ของ callback จาก CI (Risk #1).
+
+    **ไม่ตั้งค่า = ไม่ตรวจ** — ยังเป็นค่าปริยายเพื่อไม่ให้ dev บน localhost และ workflow
+    ที่ติดตั้งไปแล้วพังทันที · แต่ก่อนเปิดพอร์ตออกนอกเครื่อง **ต้องตั้ง `DEPLOY_CALLBACK_SECRET`**
+    ไม่งั้นใครก็ตามที่ยิงถึงพอร์ตได้จะเลื่อน task เป็น `deployed` ปลอมได้ (`docs/SECURITY.md`)
+
+    เทียบด้วย `hmac.compare_digest` — กัน timing attack ที่เดา secret ทีละตัวอักษร ·
+    เทียบเป็น **bytes** เพราะเวอร์ชัน str รับเฉพาะ ASCII: secret ที่มีอักษรไทยจะทำให้ 500
+    แทนที่จะเป็น 401 (ค่าใน `.env` เป็นอะไรก็ได้ เราคุมไม่ได้)
+    """
+    settings = get_settings()
+    if not settings.callback_auth_enabled:
+        return
+    if secret is None or not hmac.compare_digest(
+        secret.encode("utf-8"), settings.deploy_callback_secret.encode("utf-8")
+    ):
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            f"callback ต้องแนบ header {CALLBACK_SECRET_HEADER} ให้ตรงกับ DEPLOY_CALLBACK_SECRET",
+        )
 
 
 class DeploymentCreate(BaseModel):
@@ -143,11 +173,14 @@ def get_deployment(deployment_id: uuid.UUID, db: Session = Depends(get_db)) -> d
     return _serialize(deployment)
 
 
-@router.patch("/{deployment_id}")
+@router.patch("/{deployment_id}", dependencies=[Depends(require_callback_secret)])
 def update_deployment(
     deployment_id: uuid.UUID, body: DeploymentUpdate, db: Session = Depends(get_db)
 ) -> dict:
-    """Callback จาก CI workflow — อัปเดตผล + ถ้า success ให้เลื่อน task done -> deployed."""
+    """Callback จาก CI workflow — อัปเดตผล + ถ้า success ให้เลื่อน task done -> deployed.
+
+    endpoint เดียวในระบบที่ "ผู้เรียกอยู่นอกเครื่อง" จึงเป็นจุดเดียวที่มี auth (shared secret)
+    """
     deployment = db.get(Deployment, deployment_id)
     if deployment is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Deployment not found")

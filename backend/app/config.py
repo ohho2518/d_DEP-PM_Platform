@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     github_repo: str = ""  # รูปแบบ "owner/repo"
     # task เข้า done ระหว่าง orchestrator run => สร้าง deployment ไป staging อัตโนมัติ
     auto_deploy_enabled: bool = False
+    # shared secret ที่ CI ต้องแนบมากับ callback `PATCH /api/deployments/:id`
+    # ว่าง = ไม่ตรวจ (โหมด dev บน localhost) — **ต้องตั้งก่อนเปิดพอร์ตออกนอกเครื่อง** (Risk #1)
+    deploy_callback_secret: str = ""
 
     # --- d_CEO integration (Phase 1) ----------------------------------------
     # DEP-PM = Team Lead R&D ปลายสาย Vinit -> Jarvis -> d_CEO -> ที่นี่ (AGENTS.md §3.1)
@@ -62,6 +65,11 @@ class Settings(BaseSettings):
     def deploy_dispatch_enabled(self) -> bool:
         """True เมื่อ config GitHub ครบพอจะยิง repository_dispatch จริง."""
         return bool(self.github_token.strip()) and bool(self.github_repo.strip())
+
+    @property
+    def callback_auth_enabled(self) -> bool:
+        """True เมื่อตั้ง shared secret ให้ callback ของ CI แล้ว (Risk #1)."""
+        return bool(self.deploy_callback_secret.strip())
 
 
 @lru_cache

@@ -44,6 +44,9 @@ npm run dev                       # http://localhost:3000 (ครั้งแร
 
 1. copy `docs/github-workflow-example.yml` → `.github/workflows/dep-pm-deploy.yml` ใน repo เป้าหมาย
 2. ตั้ง secret `DEP_PM_API_URL` ใน repo (URL backend ที่ runner เข้าถึงได้ — dev local ใช้ tunnel เช่น cloudflared)
+2.1 ตั้ง `DEPLOY_CALLBACK_SECRET` ใน `backend/.env` **และ** secret `DEP_PM_CALLBACK_SECRET`
+   ในรีโปเป้าหมายให้ตรงกัน (สร้างค่า: `python -c "import secrets; print(secrets.token_urlsafe(32))"`)
+   · ไม่ตั้ง = callback ไม่ถูกตรวจ (โหมด dev) **🔴 ต้องตั้งก่อน expose พอร์ตออกนอกเครื่อง**
 3. (production gate ชั้น GitHub) ตั้ง environment `production` + required reviewers ใน repo settings
 4. ทดสอบ: `POST /api/deployments {"project_id": "...", "environment": "staging"}` → ดู Actions tab
 
@@ -88,6 +91,7 @@ driver (`psycopg[binary]`) อยู่ใน requirements แล้ว; โค�
 | breakdown ได้ task เดียว source=fallback | ไม่มี `ANTHROPIC_API_KEY` หรือ key ใช้ไม่ได้ — เช็ค `/health` |
 | PATCH task ตอบ 409 | ผิดลำดับ State Machine — ดูลำดับใน `docs/SYSTEM_DOCUMENTATION.md` §9 |
 | `POST /deployments` ตอบ `dispatched: false` + stub | ยังไม่ตั้ง GITHUB_TOKEN/GITHUB_REPO (ตั้งใจ), หรือ github ตอบ error — ดู `detail` |
+| callback ตอบ 401 | secret ไม่ตรง — เทียบ `DEPLOY_CALLBACK_SECRET` ใน `backend/.env` กับ `DEP_PM_CALLBACK_SECRET` ในรีโปเป้าหมาย (restart uvicorn หลังแก้ `.env`) |
 | deployment ค้าง `running` | workflow ฝั่ง repo ไม่ได้ callback — เช็ค Actions log + secret `DEP_PM_API_URL`; แก้มือ: `PATCH /api/deployments/:id {"status": "failed"}` |
 | task ค้าง `in_progress` (orchestrator ตายกลางทาง) | `PATCH /api/tasks/:id {"status": "review"}` แล้วให้คน review หรือ rerun |
 | Run Agents ไม่ทำอะไร (processed: 0) | ไม่มี task `planned` — ยัง confirm scope ไม่ได้ทำ หรือ dependency ค้าง (ดู task escalated) |

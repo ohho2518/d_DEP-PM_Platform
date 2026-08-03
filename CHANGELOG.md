@@ -1,5 +1,17 @@
 # CHANGELOG — DEP-PM Platform
 
+## 2026-08-03 — CI callback มี authentication แล้ว (ปิด Risk #1)
+
+- **`PATCH /api/deployments/:id` ต้องแนบ header `X-DEP-PM-Secret`** ให้ตรงกับ
+  `DEPLOY_CALLBACK_SECRET` — endpoint เดียวในระบบที่ผู้เรียกอยู่นอกเครื่อง จึงเป็นจุดเดียวที่มี auth
+  · ไม่ตรง/ไม่แนบ = **401** และไม่แตะสถานะจริง
+- **ไม่ตั้งค่า = ไม่ตรวจ** (ค่าปริยาย) — dev บน localhost และ workflow ที่ติดตั้งไปแล้วไม่พัง
+  🔴 แต่ **ต้องตั้งก่อนเปิดพอร์ตออกนอกเครื่อง** ไม่งั้นใครก็เลื่อน task เป็น `deployed` ปลอมได้
+- เทียบด้วย `hmac.compare_digest` แบบ **bytes** — เวอร์ชัน str รับเฉพาะ ASCII ทำให้ secret
+  ที่มีอักษรไทยกลายเป็น 500 แทน 401 (เจอตอนเขียนเทสต์)
+- template workflow + runbook §3 เพิ่มขั้นตอนตั้ง `DEP_PM_CALLBACK_SECRET` ในรีโปเป้าหมาย
+- pytest 97 → **103**
+
 ## 2026-08-03 — Phase 3a: agent ได้เห็น "ผลงานจริง" ของงานก่อนหน้า + รายงานแนบตัวชิ้นงาน
 
 สองข้อนี้มาจากคำตัดสิน `rejected` ของ QC ฝั่ง d_CEO ในรอบ UAT วันเดียวกัน

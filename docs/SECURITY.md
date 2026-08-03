@@ -14,9 +14,9 @@
 3. ความถูกต้องของ audit trail (ถูกแก้ = เสียคุณค่าทั้งระบบ)
 4. **GitHub token ของ deploy pipeline** (`GITHUB_TOKEN`) — ใช้ fine-grained PAT สิทธิ์
    contents:write เฉพาะ repo เป้าหมายเท่านั้น
-   ⚠️ **`PATCH /api/deployments/:id` (CI callback) ยังไม่มี authentication** — ยอมรับได้
-   เฉพาะตอน backend ไม่ expose สาธารณะ; ต้องเพิ่ม shared-secret header ก่อน deploy จริง
-   (เพิ่มเข้า security gate ด้านล่างแล้ว)
+   ✅ **`PATCH /api/deployments/:id` (CI callback) มี shared-secret แล้ว** (2026-08-03) —
+   header `X-DEP-PM-Secret` ต้องตรงกับ `DEPLOY_CALLBACK_SECRET` (เทียบด้วย `hmac.compare_digest`)
+   ⚠️ **ค่าปริยาย = ไม่ตั้ง = ไม่ตรวจ** (dev บน localhost) — **ต้องตั้งค่าก่อนเปิดพอร์ตออกนอกเครื่อง**
 
 ### Trust boundaries (ปัจจุบัน)
 ```mermaid
@@ -45,7 +45,7 @@ flowchart LR
 
 | หัวข้อ | สถานะ | รายละเอียด |
 |--------|-------|-----------|
-| Authentication | ❌ ยังไม่มี (by design, MVP) | แผน Blueprint §15: RBAC Owner/Contributor/Viewer; agent เป็น Contributor เสมอ (ห้ามเกิน) |
+| Authentication | ⚠️ มีเฉพาะ CI callback | `PATCH /api/deployments/:id` = shared secret (เปิดเมื่อตั้ง `DEPLOY_CALLBACK_SECRET`) · endpoint ที่เหลือยังไม่มี auth by design (MVP single-user) — แผน Blueprint §15: RBAC Owner/Contributor/Viewer; agent เป็น Contributor เสมอ |
 | Authorization | ❌ | มาพร้อม auth |
 | Secrets | ✅ | env เท่านั้น; `.env`/`.env.local` gitignored; ตรวจแล้วตอน commit แรกว่าไม่มีหลุด |
 | Encryption in transit | ⚠️ dev = http localhost | Prod (Sprint 4): HTTPS ทั้งสองขา (Vercel/Render จัดการ) |
@@ -58,7 +58,7 @@ flowchart LR
 | PDPA/GDPR | ⚠️ | ยังไม่เก็บ personal data ของบุคคลจริงนอกจากเนื้อหา requirement — masking เป็นงานก่อนใช้กับข้อมูลลูกค้าจริง |
 
 ## OWASP Top 10 mapping (ย่อ)
-A01 Broken Access Control → ยังไม่มี access control เลย (localhost-only mitigates; งาน Sprint 4)
+A01 Broken Access Control → มีแค่ shared secret บน CI callback; endpoint ที่เหลือยังไม่มี (localhost-only mitigates; งาน Sprint 4)
 A02 Crypto Failures → secrets ใน env ✅, at-rest ❌ (dev)
 A03 Injection → ORM + Pydantic ✅
 A05 Misconfig → CORS จำกัด ✅; debug docs (/docs) เปิดอยู่ — ปิดใน prod
@@ -72,4 +72,4 @@ A09 Logging Failures → ยังไม่มี security logging ❌ (แผ�
 - [ ] Field masking ก่อนส่ง prompt (PDPA)
 - [ ] Secrets ผ่าน platform secret manager (ไม่ใช่ไฟล์ .env บน server)
 - [ ] GitHub token ของ pipeline เป็น fine-grained + สิทธิ์ต่ำสุด
-- [ ] Shared-secret header บน `PATCH /api/deployments/:id` (CI callback authentication)
+- [x] Shared-secret header บน `PATCH /api/deployments/:id` (CI callback authentication) — **ทำแล้ว 2026-08-03** (เหลือ: ตั้งค่าจริงตอน deploy + ใส่ secret `DEP_PM_CALLBACK_SECRET` ใน repo เป้าหมาย)

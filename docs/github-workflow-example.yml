@@ -6,7 +6,9 @@
 # → workflow build/deploy → รายงานผลกลับที่ PATCH /api/deployments/:id
 #
 # Secrets ที่ต้องตั้งใน repo เป้าหมาย:
-#   DEP_PM_API_URL   เช่น https://dep-pm-backend.example.com (ต้อง reach ได้จาก runner)
+#   DEP_PM_API_URL           เช่น https://dep-pm-backend.example.com (ต้อง reach ได้จาก runner)
+#   DEP_PM_CALLBACK_SECRET   ค่าเดียวกับ DEPLOY_CALLBACK_SECRET ใน backend/.env
+#                            (ไม่ตั้งฝั่ง backend = ไม่ตรวจ แต่ 🔴 ต้องตั้งก่อนเปิดพอร์ตออกนอกเครื่อง)
 
 name: DEP-PM Deploy
 

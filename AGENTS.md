@@ -227,6 +227,7 @@ AGENT_MODE=            # solo | team
 OPENAI_API_KEY= OPENAI_MODEL= GEMINI_API_KEY= GEMINI_MODEL=   # Team Mode
 GITHUB_TOKEN= GITHUB_REPO=    # deploy dispatch; ว่าง = stub mode
 AUTO_DEPLOY_ENABLED=   # true = task done → staging deployment อัตโนมัติ
+DEPLOY_CALLBACK_SECRET= # shared secret ของ CI callback (header X-DEP-PM-Secret) — ว่าง = ไม่ตรวจ
 CEO_API_BASE=          # base URL ของ d_CEO (ปริยาย http://127.0.0.1:8000) — ว่าง = ปิดการเชื่อม
 CEO_TEAM_NAME=         # ชื่อทีมใน d_CEO ที่เรารับงาน (ปริยาย "Research & Development")
 CEO_TIMEOUT_SECONDS=   # timeout ต่อ request ไป d_CEO (ปริยาย 15)

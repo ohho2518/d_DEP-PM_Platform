@@ -175,3 +175,86 @@ def test_auto_deploy_creates_staging_deployment(client, db_session, monkeypatch)
     assert d.triggered_by == "auto"
     assert d.task_id == task.id
     assert d.status == "queued"                # stub mode
+
+
+# ---------------------------------------------------------------------------
+# Callback auth (Risk #1) — endpoint เดียวที่ผู้เรียกอยู่นอกเครื่อง
+# ---------------------------------------------------------------------------
+def _queued_deployment(client) -> str:
+    pid = _project(client)
+    return client.post(
+        "/api/deployments", json={"project_id": pid, "environment": "staging"}
+    ).json()["id"]
+
+
+def test_callback_open_when_no_secret_configured(client):
+    """ค่าปริยาย (dev บน localhost) = ไม่ตรวจ — workflow ที่ติดตั้งไปแล้วต้องไม่พัง."""
+    did = _queued_deployment(client)
+    assert client.patch(f"/api/deployments/{did}", json={"status": "success"}).status_code == 200
+
+
+def test_callback_rejects_request_without_secret(client, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "deploy_callback_secret", "s3cr3t")
+    did = _queued_deployment(client)
+
+    resp = client.patch(f"/api/deployments/{did}", json={"status": "success"})
+    assert resp.status_code == 401
+    assert "X-DEP-PM-Secret" in resp.json()["detail"]
+    # ต้องไม่แตะสถานะจริง
+    assert client.get(f"/api/deployments/{did}").json()["status"] == "queued"
+
+
+def test_callback_rejects_wrong_secret(client, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "deploy_callback_secret", "s3cr3t")
+    did = _queued_deployment(client)
+
+    resp = client.patch(
+        f"/api/deployments/{did}",
+        json={"status": "success"},
+        headers={"X-DEP-PM-Secret": "guessing"},
+    )
+    assert resp.status_code == 401
+
+
+def test_callback_secret_with_non_ascii_does_not_crash(client, monkeypatch):
+    """secret ที่มีอักษรไทยต้องตอบ 401 ไม่ใช่ 500 (`compare_digest` เวอร์ชัน str รับแต่ ASCII)."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "deploy_callback_secret", "ลับสุดยอด")
+    did = _queued_deployment(client)
+
+    resp = client.patch(
+        f"/api/deployments/{did}",
+        json={"status": "success"},
+        headers={"X-DEP-PM-Secret": "whatever"},
+    )
+    assert resp.status_code == 401
+
+
+def test_callback_accepts_correct_secret(client, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "deploy_callback_secret", "s3cr3t")
+    did = _queued_deployment(client)
+
+    resp = client.patch(
+        f"/api/deployments/{did}",
+        json={"status": "success"},
+        headers={"X-DEP-PM-Secret": "s3cr3t"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "success"
+
+
+def test_other_deployment_endpoints_stay_open(client, monkeypatch):
+    """secret คุมเฉพาะ callback — UI ในเครื่องยังเรียก POST/GET ได้ตามเดิม (MVP single-user)."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "deploy_callback_secret", "s3cr3t")
+    did = _queued_deployment(client)  # POST ผ่าน
+    assert client.get(f"/api/deployments/{did}").status_code == 200
+    assert client.get("/api/deployments").status_code == 200
