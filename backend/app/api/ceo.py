@@ -144,7 +144,6 @@ def ceo_report(
         )
 
     result = ceo_sync.report_project(db, ceo, project)
-    db.commit()  # report_project เขียน audit `ceo.reported` แต่ไม่ commit เอง (กติกา §9.1.3)
     return {
         "ready": result.ready,
         "reported": result.reported,

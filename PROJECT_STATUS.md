@@ -1,8 +1,9 @@
 # PROJECT_STATUS.md — DEP-PM Platform
 
-> อัปเดตล่าสุด: 2026-08-03 | สถานะโดยรวม: **Phase 0 + 1 + 2 เสร็จ**
-> — DEP-PM รับงานจาก d_CEO ได้ในบทบาท Team Lead R&D และ **`/run` ไม่ block ผู้เรียกแล้ว**
-> (เหลือทดสอบกับงาน R&D จริงรอบใหม่)
+> อัปเดตล่าสุด: 2026-08-03 | สถานะโดยรวม: **Phase 0 + 1 + 2 เสร็จ · UAT รอบใหม่ผ่านกลไก
+> แต่ QC ของเลขาปฏิเสธผลงาน**
+> — `/run` ไม่ block ผู้เรียกแล้ว (202 + `run_id`) · **งานถัดไปคือคุณภาพของสิ่งที่ส่งออก:
+> ส่งผลงานให้ task ที่ depend อยู่ + แนบตัวชิ้นงานในรายงาน** (Next Tasks #1-2)
 
 ## สถานะการใช้งาน (สำคัญสำหรับ session ถัดไป)
 
@@ -13,7 +14,8 @@
   `8400` **d_Jarvis web** · `8500` DEP-PM — สองตัวแรกและ 8400 รันค้างผ่าน Task Scheduler **ห้ามหยุด**
   · ⚠️ เมื่อเช้าเคยตั้งเป็น 8400 ผิด (ชน Jarvis web) — แก้แล้วตอนปิดงาน ดู CHANGELOG
 - `backend/.env` มี key จริงครบ: ANTHROPIC (Solo Mode live), GITHUB_TOKEN+REPO (`ohho2518/d_DEP-PM_Platform`)
-- โปรเจกต์ในระบบ: "Demo: Booking API" (4 done), "d_ACC" (17 backlog), "Deploy UAT"
+- โปรเจกต์ในระบบ: "Demo: Booking API" (4 done), "d_ACC" (17 backlog), "Deploy UAT",
+  + งานทดสอบจากเลขา 2 ตัว (`a07f1fb2` ของ 2 ส.ค., `7ffa2d4f` ของ 3 ส.ค. — เก็บไว้เป็นหลักฐาน UAT)
 - DB migrate เป็น head `e5a91c73b204` แล้ว · servers ไม่ได้รันค้างไว้ (สตาร์ตเองตาม runbook)
 
 ## ตำแหน่งใน ecosystem (ยืนยันโดย Vinit 2026-08-02)
@@ -44,12 +46,40 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 - **UI:** ปุ่ม Run ตอบทันที · progress ใช้ตัวเลขจริงจาก backend · **ปิดแท็บ/รีเฟรชได้ งานไม่หยุด**
   (ถาม `GET /run` ตอน mount) · 409 → สลับไปแสดงรอบที่ค้างแทน error ดิบ
 - **รายงานกลับ d_CEO** ย้ายไปท้ายรอบรันเบื้องหลัง — ปลายทางล่มไม่ทำให้รอบรัน `failed`
-- **Fix ที่เจอระหว่างทาง:** `POST /api/ceo/report/:id` ไม่เคย `commit()` → audit `ceo.reported`
-  หายทุกครั้ง (แก้แล้วทั้ง endpoint และเส้นทางอัตโนมัติ)
 - pytest 82 → **90** · ruff clean · `npm run build` ผ่าน
 - **smoke test กับ uvicorn จริง** (DB ชั่วคราวใน temp, ไม่แตะ `dep_pm.db`, ไม่มี key = fallback):
   20 tasks รันเบื้องหลังจบครบ `done` · `POST /run` = 202 ใน 7-14 ms · ยิงซ้อน = **409 จริง** ·
   `GET /run` ระหว่างรันเห็น `19/20` · เขียนลง SQLite ไฟล์จากเธรดเบื้องหลังได้ไม่มี lock error
+
+### UAT Phase 2 กับงานจริงจาก d_CEO (2026-08-03) — กลไกผ่าน แต่ **QC ปฏิเสธผลงาน**
+
+งานทดสอบ d_CEO `80dd3ff9` ("เขียนคู่มือสั้น 1 หน้า") → ทีม R&D → DEP-PM project `7ffa2d4f`
+
+**สิ่งที่พิสูจน์ว่าใช้ได้จริง**
+
+| จุด | ผล |
+|---|---|
+| สร้าง task ไทยผ่าน HTTP | ข้อความตรงตัวต่อตัว 356 ตัวอักษร ไม่มี `?` (ตรวจที่ปลายทาง) |
+| pull + PM Agent จริง | 6 tasks กราฟพึ่งพา 3 ชั้น · แจ้ง d_CEO `in_progress` สำเร็จ |
+| **`POST /run`** | **202 ใน 10.6 ms** (งานรูปเดียวกันเมื่อวาน block 297 วิ) |
+| **ยิงซ้อนขณะรันจริง** | **409** พร้อม `run_id` ที่ค้างอยู่ |
+| รอบรันเบื้องหลัง | **507 วินาที** · `succeeded` · 6/6 (done 5 · escalated 1) · error `None` |
+| progress ระหว่างรัน | เดินจริง 0→1→2→…→6 ทุกช่วง poll |
+| รายงานกลับอัตโนมัติ | `reported: true` `status_sent: qc_review` — token 29,514 in / 33,850 out |
+
+**QC ของ d_CEO ตอบกลับ `rejected`** — เหตุผลที่เขาให้เป็นข้อบกพร่องจริงของฝั่งเรา 2 ข้อ:
+
+1. **รายงานส่งแต่ "สรุปสถานะ task" ไม่ส่งตัวชิ้นงาน** — QC เขียนตรง ๆ ว่า "ไม่มี artifact
+   ให้ตรวจ = ไม่ผ่านตามกฎด่านตรวจ" และเสนอเข้า SOP ว่า *ผลงานที่ส่ง QC ต้องแนบตัวชิ้นงานจริง*
+   → `ceo_sync.build_report` ต้องแนบผลงาน (result payload) ไม่ใช่แค่ชื่อ task + จำนวน
+2. **orchestrator ไม่ส่งผลงานของ dependency ให้ task ที่ depend อยู่** — agent ของ task
+   "รวมและจัดรูปแบบเอกสาร" เขียนไว้เองว่า *"ในบทสนทนานี้ไม่มีเนื้อหาต้นฉบับของ T2, T3, T4
+   แนบมาด้วย"* จึงผลิตได้แค่ **โครงเอกสารที่มี `[[placeholder]]`** → task รีวิวจับได้ ปฏิเสธ
+   2 รอบ → escalated · **นี่คือ root cause ของปัญหา "งานรวมเล่มถูกปฏิเสธ" ที่จดไว้เมื่อวาน**
+   (ไม่ใช่เพราะ reviewer เข้มเกินไป — agent ไม่มี input ให้ทำงานจริง ๆ)
+
+> บทเรียนซ้ำรอยเดิม: unit test + smoke test บอกได้แค่ "กลไกเดิน" · **คุณภาพงานที่ส่งออก
+> ต้องมีคนนอก (QC ของเลขา) ตรวจถึงจะเห็น**
 
 ### UAT วงจรเต็มกับ d_CEO ตัวจริง + fix ที่พบ (2026-08-02)
 
@@ -156,18 +186,21 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 
 ## Next Tasks
 
-1. **ทดสอบ Phase 2 กับงาน R&D จริงจาก d_CEO 1 รอบ** — วงจรที่ยาว 297 วินาทีตอนนี้ควรตอบ
-   ทันทีแล้วเดินเบื้องหลัง · ดูว่ารายงานกลับเข้า QC gate ครบเหมือนเดิมไหม (เส้นทางนี้ย้ายบ้าน)
-2. **ทบทวนกติกา escalation กับงานเอกสาร** — UAT พบว่า task "รวมเนื้อหา" ถูก reviewer
-   ปฏิเสธ 2 รอบทั้งที่งานย่อยเสร็จหมด (reviewer จริงเข้มกว่า fallback มาก — บทเรียนเดิม
-   ใน runbook §7 ยังเป็นจริง) · พิจารณา: prompt reviewer ให้เกณฑ์ชัดขึ้น หรือให้ task
-   ประเภท "รวมเล่ม" เป็นงานคน
-3. **ขอจากฝั่ง d_CEO** (ดู `docs/INTEGRATION_CEO.md` §7): ยืนยัน contract + ออก
+1. **ส่งผลงานจริงให้ task ที่ depend อยู่ (Phase 3a)** ← สำคัญสุด · root cause ของงาน
+   "รวมเล่ม" ที่ถูกปฏิเสธทุกครั้ง — ตอนนี้ agent ได้แค่ title/spec ของตัวเอง ไม่ได้เห็น
+   ผลงานของ dependency · แก้ที่จุดประกอบ context ก่อนเรียก executor (ต้องคุมขนาด: ตัด/
+   ย่อเมื่อยาวเกิน `MAX_TOKENS_PER_TASK`) — **ไม่ต้องแตะ state machine**
+2. **รายงานกลับเลขาต้องแนบตัวชิ้นงาน (Phase 3a)** — `ceo_sync.build_report` เพิ่มผลงานจริง
+   ของ task ปลายทาง (result payload ล่าสุด) · ต้องตัดสินใจ: แนบทุก task หรือเฉพาะ task
+   ที่ไม่มีใคร depend ต่อ (= deliverable ตัวจริง) และเพดานความยาวเท่าไร
+3. **ทบทวนกติกา escalation กับงานเอกสาร** — หลังแก้ข้อ 1 แล้วค่อยประเมินซ้ำ
+   ว่ายังต้องปรับ prompt reviewer อีกไหม (บทเรียนเดิมใน runbook §7)
+4. **ขอจากฝั่ง d_CEO** (ดู `docs/INTEGRATION_CEO.md` §7): ยืนยัน contract + ออก
    `INTEGRATION_DEPPM.md` · แก้เอกสารที่ยังเขียนว่า "merge DEP-PM เข้า Solo_CEO"
    (`d_Jarvis\docs\VISION.md` §5, `d_CEO\project_plan_solo_ceo.md` §9.1) — **ห้ามแก้ข้ามรีโป**
-4. **Phase 3 — ปิด UAT/ความปลอดภัยที่ค้าง:** callback shared-secret · test suite บน PostgreSQL
+5. **Phase 3b — ปิด UAT/ความปลอดภัยที่ค้าง:** callback shared-secret · test suite บน PostgreSQL
    (DoD ADR-01) · Team Mode กับ OPENAI/GEMINI keys จริง
-5. ก่อน deploy สาธารณะ: security gate ใน `docs/SECURITY.md` — ควรทำพร้อมทั้ง ecosystem
+6. ก่อน deploy สาธารณะ: security gate ใน `docs/SECURITY.md` — ควรทำพร้อมทั้ง ecosystem
 
 ## Known Issues
 
@@ -175,6 +208,11 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 - **ทะเบียนรอบรันอยู่ในหน่วยความจำโปรเซสเดียว** — restart uvicorn ระหว่างรอบรัน = งานหยุด
   และประวัติรอบรันหาย (`GET /run` → 404) **ผลงานที่ commit แล้วไม่หาย** กด Run ใหม่ทำต่อได้
   · ยังไม่มีปุ่ม "ยกเลิกรอบรัน"
+- 🔴 **task ที่ depend อยู่ไม่ได้รับผลงานของ dependency** — agent เห็นแค่ title/spec ของตัวเอง
+  → งานประเภท "รวมเนื้อหา/ต่อยอดจากงานก่อนหน้า" ทำจริงไม่ได้ ผลิตได้แค่โครงว่าง แล้วถูก
+  reviewer ปฏิเสธจนเข้า escalated (ยืนยันจาก UAT 3 ส.ค. — agent บอกเองว่าไม่มีเนื้อหาต้นฉบับ)
+- 🔴 **รายงานที่ส่งเลขาไม่มีตัวชิ้นงาน** มีแต่สรุปสถานะ task → **QC ปฏิเสธ** (`rejected` 3 ส.ค.)
+  · ผลงานจริงอยู่ครบใน `agent_messages` แล้ว แค่ไม่ถูกหยิบมาใส่รายงาน
 - OpenAI/Gemini executors ยังไม่เคยรันกับ service จริง → token accounting 2 provider นี้ยังไม่ verify
 - Task ที่ acceptance criteria ต้องการ artifact จริง (repo/CI) จะ escalate เสมอ — พฤติกรรมถูกต้อง
   แต่ต้องเขียน spec ให้ deliverable เป็นเอกสาร/โค้ด (บทเรียน UAT ใน runbook §7)

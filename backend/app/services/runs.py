@@ -220,8 +220,7 @@ class RunManager:
         if project is None or not project.ceo_task_id:
             return
         try:
-            result = ceo_sync.report_project(db, ceo_client, project)
-            db.commit()  # report_project เขียน audit แต่ไม่ commit เอง (กติกา §9.1.3)
+            result = ceo_sync.report_project(db, ceo_client, project)  # commit เองข้างใน
             report: dict[str, object] = {
                 "ready": result.ready,
                 "reported": result.reported,
