@@ -371,7 +371,10 @@ For **every** task:
 - Guess a command that does not exist in the project.
 - เปลี่ยน `MAX_REVISIONS` semantics โดยไม่อัปเดต `docs/SYSTEM_DOCUMENTATION.md` §9 + tests.
 - Major architecture change โดยไม่ผ่านผู้ใช้ — ต้องเป็น ADR ใหม่ใน `docs/DEVELOPMENT_PLAN.md` §2.
-- **แก้ไฟล์ในรีโปอื่น** (d_CEO, d_Jarvis, _CANON) — ส่งเป็นคำขอให้ session ของรีโปนั้นทำเอง.
+- **แก้ไฟล์ในรีโปอื่น** (d_CEO, d_Jarvis, _CANON) — ส่งเป็นคำขอให้ session ของรีโปนั้นทำเอง
+  · **ข้อยกเว้นเดียว:** ติ๊ก `[x]` ช่องของตัวเองใน **ใบสั่งงาน** (`d_CEO\docs\ORDER_TICKET_*.md`)
+  ซึ่งออกแบบมาให้ผู้รับติ๊กเอง — ต้องได้รับคำสั่งจากผู้ใช้ก่อน · สำรองไฟล์ก่อนแก้ ·
+  **แก้เฉพาะแถวของ Ticket ตัวเอง** ห้ามแตะของทีมอื่น (อนุมัติโดย Vinit 2026-08-03).
 
 ---
 
