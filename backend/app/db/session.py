@@ -1,7 +1,7 @@
 """SQLAlchemy engine + session factory + FastAPI dependency."""
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -31,3 +31,13 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def get_session_factory() -> Callable[[], Session]:
+    """FastAPI dependency: โรงงาน session สำหรับ **งานเบื้องหลัง** (Phase 2).
+
+    งานที่รันหลังตอบ response แล้ว (orchestrator run) ใช้ session ของ request ไม่ได้
+    เพราะ ``get_db`` ปิดมันไปพร้อม response — ต้องเปิดของตัวเอง 1 ตัวต่อ 1 รอบรัน
+    เป็น dependency (ไม่ใช่ import ตรง) เพื่อให้ test override เป็น session ใน memory ได้
+    """
+    return SessionLocal

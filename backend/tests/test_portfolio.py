@@ -10,11 +10,12 @@ def test_portfolio_empty(client):
     assert isinstance(body["agents"], list)
 
 
-def test_portfolio_counts_after_flow(client):
+def test_portfolio_counts_after_flow(client, wait_run):
     pid = client.post("/api/projects", json={"name": "Port", "type": "new"}).json()["id"]
     client.post(f"/api/projects/{pid}/breakdown", json={"requirement": "Do X"})
     client.post(f"/api/projects/{pid}/confirm", json={})
-    client.post(f"/api/projects/{pid}/run")
+    # /run เป็นงานเบื้องหลัง (Phase 2) — ต้องรอให้จบก่อนนับผล
+    wait_run(client.post(f"/api/projects/{pid}/run").json()["run_id"])
 
     body = client.get("/api/portfolio").json()
     proj = next(p for p in body["projects"] if p["id"] == pid)

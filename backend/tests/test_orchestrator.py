@@ -50,16 +50,17 @@ def _project_with_planned_tasks(db, titles: list[str], deps: dict[str, list[int]
 # ---------------------------------------------------------------------------
 # Happy path — E2E ผ่าน API: breakdown -> confirm -> run -> ทุก task done
 # ---------------------------------------------------------------------------
-def test_e2e_happy_path_via_api(client):
+def test_e2e_happy_path_via_api(client, wait_run):
     pid = client.post("/api/projects", json={"name": "E2E", "type": "new"}).json()["id"]
     client.post(f"/api/projects/{pid}/breakdown", json={"requirement": "Build feature X"})
     client.post(f"/api/projects/{pid}/confirm", json={})
 
     resp = client.post(f"/api/projects/{pid}/run")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["processed"] >= 1
-    assert body["counts"] == {"done": body["processed"]}  # fallback reviewer approve เสมอ
+    assert resp.status_code == 202  # งานเบื้องหลัง (Phase 2) — ตอบทันทีพร้อม run_id
+    run = wait_run(resp.json()["run_id"])
+    assert run.status == "succeeded"
+    assert run.processed >= 1
+    assert run.counts == {"done": run.processed}  # fallback reviewer approve เสมอ
 
     tasks = client.get(f"/api/projects/{pid}/tasks").json()["data"]
     assert all(t["status"] == "done" for t in tasks)

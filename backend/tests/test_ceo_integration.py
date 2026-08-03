@@ -342,18 +342,18 @@ def test_report_survives_ceo_going_offline(client, stub_ceo, db_session):
 # --- auto-report หลัง /run ---------------------------------------------------
 
 
-def test_run_auto_reports_project_that_came_from_ceo(client, stub_ceo, db_session):
+def test_run_auto_reports_project_that_came_from_ceo(client, stub_ceo, db_session, wait_run):
     project = _project_from_ceo(db_session)
     db_session.add(Task(project_id=project.id, title="งานเดียว", status=TaskStatus.PLANNED.value))
     db_session.commit()
 
-    body = client.post(f"/api/projects/{project.id}/run").json()
-    assert body["counts"] == {"done": 1}  # FallbackExecutor approve เสมอ
-    assert body["ceo_report"]["reported"] is True
+    run = wait_run(client.post(f"/api/projects/{project.id}/run").json()["run_id"])
+    assert run.counts == {"done": 1}  # FallbackExecutor approve เสมอ
+    assert run.ceo_report["reported"] is True
     assert stub_ceo.patches[-1]["status"] == "qc_review"
 
 
-def test_run_on_normal_project_does_not_touch_ceo(client, stub_ceo, db_session):
+def test_run_on_normal_project_does_not_touch_ceo(client, stub_ceo, db_session, wait_run):
     project = Project(name="โปรเจกต์ปกติ", type="new")
     db_session.add(project)
     db_session.commit()
@@ -361,6 +361,6 @@ def test_run_on_normal_project_does_not_touch_ceo(client, stub_ceo, db_session):
     db_session.add(Task(project_id=project.id, title="งาน", status=TaskStatus.PLANNED.value))
     db_session.commit()
 
-    body = client.post(f"/api/projects/{project.id}/run").json()
-    assert body["ceo_report"] is None
+    run = wait_run(client.post(f"/api/projects/{project.id}/run").json()["run_id"])
+    assert run.ceo_report is None
     assert stub_ceo.patches == []

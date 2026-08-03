@@ -57,8 +57,15 @@ export const api = {
   scan: (projectId: string) =>
     request<unknown>(`/api/projects/${projectId}/scan`, { method: "POST" }),
 
+  /** สั่งรัน → 202 ทันทีพร้อม run_id (งานจริงรันเบื้องหลัง) · 409 = โปรเจกต์นี้กำลังรันอยู่ */
   runOrchestrator: (projectId: string) =>
     request<RunSummary>(`/api/projects/${projectId}/run`, { method: "POST" }),
+
+  /** ความคืบหน้าของรอบรัน — ไม่ส่ง runId = รอบล่าสุด · 404 = ยังไม่เคยรันในโปรเซสนี้ */
+  getRun: (projectId: string, runId?: string) =>
+    request<RunSummary>(
+      `/api/projects/${projectId}/run${runId ? `?run_id=${runId}` : ""}`,
+    ),
 
   patchTask: (taskId: string, body: Partial<Pick<Task, "title" | "description">> & { status?: TaskStatus }) =>
     request<Task>(`/api/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(body) }),

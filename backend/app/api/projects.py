@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -9,12 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.agents.pm import breakdown_requirement
 from app.constants import ActorType, ProjectType, TaskStatus
-from app.db.session import get_db
+from app.db.session import get_db, get_session_factory
 from app.integrations.ceo_client import CeoClient, get_ceo_client
 from app.metadata.provider import get_metadata_provider
 from app.models.project import Project
 from app.models.task import Task
-from app.orchestrator.engine import run_project
+from app.orchestrator.engine import planned_task_count
 from app.orchestrator.state_machine import transition
 from app.schemas.project import ProjectCreate, ProjectRead
 from app.schemas.scan import ScanResponse
@@ -29,7 +30,7 @@ from app.schemas.task import (
     TaskPlan,
     TaskRead,
 )
-from app.services import ceo_sync
+from app.services import runs
 from app.services.audit import record_audit
 from app.services.tasks import persist_task_plan
 
@@ -211,40 +212,44 @@ async def scan_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> 
     return ScanResponse(report=report, created_task_ids=[str(t.id) for t in created])
 
 
-@router.post("/{project_id}/run")
+@router.post("/{project_id}/run", status_code=status.HTTP_202_ACCEPTED)
 def run_orchestrator(
     project_id: uuid.UUID,
     db: Session = Depends(get_db),
+    session_factory: Callable[[], Session] = Depends(get_session_factory),
     ceo_client: CeoClient | None = Depends(get_ceo_client),
 ) -> dict:
-    """รัน Solo-Mode Orchestrator กับ task ที่ planned ทั้งหมดของโปรเจกต์ (synchronous ใน MVP)."""
-    project = _get_project_or_404(db, project_id)
-    summary = run_project(db, project_id)
+    """สั่งรัน Solo-Mode Orchestrator **เบื้องหลัง** แล้วตอบ 202 + `run_id` ทันที (Phase 2).
 
-    # โปรเจกต์ที่มาจาก d_CEO และงานจบครบแล้ว → รายงานกลับเข้า QC gate ให้อัตโนมัติ
-    # ล้มเหลว = เพิกเฉยเงียบ (ยิง POST /api/ceo/report/:id ซ้ำเองได้) — ห้ามทำให้ /run พัง
-    ceo_report: dict | None = None
-    if project.ceo_task_id and ceo_client is not None:
-        result = ceo_sync.report_project(db, ceo_client, project)
-        ceo_report = {
-            "ready": result.ready,
-            "reported": result.reported,
-            "status_sent": result.status_sent,
-            "detail": result.detail,
-        }
+    ของจริงกินเวลาระดับหลายนาที (UAT: 6 tasks = 297 วิ) — ถามความคืบหน้าต่อที่
+    ``GET /api/projects/{id}/run`` · ยิงซ้อนโปรเจกต์เดิมที่ยังรันอยู่ = **409**
+    """
+    _get_project_or_404(db, project_id)
+    try:
+        record = runs.start_run(
+            project_id,
+            session_factory=session_factory,
+            ceo_client=ceo_client,
+            total=planned_task_count(db, project_id),
+        )
+    except runs.RunAlreadyActive as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return record.snapshot()
 
-    return {
-        "project_id": summary.project_id,
-        "processed": len(summary.outcomes),
-        "counts": summary.counts,
-        "ceo_report": ceo_report,
-        "outcomes": [
-            {
-                "task_id": o.task_id,
-                "title": o.title,
-                "final_status": o.final_status,
-                "revisions": o.revisions,
-            }
-            for o in summary.outcomes
-        ],
-    }
+
+@router.get("/{project_id}/run")
+def get_run_progress(
+    project_id: uuid.UUID,
+    run_id: str | None = None,
+    db: Session = Depends(get_db),
+) -> dict:
+    """ความคืบหน้าของรอบรัน — ไม่ส่ง `run_id` = รอบล่าสุดของโปรเจกต์นี้.
+
+    404 = โปรเจกต์นี้ยังไม่เคยรันในโปรเซสนี้ (ทะเบียนอยู่ในหน่วยความจำ — restart แล้วหาย
+    แต่ผลงานจริงยังอยู่ในตาราง tasks)
+    """
+    _get_project_or_404(db, project_id)
+    record = runs.get_run(run_id) if run_id else runs.latest_run_for_project(project_id)
+    if record is None or record.project_id != str(project_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ไม่พบรอบรันของโปรเจกต์นี้")
+    return record.snapshot()

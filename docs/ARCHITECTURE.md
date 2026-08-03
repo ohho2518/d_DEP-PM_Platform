@@ -72,11 +72,11 @@ Backend เป็น monolith ชั้นเดียว (FastAPI) แบ่ง
 |----------|------------------------|
 | Microservices (agent service แยก) | ทีมเล็ก, ไม่มี scale requirement, เพิ่ม latency/complexity |
 | Event-sourced (ทุกอย่างเป็น event) | audit_log + agent_messages ให้ auditability พอแล้วโดยไม่ต้อง rebuild-from-events |
-| Celery/task queue ตั้งแต่แรก | `/run` synchronous พอสำหรับ single-user; queue เพิ่มเมื่อมี multi-user (Sprint 4+) |
+| Celery/task queue ตั้งแต่แรก | single-user ยังไม่ต้องมี broker — Phase 2 ใช้ **thread เบื้องหลัง + lock ต่อโปรเจกต์** (`services/runs.py`) พอแล้ว; queue จริงเพิ่มเมื่อมี multi-user/หลายโปรเซส |
 
 **Tradeoffs ที่ยอมรับ**
 - ✅ ง่าย, เร็ว, ทดสอบง่าย (in-memory SQLite ต่อ test)
-- ⚠️ `/run` block request จนจบ — โปรเจกต์ใหญ่จะช้า (ยอมรับใน MVP, มีแผน background job)
+- ⚠️ รอบรันอยู่ในหน่วยความจำของโปรเซสเดียว — restart backend = ประวัติรอบรันหาย (ผลงานใน DB ไม่หาย) และรันข้ามเครื่องไม่ได้
 - ⚠️ Scale แนวนอนไม่ได้จนกว่าจะย้าย bus ไป Redis (ADR-03 upgrade path พร้อมแล้ว)
 
 ### Component Diagram
@@ -173,7 +173,7 @@ flowchart LR
 Sprint 4 (แผน): Vercel (FE) + Render/Railway (BE) + PostgreSQL managed + GitHub Actions
 
 ### Scalability / Maintainability / Extensibility
-- **Scalability:** single-process พอสำหรับ single-user; คอขวดแรกคือ `/run` synchronous → แก้ด้วย background worker + Redis bus (เส้นทางเขียนไว้ใน ADR-03)
+- **Scalability:** single-process พอสำหรับ single-user; `/run` ไม่ block แล้ว (thread เบื้องหลัง, Phase 2) — ขั้นถัดไปเมื่อมีหลายผู้ใช้/หลายโปรเซสคือ worker แยก + Redis bus (เส้นทางเขียนไว้ใน ADR-03)
 - **Maintainability:** กติกากลางบังคับใน code review — status ผ่าน `transition()` เท่านั้น, ข้อความผ่าน `publish()` เท่านั้น (ดู `AI_AGENT_GUIDE.md`)
 - **Extensibility:** จุดเสียบ 3 จุดคือ `PersonaExecutor` (Team Mode), `MetadataProvider` (DEP Engine จริง), bus transport (Redis) — ทั้งหมดเปลี่ยน implementation ได้โดยไม่แตะ orchestrator
 

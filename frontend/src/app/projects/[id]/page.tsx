@@ -10,6 +10,7 @@ import {
   STATUS_ORDER,
   type AgentMessage,
   type Project,
+  type RunSummary,
   type Task,
   type TaskStatus,
 } from "@/lib/types";
@@ -25,28 +26,48 @@ const COLUMN_ACCENT: Record<TaskStatus, string> = {
   escalated: "var(--danger)",
 };
 
-// สถานะที่ถือว่า "จบแล้ว" สำหรับการคำนวณ progress ของรอบ run
-const FINISHED: ReadonlySet<TaskStatus> = new Set(["done", "deployed", "escalated"]);
+/** ข้อความสรุปหลังรอบรันจบ — อ่านจากผลจริงที่ backend ส่งมา */
+function runNotice(run: RunSummary): string {
+  if (run.status === "failed")
+    return `❌ รอบรันล้มเหลว: ${run.error ?? "ไม่ทราบสาเหตุ"} (ผลงานที่ทำเสร็จก่อนหน้ายังอยู่)`;
+  if (run.processed === 0) return "ไม่มี task สถานะ planned ให้รัน (ยืนยัน scope ก่อน)";
 
-interface RunStats {
-  startedAt: number;
-  totalPlanned: number;     // จำนวน task ที่จะถูกประมวลผลรอบนี้
-  baselineFinished: number; // task ที่จบอยู่แล้วก่อนเริ่ม (ไม่นับใน progress)
+  const parts = Object.entries(run.counts)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(", ");
+  // ค้าง = task ที่รอ dependency ซึ่ง escalated ไปแล้ว → ไม่มีวันได้รันในรอบนี้
+  const stuck =
+    run.total > run.processed ? ` · ค้าง ${run.total - run.processed} งาน (รองานข้างบน)` : "";
+  // โปรเจกต์จากเลขา: backend รายงานกลับเข้า QC gate ให้อัตโนมัติเมื่องานจบครบ
+  const ceo = run.ceo_report?.reported
+    ? " · 📤 ส่งผลกลับเลขาเข้า QC gate แล้ว"
+    : run.ceo_report && run.ceo_report.ready === false
+      ? ` · (ยังไม่ส่งเลขา: ${run.ceo_report.detail})`
+      : "";
+  return `✅ เสร็จแล้ว — ${run.processed} tasks (${parts})${stuck}${ceo}`;
 }
 
 export default function BoardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: projectId } = use(params);
 
   const [selected, setSelected] = useState<Task | null>(null);
-  const [running, setRunning] = useState(false);
-  const [runStats, setRunStats] = useState<RunStats | null>(null);
+  const [run, setRun] = useState<RunSummary | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [reporting, setReporting] = useState(false);
 
+  const running = run?.status === "running";
+  const runId = run?.run_id;
+
   // โหลดครั้งเดียว — ใช้รู้ว่าโปรเจกต์นี้มาจากเลขา (d_CEO) ไหม
   useEffect(() => {
     api.getProject(projectId).then(setProject).catch(() => setProject(null));
+  }, [projectId]);
+
+  // รอบรันอยู่ฝั่ง backend แล้ว (Phase 2) — เปิด/รีเฟรชหน้ากลางรอบก็เห็นความคืบหน้าต่อได้
+  // 404 = โปรเจกต์นี้ยังไม่เคยรันในโปรเซสนี้
+  useEffect(() => {
+    api.getRun(projectId).then(setRun).catch(() => setRun(null));
   }, [projectId]);
 
   // ระหว่างรัน poll ถี่ขึ้น (2 วิ) เพื่อให้ progress/การ์ตูนสดกว่า
@@ -54,6 +75,24 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
     () => api.listTasks(projectId),
     running ? 2000 : 4000,
   );
+
+  // ถามความคืบหน้าของรอบรันจนกว่าจะจบ แล้วค่อยสรุปผลครั้งเดียว
+  useEffect(() => {
+    if (!running || !runId) return;
+    const id = setInterval(async () => {
+      try {
+        const latest = await api.getRun(projectId, runId);
+        setRun(latest);
+        if (latest.status !== "running") {
+          setNotice(runNotice(latest));
+          void refresh();
+        }
+      } catch {
+        // เน็ตสะดุด/backend รีสตาร์ต — ลองใหม่รอบหน้า ไม่ต้องรบกวนผู้ใช้
+      }
+    }, 2000);
+    return () => clearInterval(id);
+  }, [running, runId, projectId, refresh]);
 
   async function moveTask(task: Task, to: TaskStatus) {
     try {
@@ -65,37 +104,19 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   }
 
   async function runOrchestrator() {
-    setRunning(true);
     setNotice(null);
-    // baseline สำหรับ progress: นับจาก snapshot ล่าสุดก่อนเริ่ม
-    const tasks = data?.data ?? [];
-    setRunStats({
-      startedAt: Date.now(),
-      totalPlanned: tasks.filter((t) => t.status === "planned").length,
-      baselineFinished: tasks.filter((t) => FINISHED.has(t.status)).length,
-    });
     try {
-      const summary = await api.runOrchestrator(projectId);
-      const parts = Object.entries(summary.counts)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(", ");
-      // โปรเจกต์จากเลขา: backend รายงานกลับเข้า QC gate ให้อัตโนมัติเมื่องานจบครบ
-      const ceo = summary.ceo_report?.reported
-        ? " · 📤 ส่งผลกลับเลขาเข้า QC gate แล้ว"
-        : summary.ceo_report && summary.ceo_report.ready === false
-          ? ` · (ยังไม่ส่งเลขา: ${summary.ceo_report.detail})`
-          : "";
-      setNotice(
-        summary.processed === 0
-          ? "ไม่มี task สถานะ planned ให้รัน (ยืนยัน scope ก่อน)"
-          : `✅ เสร็จแล้ว — ${summary.processed} tasks (${parts})${ceo}`,
-      );
-      await refresh();
+      // 202 ทันที — งานจริงรันเบื้องหลัง แล้ว useEffect ข้างบนตามความคืบหน้าต่อเอง
+      setRun(await api.runOrchestrator(projectId));
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRunning(false);
-      setRunStats(null);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.startsWith("409")) {
+        // มีรอบรันค้างอยู่ (เช่นเปิดไว้อีกแท็บ) — ดึงรอบนั้นมาแสดงแทนการขึ้น error ดิบ
+        setNotice("โปรเจกต์นี้กำลังรันอยู่แล้ว — แสดงความคืบหน้าของรอบที่ค้างอยู่");
+        api.getRun(projectId).then(setRun).catch(() => undefined);
+        return;
+      }
+      setNotice(msg);
     }
   }
 
@@ -155,7 +176,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
       {/* ออฟฟิศจำลอง — agent เดินเมื่อกำลังทำงานจริง (สถานะจาก tasks ที่ poll ทุก 4 วิ) */}
       <AgentOffice tasks={data.data} />
 
-      {running && runStats && <RunProgress stats={runStats} tasks={data.data} />}
+      {running && run && <RunProgress run={run} tasks={data.data} />}
 
       {notice && (
         <p className="card px-3 py-2 text-xs" style={{ color: "var(--text2)" }}>
@@ -353,9 +374,9 @@ function fmtDuration(sec: number): string {
   return s ? `${m} นาที ${s} วิ` : `${m} นาที`;
 }
 
-/** Progress ของรอบ Run Agents — คำนวณจาก task ที่ poll สด (backend เป็น synchronous
- *  จึงไม่มี progress endpoint ตรง ๆ; ใช้จำนวน task ที่จบเทียบ baseline แทน) */
-function RunProgress({ stats, tasks }: { stats: RunStats; tasks: Task[] }) {
+/** Progress ของรอบ Run Agents — ตัวเลขมาจาก `GET /run` ของ backend (Phase 2)
+ *  ส่วนชื่องานที่กำลังทำอ่านจาก task ที่ poll สด เพราะ backend รายงานเป็นราย task ที่ "จบแล้ว" */
+function RunProgress({ run, tasks }: { run: RunSummary; tasks: Task[] }) {
   // ticker 1 วิ ให้เวลาที่แสดงเดินสด ไม่ต้องรอรอบ poll
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -363,13 +384,10 @@ function RunProgress({ stats, tasks }: { stats: RunStats; tasks: Task[] }) {
     return () => clearInterval(id);
   }, []);
 
-  const total = stats.totalPlanned;
-  const finished = Math.max(
-    0,
-    tasks.filter((t) => FINISHED.has(t.status)).length - stats.baselineFinished,
-  );
+  const total = run.total;
+  const finished = run.processed;
   const pct = total ? Math.min(100, Math.round((finished / total) * 100)) : 0;
-  const elapsedSec = (now - stats.startedAt) / 1000;
+  const elapsedSec = Math.max(0, (now - new Date(run.started_at).getTime()) / 1000);
 
   // งานที่กำลัง active ตอนนี้ (orchestrator ทำทีละ task)
   const active = tasks.find((t) =>

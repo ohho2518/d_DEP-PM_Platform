@@ -22,7 +22,7 @@
 |---|---|---|---|---|---|---|
 | 1 | 🔴 | **CI callback `PATCH /api/deployments/:id` ไม่มี authentication** | ใครก็ตามที่ยิงถึงพอร์ตได้ เลื่อน task เป็น `deployed` ปลอมได้ | ต่ำตราบใดที่ bind localhost | ห้าม expose พอร์ตออกนอกเครื่อง · แผน: shared-secret header | **Open** |
 | 2 | 🔴 | **ข้อมูลอ่อนไหวหลุดเข้า prompt (PDPA)** | ข้อมูลลูกค้าไปอยู่ที่ผู้ให้บริการ LLM | ต่ำตอนนี้ (ยังไม่ใช้ข้อมูลลูกค้าจริง) | กติกาห้าม secrets ใน task spec · **ยังไม่มี field masking** (ต้องมีก่อนใช้กับข้อมูลจริง) | **Open** |
-| 3 | 🟠 | **`/run` synchronous + ไม่ thread-safe ต่อโปรเจกต์** | UX ค้างยาว · ยิงซ้อนโปรเจกต์เดียวกัน = สถานะเพี้ยน · **บล็อกการรับงานจาก d_CEO** (ของเขาวัดจริง 1 task = 192 วิ) | สูงเมื่อเริ่มรับงานจริง | ห้ามยิง `/run` ซ้อน · แผน: 202 + run_id + lock ต่อโปรเจกต์ | **Open** |
+| 3 | 🟢 | ~~**`/run` synchronous + ไม่ thread-safe ต่อโปรเจกต์**~~ | UX ค้างยาว · ยิงซ้อนโปรเจกต์เดียวกัน = สถานะเพี้ยน · **บล็อกการรับงานจาก d_CEO** (ของเขาวัดจริง 1 task = 192 วิ) | — | **แก้แล้ว 2026-08-03 (Phase 2):** 202 + `run_id` + thread เบื้องหลัง + lock ต่อโปรเจกต์ (ซ้อน = 409) + `GET /:id/run` · เหลือข้อจำกัด: ทะเบียนรอบรันอยู่ในหน่วยความจำโปรเซสเดียว (restart = ประวัติหาย ผลงานไม่หาย) และยังไม่มีปุ่มยกเลิกรอบรัน | **Mitigated** |
 | 4 | 🟠 | **ต้นทุน API เกินงบเมื่อเปิด Team Mode** | ค่าใช้จ่ายบานปลาย | กลาง | `MAX_TOKENS_PER_TASK` + เก็บ token ต่อ task แล้ว · **ยังไม่มีงบรวมต่อโปรเจกต์/alert** | **Partially mitigated** |
 | 5 | 🟠 | **OpenAI/Gemini executors ไม่เคยรันกับ service จริง** | Team Mode อาจพังตอนใช้จริง · token accounting ของ 2 provider ยังไม่ verify | สูงถ้าเปิดใช้ทันที | fallback chain ต่อ role (ขาด key → Claude → deterministic) · ต้องทดสอบทันทีที่ได้ keys | **Open** |
 | 6 | 🟡 | **SQLite → PostgreSQL พฤติกรรมต่างกัน** (JSON query, concurrency) | ย้ายขึ้น staging แล้วพัง | กลาง | กติกา ADR-01 (ORM-only, GUID/JSON decorator) · **DoD: รัน test suite เต็มบน PG — ยังไม่ได้ทำ** | **Open** |
@@ -69,7 +69,7 @@
 - [x] No blocking work on the UI thread — polling หยุดเมื่อแท็บไม่ active
 - [x] Connections closed properly — `get_db()` yield-close ต่อ request
 - [ ] Caching used where reads dominate — ไม่มี (ข้อมูลเปลี่ยนตลอด + single-user)
-- [ ] **`/run` ไม่ block request** — ยังเป็น synchronous (Risk #3)
+- [x] **`/run` ไม่ block request** — 202 + `run_id` แล้วรันเบื้องหลัง (Phase 2, วัดจริง ~10 ms ต่อ request)
 
 ---
 

@@ -8,9 +8,10 @@ MAX_REVISIONS → escalated. ทุก handoff/result/review_comment ลง Mess
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.agents.routing import route_task
@@ -61,6 +62,21 @@ def _deps_met(db: Session, task: Task) -> bool:
     deps = db.execute(select(Task).where(Task.id.in_(dep_ids))).scalars().all()
     finished = {TaskStatus.DONE.value, TaskStatus.DEPLOYED.value}
     return len(deps) == len(dep_ids) and all(d.status in finished for d in deps)
+
+
+def planned_task_count(db: Session, project_id: uuid.UUID) -> int:
+    """จำนวน task สถานะ ``planned`` ตอนนี้ — ใช้ตั้ง "เป้า" ของรอบรันเพื่อคำนวณ progress.
+
+    ไม่ใช่จำนวนที่จะรันได้จริงเสมอไป: ตัวที่ dependency ติด escalated จะค้าง ``planned``
+    ตลอดรอบ (เจตนา — เห็นได้จาก ``processed`` < ``total`` ตอนรอบจบ)
+    """
+    return int(
+        db.execute(
+            select(func.count())
+            .select_from(Task)
+            .where(Task.project_id == project_id, Task.status == TaskStatus.PLANNED.value)
+        ).scalar_one()
+    )
 
 
 def _next_runnable(db: Session, project_id: uuid.UUID) -> Task | None:
@@ -196,11 +212,15 @@ def run_project(
     *,
     executor: PersonaExecutor | None = None,
     max_tasks: int | None = None,
+    on_outcome: Callable[[TaskOutcome], None] | None = None,
 ) -> RunSummary:
     """รัน task ที่ planned ทั้งหมดของโปรเจกต์จนหมด (หรือครบ ``max_tasks``).
 
     Commit หลังจบแต่ละ task เพื่อให้ dashboard เห็นความคืบหน้าและงานที่เสร็จแล้ว
     ไม่ rollback หากตัวถัดไปพัง.
+
+    ``on_outcome`` ถูกเรียกหลัง commit ของแต่ละ task — ใช้รายงานความคืบหน้าออกไปข้างนอก
+    (Phase 2: run manager อัปเดต progress ของรอบรัน) โดย engine ไม่ต้องรู้จักผู้ฟัง
     """
     executor = executor or get_executor()
     summary = RunSummary(project_id=str(project_id))
@@ -212,5 +232,7 @@ def run_project(
         outcome = _run_task(db, task, executor)
         db.commit()
         summary.outcomes.append(outcome)
+        if on_outcome is not None:
+            on_outcome(outcome)
 
     return summary

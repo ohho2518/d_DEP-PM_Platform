@@ -91,5 +91,16 @@ class ActorType(str, Enum):
     AGENT = "agent"
 
 
+class RunStatus(str, Enum):
+    """สถานะของ **รอบรัน orchestrator** (Phase 2) — อยู่ในหน่วยความจำ ไม่ใช่คอลัมน์ใน DB.
+
+    คนละเรื่องกับ ``DeploymentStatus`` ที่บังเอิญมีค่าใกล้กัน: อันนั้นคือ CI ปลายทาง
+    """
+
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
 # Escalation Rule — Max Revision = 2 (Blueprint §5 / DEVELOPMENT_PLAN §4).
 MAX_REVISIONS = 2

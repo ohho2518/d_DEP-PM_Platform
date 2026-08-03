@@ -77,12 +77,27 @@ export interface Portfolio {
   agents: { id: string; name: string; role: string; mode: string; status: string }[];
 }
 
+/** สถานะของ **รอบรัน** (คนละชุดกับ TaskStatus) — backend: `constants.RunStatus` */
+export type RunState = "running" | "succeeded" | "failed";
+
+/** รอบรัน orchestrator — Phase 2 เป็นงานเบื้องหลัง: `POST /run` คืนตัวนี้ทันที (202)
+ *  แล้วถามความคืบหน้าต่อที่ `GET /run` (ค่าเดิมของ run เดียวกัน อัปเดตไปเรื่อย ๆ) */
 export interface RunSummary {
+  run_id: string;
   project_id: string;
+  status: RunState;
+  /** task ที่ planned ตอนเริ่มรอบ = เป้าของ progress (processed < total ตอนจบได้ —
+   *  ตัวที่รอ dependency ที่ escalated จะค้าง planned ทั้งรอบ) */
+  total: number;
   processed: number;
   counts: Record<string, number>;
   /** รายงานกลับ d_CEO อัตโนมัติหลังงานจบ (null = โปรเจกต์นี้ไม่ได้มาจากเลขา) */
   ceo_report: CeoReport | null;
+  /** เหตุที่รอบรันล้ม (status = "failed" เท่านั้น) */
+  error: string | null;
+  /** ISO 8601 **UTC** */
+  started_at: string;
+  finished_at: string | null;
   outcomes: { task_id: string; title: string; final_status: string; revisions: number }[];
 }
 

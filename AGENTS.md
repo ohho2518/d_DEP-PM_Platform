@@ -158,7 +158,7 @@ backend/app/orchestrator/             State Machine (transition-only) + engine (
 backend/app/bus/                      In-process message bus (ADR-03)
 backend/app/metadata/                 MetadataProvider interface + Stub (ADR-02)
 backend/app/integrations/             client ของระบบข้างเคียง — ceo_client.py (d_CEO) §3.1
-backend/app/services/                 audit + task-plan persistence + deploy dispatcher + ceo_sync
+backend/app/services/                 audit + task-plan persistence + deploy dispatcher + ceo_sync + runs (Run Manager)
 backend/alembic/                      migrations (schema, seed agent, token columns)
 backend/tests/                        pytest 60 เคส
 backend/ruff.toml                     lint config
@@ -251,6 +251,7 @@ NEXT_PUBLIC_API_URL=   # base URL ของ backend — ค่าปัจจุ
 - **Auth flow:** ยังไม่มี — bind localhost เท่านั้น
 - **External services:** Anthropic (Solo Mode) · OpenAI + Gemini (Team Mode) · GitHub `repository_dispatch` (deploy) · **d_CEO** (รับงาน/รายงานผล) — ทุกตัวมี fallback ไม่ล้มทั้งระบบเมื่อ key ขาดหรือปลายทางปิด
 - **การเชื่อมกับ d_CEO:** ทุกการยิง HTTP อยู่ใน `integrations/ceo_client.py` **ไฟล์เดียว** (ที่อื่นห้ามยิงเอง) · business logic อยู่ใน `services/ceo_sync.py` · orchestrator ไม่รู้จักทั้งคู่ · **ส่งกลับได้แค่ `in_progress`/`qc_review`** ห้ามปิดงานเอง — ดู `docs/INTEGRATION_CEO.md`
+- **รอบรัน orchestrator เป็นงานเบื้องหลัง (Phase 2):** `POST /:id/run` ตอบ **202 + `run_id`** ทันที · ความคืบหน้าที่ `GET /:id/run` · **1 โปรเจกต์ = 1 รอบรัน** (ซ้อน = 409) · ทะเบียนรอบรันอยู่ในหน่วยความจำโปรเซสเดียวเหมือน bus — วิธีรันทั้งหมดอยู่ใน `services/runs.py` **ไฟล์เดียว** (engine ไม่รู้ว่าตัวเองถูกรันใน thread)
 - **จุดเสียบ 3 จุด (extensibility):** `PersonaExecutor` (provider ใหม่) · `MetadataProvider` (DEP Engine จริง) · bus transport (Redis)
 - **ADR-01..04** อยู่ใน `docs/DEVELOPMENT_PLAN.md` §2 — SQLite ก่อน · Metadata stub · in-process bus · polling
 
@@ -283,6 +284,8 @@ NEXT_PUBLIC_API_URL=   # base URL ของ backend — ค่าปัจจุ
 10. **สถานะของ d_CEO เป็นคนละชุดกับ `TaskStatus` ของเรา** — ใช้ค่าคงที่ `CEO_STATUS_*`
     ใน `integrations/ceo_client.py` อย่าเอา `TaskStatus` ไปส่งข้ามระบบ (บังเอิญชื่อซ้ำบางตัว)
 11. **ห้ามปิดงานฝั่ง d_CEO เอง** — ส่งได้แค่ `in_progress`/`qc_review` ทุกงานต้องผ่าน QC gate
+12. **งานเบื้องหลังห้ามใช้ session ของ request** — `get_db` ปิดมันพร้อม response · ขอ session ใหม่จาก
+    `get_session_factory` (1 รอบรัน = 1 session) และห้ามส่ง ORM object ข้าม thread
 
 ---
 

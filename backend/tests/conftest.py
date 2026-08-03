@@ -9,8 +9,9 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401 — register tables
 from app.db.base import Base
-from app.db.session import get_db
+from app.db.session import get_db, get_session_factory
 from app.main import app
+from app.services import runs
 
 
 @pytest.fixture(autouse=True)
@@ -37,9 +38,20 @@ def _isolated_settings(monkeypatch):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _clean_run_registry():
+    """ทะเบียนรอบรัน (Phase 2) เป็น singleton ต่อโปรเซส — ล้างทุก test ไม่ให้ค้างข้ามกัน."""
+    runs.reset_runs()
+    yield
+    runs.reset_runs()
+
+
 @pytest.fixture()
-def db_session():
-    """Fresh in-memory schema per test (StaticPool keeps one shared connection)."""
+def db_factory():
+    """โรงงาน session ผูกกับ schema ในหน่วยความจำชุดเดียวของ test นี้ (StaticPool = 1 connection).
+
+    งานเบื้องหลังเปิด session ของตัวเอง จึงต้องแยกโรงงานออกมาจาก ``db_session``
+    """
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -47,22 +59,46 @@ def db_session():
     )
     Base.metadata.create_all(engine)
     TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    session = TestingSession()
     try:
-        yield session
+        yield TestingSession
     finally:
-        session.close()
         engine.dispose()
 
 
 @pytest.fixture()
-def client(db_session):
+def db_session(db_factory):
+    """Fresh in-memory schema per test (StaticPool keeps one shared connection)."""
+    session = db_factory()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@pytest.fixture()
+def client(db_session, db_factory):
     """TestClient whose get_db dependency is overridden to the in-memory session."""
 
     def _override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = _override_get_db
+    # งานเบื้องหลังต้องได้ session ใหม่ (ห้ามใช้ตัวเดียวกับ request) แต่ต้องเป็น schema เดียวกัน
+    app.dependency_overrides[get_session_factory] = lambda: db_factory
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def wait_run(db_session):
+    """รอรอบรันเบื้องหลังให้จบ แล้วล้าง cache ของ session ทดสอบให้เห็นสิ่งที่ thread เขียนจริง."""
+
+    def _wait(run_id: str, timeout: float = 30.0):
+        record = runs.wait_for_run(run_id, timeout=timeout)
+        assert record is not None, f"ไม่พบรอบรัน {run_id}"
+        assert record.finished_at is not None, f"รอบรัน {run_id} ไม่จบใน {timeout} วินาที"
+        db_session.expire_all()
+        return record
+
+    return _wait

@@ -110,20 +110,45 @@ Response `200`:
 
 ---
 
-### 7) `POST /api/projects/:id/run` — รัน Solo-Mode Orchestrator
-**Synchronous** — ตอบเมื่อทุก task จบ (LLM จริงอาจใช้เวลานาน)
-Response `200`:
+### 7) `POST /api/projects/:id/run` — สั่งรัน Solo-Mode Orchestrator (**เบื้องหลัง**)
+**Asynchronous ตั้งแต่ Phase 2** — ตอบ `202` ทันที (วัดจริง ~10 ms) แล้วงานเดินต่อในเธรดเบื้องหลัง
+Response `202`:
 ```json
-{ "project_id": "…", "processed": 3, "counts": { "done": 2, "escalated": 1 },
+{ "run_id": "…", "project_id": "…", "status": "running",
+  "total": 6, "processed": 0, "counts": {}, "outcomes": [],
+  "ceo_report": null, "error": null,
+  "started_at": "2026-08-03T02:29:26.686806+00:00", "finished_at": null }
+```
+- **409** = โปรเจกต์นี้มีรอบรันค้างอยู่ (`{"detail": "โปรเจกต์นี้กำลังรันอยู่แล้ว (run_id=…)"}`) —
+  lock เป็นราย**โปรเจกต์** คนละโปรเจกต์รันพร้อมกันได้
+- `total` = จำนวน task `planned` ตอนเริ่มรอบ (เป้าของ progress) · 404 = ไม่มีโปรเจกต์นี้
+- รันเฉพาะ task `planned` ที่ dependency (`depends_on`) เป็น done/deployed ครบ
+- Side effects ต่อ task: routing audit, transitions, ข้อความ bus ≥3 (handoff/result/review_comment)
+- **เหตุผลที่ต้องเป็น async:** UAT 2026-08-02 วัดได้ 6 tasks = 297 วินาที ขณะที่ผู้เรียกฝั่งบน
+  (d_Jarvis) ตั้ง timeout 5 นาที
+
+---
+
+### 7.1) `GET /api/projects/:id/run` — ความคืบหน้าของรอบรัน
+Query (optional): `run_id` — ไม่ส่ง = รอบล่าสุดของโปรเจกต์นี้
+Response `200`: รูปเดียวกับ §7 แต่ค่าอัปเดตตามจริง
+```json
+{ "run_id": "…", "status": "succeeded", "total": 6, "processed": 5,
+  "counts": { "done": 4, "escalated": 1 },
   "ceo_report": { "ready": true, "reported": true, "status_sent": "qc_review",
                   "detail": "ส่งผลงานเข้า QC gate ของ d_CEO แล้ว" },
+  "error": null, "finished_at": "2026-08-03T02:29:48.268239+00:00",
   "outcomes": [ { "task_id": "…", "title": "…", "final_status": "done", "revisions": 1 } ] }
 ```
+- `status` ∈ `running` | `succeeded` | `failed` (คนละชุดกับ `TaskStatus`) · `failed` → ดู `error`
+  (ผลงานที่ commit ไปแล้วก่อนพังยังอยู่ — engine commit ต่อ task)
+- `processed` < `total` ตอนจบ = ปกติ: task ที่รอ dependency ซึ่ง escalated จะค้าง `planned` ทั้งรอบ
 - `ceo_report` = `null` เมื่อโปรเจกต์ไม่ได้มาจาก d_CEO — ถ้ามาจาก d_CEO และงานจบครบ
-  ระบบรายงานกลับเข้า QC gate ให้อัตโนมัติ (ล้มเหลว = เพิกเฉยเงียบ ยิง §19 ซ้ำเองได้)
-- รันเฉพาะ task `planned` ที่ dependency (`depends_on`) เป็น done/deployed ครบ
-- `processed: 0` = ไม่มี task ให้รัน (ยังไม่ confirm scope)
-- Side effects ต่อ task: routing audit, transitions, ข้อความ bus ≥3 (handoff/result/review_comment)
+  ระบบรายงานกลับเข้า QC gate ให้อัตโนมัติหลังรอบรันจบ (ล้มเหลว = บันทึกไว้ใน `ceo_report.detail`
+  ไม่ทำให้รอบรัน `failed` · ยิง §19 ซ้ำเองได้)
+- **404** = โปรเจกต์นี้ยังไม่เคยรันในโปรเซสนี้ — ทะเบียนรอบรันอยู่ในหน่วยความจำ
+  (restart backend = ประวัติหาย แต่ผลงานจริงใน `tasks`/`audit_log` ไม่หาย) ·
+  ส่ง `run_id` ของโปรเจกต์อื่นก็ 404
 
 ---
 
@@ -263,7 +288,8 @@ Side effects ต่องาน: สร้าง project (`ceo_task_id` ผู�
   (มติ Vinit 2026-08-02 · guardrail อยู่ใน `ceo_client.py` ValueError ก่อนยิง HTTP)
 - `ready: false` = ยังมี task เดินอยู่ → **ไม่แตะ d_CEO เลย**
 - **400** ถ้าโปรเจกต์ไม่มี `ceo_task_id` · **404** ไม่พบโปรเจกต์ · **503** ยังไม่ตั้งค่า/ปิดอยู่
-- เรียกอัตโนมัติให้แล้วหลัง §7 (`/run`) — endpoint นี้ไว้ยิงซ้ำเมื่อรอบอัตโนมัติล้มเหลว
+- เรียกอัตโนมัติให้แล้วเมื่อรอบรัน §7 จบ (ผลอยู่ใน `ceo_report` ของ §7.1) —
+  endpoint นี้ไว้ยิงซ้ำเมื่อรอบอัตโนมัติล้มเหลว
 
 ---
 

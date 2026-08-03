@@ -71,6 +71,9 @@ driver (`psycopg[binary]`) อยู่ใน requirements แล้ว; โค�
 3. หน้า Portfolio (`/`) จะมีกล่อง **📥 งานจากเลขา** โผล่เอง → กด "ดึงงานทั้งหมด" หรือ "รับงานนี้"
 4. ระบบสร้างโปรเจกต์ + ให้ PM Agent แตกงาน + แจ้ง d_CEO เป็น `in_progress` ให้อัตโนมัติ
 5. **ผู้ใช้ยืนยัน scope + กด Run Agents เอง** (ระบบไม่รันให้อัตโนมัติ)
+   · ตั้งแต่ Phase 2 การรันเป็น**งานเบื้องหลัง** — ปุ่มตอบกลับทันที แถบความคืบหน้าเดินเอง
+   **ปิดแท็บ/รีเฟรชหน้าได้ งานไม่หยุด** (เปิดหน้าบอร์ดใหม่แล้วเห็นความคืบหน้าต่อ)
+   · **ห้ามปิด uvicorn ระหว่างรอบรัน** — งานอยู่ในโปรเซสนั้น (task ที่จบแล้วยังอยู่ใน DB)
 6. งานจบครบ → รายงานกลับเข้า **QC gate** ของ d_CEO ให้อัตโนมัติ (สถานะ `qc_review`)
    · รอบอัตโนมัติล้มเหลว → กดปุ่ม **📤 ส่งผลกลับเลขา** บนหน้าบอร์ดซ้ำได้
 
@@ -88,6 +91,9 @@ driver (`psycopg[binary]`) อยู่ใน requirements แล้ว; โค�
 | deployment ค้าง `running` | workflow ฝั่ง repo ไม่ได้ callback — เช็ค Actions log + secret `DEP_PM_API_URL`; แก้มือ: `PATCH /api/deployments/:id {"status": "failed"}` |
 | task ค้าง `in_progress` (orchestrator ตายกลางทาง) | `PATCH /api/tasks/:id {"status": "review"}` แล้วให้คน review หรือ rerun |
 | Run Agents ไม่ทำอะไร (processed: 0) | ไม่มี task `planned` — ยัง confirm scope ไม่ได้ทำ หรือ dependency ค้าง (ดู task escalated) |
+| กด Run แล้วขึ้น "กำลังรันอยู่แล้ว" (409) | มีรอบรันของโปรเจกต์นี้ค้างอยู่ (อาจเปิดไว้อีกแท็บ) — หน้าจะสลับไปแสดงรอบนั้นให้เอง · เช็กเองได้ที่ `GET /api/projects/:id/run` |
+| แถบความคืบหน้าหายหลัง restart uvicorn | ทะเบียนรอบรันอยู่ในหน่วยความจำโปรเซส (`GET /run` → 404) — **ผลงานที่ commit แล้วยังอยู่ครบ** กด Run ใหม่ทำต่อเฉพาะ `planned` ที่เหลือ |
+| รอบรันขึ้น `failed` | ดูเหตุใน `error` ของ `GET /api/projects/:id/run` + traceback ใน log ของ uvicorn — lock ถูกปลดแล้ว กดรันใหม่ได้เลย |
 | กล่อง "งานจากเลขา" ไม่โผล่ | ยังไม่ตั้ง `CEO_API_BASE` (restart uvicorn หลังแก้ `.env`) |
 | "🧠 สมองออฟไลน์" | d_CEO ไม่ได้รัน — เช็ก `curl 127.0.0.1:8000/health` และ Task Scheduler "d_CEO API" |
 | งานรอ 0 ทั้งที่เพิ่งสั่งงาน | งานถูก assign ให้ทีมอื่น — ต้องเป็นทีม `CEO_TEAM_NAME` (Research & Development) |

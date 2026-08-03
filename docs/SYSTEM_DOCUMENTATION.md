@@ -120,8 +120,19 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 - `_deps_met(db, task)`: ทุก id ใน depends_on ต้อง**มีอยู่จริงและ** done/deployed — id หาย = ถือว่า dep ไม่ครบ (ปลอดภัยฝั่ง fail-closed)
 - `_next_runnable`: planned tasks เรียง created_at → ตัวแรกที่ deps ครบ | O(P×D) ต่อรอบ — พอสำหรับโปรเจกต์ระดับร้อย task
 - `_run_task`: ดู flow ใน §9 | commit ไม่อยู่ในนี้ (caller จัดการ)
-- `run_project(db, project_id, executor=None, max_tasks=None)`: วนจน `_next_runnable` คืน None; **commit ต่อ task**; executor param = จุด inject mock ใน tests
-- **Thread safety:** ไม่ thread-safe (ออกแบบให้รันทีละ request) — ห้ามยิง `/run` ซ้อนโปรเจกต์เดียวกัน (บันทึกเป็น known limitation §22)
+- `run_project(db, project_id, executor=None, max_tasks=None, on_outcome=None)`: วนจน `_next_runnable` คืน None; **commit ต่อ task**; executor param = จุด inject mock ใน tests; `on_outcome` ถูกเรียกหลัง commit ของแต่ละ task (Phase 2: run manager ใช้ทำ progress — engine ไม่รู้จักผู้ฟัง)
+- `planned_task_count(db, project_id)`: จำนวน task `planned` ตอนนี้ — run manager ใช้ตั้ง "เป้า" ของรอบรัน
+- **Thread safety:** ตัว engine ไม่ thread-safe — ความปลอดภัยมาจาก **lock ต่อโปรเจกต์ใน `services/runs.py`** (ยิง `/run` ซ้อนโปรเจกต์เดิม = 409) และ 1 รอบรัน = 1 session
+
+### `app/services/runs.py` — Run Manager (Phase 2)
+`/run` เดิมรันจนจบใน request เดียว (UAT จริง: 6 tasks = 297 วิ ขณะที่ d_Jarvis timeout 5 นาที) — ตอนนี้รับงานแล้วตอบ `202 + run_id` ทันที
+- `start_run(project_id, session_factory, ceo_client, total) -> RunRecord`: จองโปรเจกต์ (มีรอบค้าง → `RunAlreadyActive` → 409) แล้วสตาร์ต **daemon thread**
+- `get_run(run_id)` / `latest_run_for_project(project_id)`: ให้ `GET /:id/run` · `wait_for_run` ใช้ใน tests · `reset_runs` ล้างทะเบียน (tests)
+- `RunRecord`: `status` (`RunStatus` = running/succeeded/failed), `total`/`processed`/`counts`/`outcomes`, `ceo_report`, `error`, `started_at`/`finished_at` → `snapshot()` = body ที่ API ตอบ
+- **ทะเบียนอยู่ในหน่วยความจำของโปรเซส** เหมือน bus (ADR-03) — restart แล้วประวัติรอบรันหาย แต่ผลงานจริงใน `tasks`/`audit_log`/`agent_messages` ไม่หาย (เก็บประวัติล่าสุด `MAX_HISTORY` = 50 รอบ)
+- งานเบื้องหลังเปิด session ของตัวเอง (`get_session_factory`) — ใช้ session ของ request ไม่ได้เพราะถูกปิดพร้อม response
+- รายงานกลับ d_CEO อัตโนมัติหลังรอบรันจบ (ย้ายมาจาก `api/projects.py`) — ล้มเหลว = เก็บใน `ceo_report.detail` **ไม่ทำให้รอบรันเป็น failed**
+- ไม่ใช่ job queue: ไม่มี retry / priority / worker ข้ามโปรเซส — ถ้าต้องการ ให้เปลี่ยนที่ไฟล์นี้ไฟล์เดียว
 
 ### `app/bus/dispatcher.py`
 - `publish(db, …) -> AgentMessage`: persist เสมอ (flush ไม่ commit) → fan-out ไป subscribers ใน process
@@ -211,6 +222,8 @@ Existing: แทน breakdown ด้วย `POST /scan` (mock — ADR-02)
 | Reviewer output เพี้ยน | auto-approve + note | ตรวจ audit/message log ย้อนหลัง |
 | Task escalated | หยุดที่ escalated + broadcast question | คนแก้แล้ว PATCH → in_progress (state machine อนุญาต) |
 | Orchestrator crash กลาง run | task ที่ commit แล้วคงอยู่; task ที่ค้าง in_progress ต้อง PATCH มือ | rerun `/run` ทำต่อเฉพาะ planned ที่เหลือ |
+| รอบรันเบื้องหลังพัง (exception หลุด) | `GET /:id/run` → `status: "failed"` + `error`; lock ถูกปลดเสมอ | ดูเหตุใน `error` แล้วยิง `/run` ใหม่ (ทำต่อเฉพาะ planned ที่เหลือ) |
+| restart backend ระหว่างรอบรัน | thread เป็น daemon → ตายไปกับโปรเซส; ทะเบียนรอบรันหาย (`GET /run` = 404) | task ที่ commit แล้วยังอยู่ครบ — ยิง `/run` ใหม่ทำต่อได้ |
 
 ---
 
@@ -219,7 +232,8 @@ Existing: แทน breakdown ด้วย `POST /scan` (mock — ADR-02)
 - **Routing (App Router):** `/` Portfolio · `/projects/new` Onboarding · `/projects/[id]` Kanban — ทุกหน้าเป็น **client component** (data มาจาก polling ฝั่ง browser; ไม่ใช้ server fetch เพราะข้อมูล refresh ตลอด)
 - **State management:** ไม่มี global store — state อยู่ใน `usePolling` ต่อหน้า + local useState | เหตุผล: ไม่มี state ข้ามหน้า, Redux/Zustand เกินจำเป็น
 - **`usePolling(fetcher, 4000)`:** interval refetch, ข้ามเมื่อ `document.visibilityState !== "visible"`, เก็บ fetcher ใน ref กัน stale closure | คืน `{data, error, refresh}` — `refresh` ใช้หลัง mutation เพื่อไม่รอรอบ
-- **Component ใน `[id]/page.tsx`:** `BoardPage` (จัดการ run/move) → `TaskCard` (transition buttons จาก `ALLOWED_TRANSITIONS`) → `TaskDetail` (side panel + polling messages 5s) → `MessageBubble`
+- **Component ใน `[id]/page.tsx`:** `BoardPage` (จัดการ run/move) → `TaskCard` (transition buttons จาก `ALLOWED_TRANSITIONS`) → `TaskDetail` (side panel + polling messages 5s) → `MessageBubble` · `RunProgress` (ตัวเลขมาจาก `GET /run` ของ backend)
+- **รอบรัน (Phase 2):** ปุ่ม Run → 202 + `run_id` → poll `GET /run` ทุก 2 วิ จน `status !== "running"` แล้วสรุปผลครั้งเดียว · เปิด/รีเฟรชหน้ากลางรอบก็เห็นความคืบหน้าต่อ (ถาม `GET /run` ตอน mount) · 409 = มีรอบค้างอยู่ → แสดงรอบนั้นแทน error ดิบ
 - **Next 16 gotcha:** dynamic `params` เป็น `Promise` — unwrap ด้วย `React.use()` (ดู `frontend/AGENTS.md`)
 - **Optimization ปัจจุบัน:** ไม่มี memo/virtualization — บอร์ดระดับร้อย task ยังไหว; พันตัวค่อย virtualize
 
@@ -232,7 +246,8 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 ---
 
 ## 16. Performance
-- **Critical path จริง = LLM latency** (วินาที/call) ไม่ใช่ DB (ms) — `/run` แบบ synchronous จึงเป็นคอขวดแรกเมื่อ task เยอะ
+- **Critical path จริง = LLM latency** (วินาที/call) ไม่ใช่ DB (ms) — วัดจริง 6 tasks = 297 วินาที
+  · Phase 2 ย้าย `/run` ไปเบื้องหลังแล้ว (request ตอบ ~10 ms) — **เวลารวมเท่าเดิม แต่ไม่ block ผู้เรียก**
 - จุดที่รู้ว่า suboptimal (ยอมรับใน MVP): `list_tasks` total นับแบบโหลดหมด → COUNT(*); `_next_runnable` re-query ต่อ task; portfolio โหลด deployments ทุกแถว → window function เมื่อย้าย PG
 - Benchmark แนะนำเมื่อถึง Sprint 4: seed 500 tasks → วัด p95 ของ `GET /tasks` และเวลารวม `/run` (mock executor)
 
@@ -242,10 +257,10 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 - Retry: PM breakdown retry 1 (โครงสร้าง JSON); anthropic SDK มี HTTP retry ในตัว
 - ยังไม่มี: structured logging, error tracking (Sentry ฯลฯ) — หลัง MVP
 
-## 18. Testing (82 เคส — `backend/tests/`)
+## 18. Testing (90 เคส — `backend/tests/`)
 | ไฟล์ | ครอบคลุม |
 |------|----------|
-| conftest.py | in-memory SQLite ต่อ test (StaticPool) + TestClient override `get_db` |
+| conftest.py | in-memory SQLite ต่อ test (StaticPool) + TestClient override `get_db` · `db_factory` (session ของงานเบื้องหลัง) · `wait_run` (รอรอบรันจบ + `expire_all`) · ล้างทะเบียนรอบรันทุก test |
 | test_projects.py | CRUD + validation (existing ต้องมี repo) |
 | test_breakdown.py | JSON extraction, fallback, endpoint, confirm, **ref→UUID resolution** |
 | test_scan.py | mock scan → 3 backlog tasks; reject type=new |
@@ -255,6 +270,7 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 | test_routing_bus.py | routing keywords, publish persist+dispatch, endpoint 201/404 |
 | test_deployments.py | stub mode, invalid env 400, callback → task deployed, terminal immutable 409, portfolio, auto-deploy on/off |
 | test_team_mode.py | mode switch ด้วย config, role→provider mapping ตรง Blueprint, fallback chain, provider injection |
+| test_runs.py | 202 + `run_id` + `total` จาก planned, progress ระหว่างรัน, `run_id` ของโปรเจกต์อื่น → 404, **ยิงซ้อน → 409**, lock เป็นราย project ไม่ใช่ global, รอบรันล้ม → `failed` + `error` + **ปลด lock** |
 | test_ceo_integration.py | **guardrail ห้ามส่ง done/awaiting_approval**, **escalated บล็อก dependent → ต้องรายงาน** (บั๊กจริงจาก UAT), runnable planned → ยังไม่รายงาน, backlog → ยังไม่ยืนยัน scope, inbox กรองทีม+งานที่ดึงแล้ว, pull สร้าง project+breakdown+ack, pull ซ้ำไม่ซ้ำซ้อน, report ส่ง `qc_review` พร้อม output, degrade เมื่อ d_CEO ออฟไลน์, auto-report หลัง `/run` |
 
 - **Mocking strategy:** ไม่ mock HTTP — inject `RejectingReviewer` ผ่าน `executor` param และ inject
@@ -281,7 +297,7 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 ## 22. Future Improvements / Technical Debt (จัดอันดับ)
 | # | รายการ | ผลกระทบ | แผน |
 |---|--------|---------|-----|
-| 1 | `/run` synchronous + ไม่ thread-safe ต่อโปรเจกต์ | UX ค้าง, ห้ามรันซ้อน | background worker + task queue (Sprint 4/หลัง) |
+| 1 | ~~`/run` synchronous + ไม่ thread-safe ต่อโปรเจกต์~~ **แก้แล้ว (2026-08-03, Phase 2)**: 202 + `run_id` + thread เบื้องหลัง + lock ต่อโปรเจกต์ (409) + `GET /:id/run` (`services/runs.py`) | — | ต่อยอดเมื่อจำเป็น: ทะเบียนรอบรันยังอยู่ในหน่วยความจำโปรเซสเดียว (restart แล้วหาย) · ยังไม่มี "ยกเลิกรอบรัน" |
 | 2 | Claude/OpenAI/Gemini executors + GitHub dispatch: เฉพาะ OpenAI/Gemini ที่ยังไม่เคยรันกับของจริง | ความเสี่ยง integration ซ่อนอยู่ | ทดสอบทันทีที่ได้ keys (UAT checklist ใน runbook.md) |
 | 3 | ~~Reviewer parse-fail = auto-approve~~ **แก้แล้ว (2026-07-07)**: retry 1 ครั้ง → ยัง parse ไม่ได้ = reject → เข้า revision/escalation ปกติ (`runtime._review_with_retry`) | — | — |
 | 4 | types.ts sync มือ | contract drift เงียบ | พิจารณา openapi-typescript codegen |

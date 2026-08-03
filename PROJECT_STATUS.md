@@ -1,19 +1,20 @@
 # PROJECT_STATUS.md — DEP-PM Platform
 
-> อัปเดตล่าสุด: 2026-08-02 | สถานะโดยรวม: **Phase 0 + Phase 1 เสร็จ**
-> — DEP-PM **ต่อสายรับงานจาก d_CEO ได้แล้ว** ในบทบาท Team Lead R&D
-> (เหลือทดสอบกับงาน R&D จริง + `/run` async)
+> อัปเดตล่าสุด: 2026-08-03 | สถานะโดยรวม: **Phase 0 + 1 + 2 เสร็จ**
+> — DEP-PM รับงานจาก d_CEO ได้ในบทบาท Team Lead R&D และ **`/run` ไม่ block ผู้เรียกแล้ว**
+> (เหลือทดสอบกับงาน R&D จริงรอบใหม่)
 
 ## สถานะการใช้งาน (สำคัญสำหรับ session ถัดไป)
 
-- **`backend/dep_pm.db` = ข้อมูลจริงของผู้ใช้ — ห้ามลบเด็ดขาด** (สำรองล่าสุด `BackUp/Phase0Cleanup_20260802_224442/`)
+- **`backend/dep_pm.db` = ข้อมูลจริงของผู้ใช้ — ห้ามลบเด็ดขาด** (สำรอง DB ล่าสุด `BackUp/Phase0Cleanup_20260802_224442/`
+  · Phase 2 ไม่แตะ schema จึงสำรองเฉพาะไฟล์โค้ด: `BackUp/Phase2AsyncRun_20260803_091552/`)
 - **พอร์ตของ DEP-PM = 8500** — `uvicorn app.main:app --reload --port 8500`
   · ทะเบียนพอร์ต: `8000` d_CEO API · `8100` d_OCR · `8200` d_STT · `8300` d_InnoHub ·
   `8400` **d_Jarvis web** · `8500` DEP-PM — สองตัวแรกและ 8400 รันค้างผ่าน Task Scheduler **ห้ามหยุด**
   · ⚠️ เมื่อเช้าเคยตั้งเป็น 8400 ผิด (ชน Jarvis web) — แก้แล้วตอนปิดงาน ดู CHANGELOG
 - `backend/.env` มี key จริงครบ: ANTHROPIC (Solo Mode live), GITHUB_TOKEN+REPO (`ohho2518/d_DEP-PM_Platform`)
 - โปรเจกต์ในระบบ: "Demo: Booking API" (4 done), "d_ACC" (17 backlog), "Deploy UAT"
-- DB migrate เป็น head `c7d4e2a9b1f3` แล้ว · servers ไม่ได้รันค้างไว้ (สตาร์ตเองตาม runbook)
+- DB migrate เป็น head `e5a91c73b204` แล้ว · servers ไม่ได้รันค้างไว้ (สตาร์ตเองตาม runbook)
 
 ## ตำแหน่งใน ecosystem (ยืนยันโดย Vinit 2026-08-02)
 
@@ -28,6 +29,27 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 - ยึด **1 task ธุรกิจใน d_CEO = 1 project ที่นี่** (ไม่สร้างทะเบียนงานธุรกิจซ้อน)
 
 ## Completed Work
+
+### Phase 2 — `/run` เป็นงานเบื้องหลัง (2026-08-03)
+
+- **`services/runs.py` (ใหม่) — Run Manager:** ทะเบียนรอบรันในหน่วยความจำ + **lock ต่อโปรเจกต์**
+  · `start_run` สตาร์ต daemon thread แล้วคืน `RunRecord` ทันที · `RunStatus` = running/succeeded/failed
+  · เก็บประวัติล่าสุด 50 รอบ · **ไม่ใช่ job queue** (ไม่มี retry/priority/worker ข้ามโปรเซส)
+- **API:** `POST /:id/run` → **202 + `run_id`** (วัดจริง ~10 ms) · ยิงซ้อนโปรเจกต์เดิม → **409**
+  · endpoint ใหม่ `GET /:id/run[?run_id=]` → `status/total/processed/counts/outcomes/ceo_report/error`
+- **engine แตะน้อยที่สุด:** เพิ่ม `on_outcome` callback (เรียกหลัง commit ของแต่ละ task) +
+  `planned_task_count` — engine **ไม่รู้ว่าตัวเองถูกรันใน thread** (เจตนาเดียวกับ Team Mode/Phase 1)
+- **session ของงานเบื้องหลัง:** `get_session_factory` เป็น dependency ใหม่ (1 รอบรัน = 1 session)
+  — ใช้ session ของ request ไม่ได้เพราะถูกปิดพร้อม response
+- **UI:** ปุ่ม Run ตอบทันที · progress ใช้ตัวเลขจริงจาก backend · **ปิดแท็บ/รีเฟรชได้ งานไม่หยุด**
+  (ถาม `GET /run` ตอน mount) · 409 → สลับไปแสดงรอบที่ค้างแทน error ดิบ
+- **รายงานกลับ d_CEO** ย้ายไปท้ายรอบรันเบื้องหลัง — ปลายทางล่มไม่ทำให้รอบรัน `failed`
+- **Fix ที่เจอระหว่างทาง:** `POST /api/ceo/report/:id` ไม่เคย `commit()` → audit `ceo.reported`
+  หายทุกครั้ง (แก้แล้วทั้ง endpoint และเส้นทางอัตโนมัติ)
+- pytest 82 → **90** · ruff clean · `npm run build` ผ่าน
+- **smoke test กับ uvicorn จริง** (DB ชั่วคราวใน temp, ไม่แตะ `dep_pm.db`, ไม่มี key = fallback):
+  20 tasks รันเบื้องหลังจบครบ `done` · `POST /run` = 202 ใน 7-14 ms · ยิงซ้อน = **409 จริง** ·
+  `GET /run` ระหว่างรันเห็น `19/20` · เขียนลง SQLite ไฟล์จากเธรดเบื้องหลังได้ไม่มี lock error
 
 ### UAT วงจรเต็มกับ d_CEO ตัวจริง + fix ที่พบ (2026-08-02)
 
@@ -88,9 +110,19 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 - Sprint 1-4 ครบ: Foundation → State Machine/Orchestrator/Bus → Kanban/Portfolio/Message Log →
   Deploy pipeline/Team Mode/PostgreSQL-ready (รายละเอียดใน `CHANGELOG.md`)
 
-## Files Changed (2026-08-02)
+## Files Changed
 
-**Phase 1**
+**Phase 2 (2026-08-03)**
+- **ใหม่:** `backend/app/services/runs.py`, `backend/tests/test_runs.py`
+- **แก้:** `backend/app/api/{projects,ceo}.py`, `backend/app/constants.py` (+`RunStatus`),
+  `backend/app/db/session.py` (+`get_session_factory`), `backend/app/orchestrator/engine.py`
+  (+`on_outcome`, `planned_task_count`), `backend/tests/{conftest,test_orchestrator,test_portfolio,test_ceo_integration}.py`,
+  `frontend/src/lib/{types,api}.ts`, `frontend/src/app/projects/[id]/page.tsx`,
+  `docs/{API,SYSTEM_DOCUMENTATION,ARCHITECTURE,INTEGRATION_CEO,RISK_REGISTER,runbook}.md`,
+  `AGENTS.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`
+- **สำรอง:** `BackUp/Phase2AsyncRun_20260803_091552/` (gitignored)
+
+**Phase 1 (2026-08-02)**
 - **ใหม่:** `backend/app/integrations/{__init__,ceo_client}.py`, `backend/app/services/ceo_sync.py`,
   `backend/app/api/ceo.py`, `backend/alembic/versions/e5a91c73b204_add_project_ceo_task_id.py`,
   `backend/tests/test_ceo_integration.py`, `frontend/src/components/CeoInbox.tsx`,
@@ -101,7 +133,7 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
   `frontend/src/app/projects/[id]/page.tsx`, `docs/{API,DATABASE,SYSTEM_DOCUMENTATION,runbook}.md`,
   `AGENTS.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`
 
-**Phase 0**
+**Phase 0 (2026-08-02)**
 - **แก้:** `AGENTS.md` (เขียนใหม่ทั้งไฟล์), `CLAUDE.md` + `GEMINI.md` (เหลือ pointer), `README.md`,
   `.gitignore`, `docs/{PROJECT_OVERVIEW,RISK_REGISTER,API,runbook,ARCHITECTURE,SECURITY}.md`,
   `backend/README.md`, `frontend/src/lib/api.ts`, `frontend/.env.local{,.example}`
@@ -111,19 +143,21 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 
 ## Current State
 
-- **pytest 82/82 ผ่าน · ruff clean · `npm run build` ผ่าน**
+- **pytest 90/90 ผ่าน · ruff clean · `npm run build` ผ่าน**
 - **วงจร d_CEO ↔ DEP-PM ใช้งานได้จริงแล้ว** (ยืนยันด้วยงานจริง ไม่ใช่แค่ mock)
+- **`/run` เป็นงานเบื้องหลังแล้ว** (202 + `run_id` · lock ต่อโปรเจกต์ · `GET /:id/run`)
+  — ปิด Risk #3 ที่เคยบล็อกการใช้งานประจำ
 - DB จริง migrate ถึง head `e5a91c73b204` (4 projects / 27 tasks — รวมของทดสอบ)
+  · **Phase 2 ไม่มี migration** (ทะเบียนรอบรันอยู่ในหน่วยความจำ ไม่แตะ schema)
 - **ของทดสอบที่ยังค้างในระบบ:** d_CEO task `d89c03a8` (สถานะ `qc_review` รอ QC ของเขาตรวจ)
   + DEP-PM project `a07f1fb2` — จะเก็บไว้เป็นตัวอย่างหรือลบก็ได้
-- git: main สะอาด · **ยังไม่ push** (ล้ำ origin อยู่ 5 commits รวม `902dbcb` ของ 25 ก.ค.)
+- git: **มีงาน Phase 2 ค้างใน working tree ยังไม่ commit** · **ยังไม่ push**
+  (ล้ำ origin อยู่ 5 commits รวม `902dbcb` ของ 25 ก.ค.)
 
 ## Next Tasks
 
-1. **Phase 2 — `/run` เป็น background job (~1 วัน)** ← สำคัญสุด — 202 + `run_id` +
-   lock ต่อโปรเจกต์ (409) + `GET /:id/run` progress
-   · **พิสูจน์แล้ววันนี้: 6 tasks = 297 วินาที** blocking request เดียว ขณะที่ d_CEO สั่ง
-   Jarvis ให้ตั้ง timeout ไม่ต่ำกว่า 5 นาที — เกินพอดี ใช้งานประจำไม่ได้ถ้าไม่แก้
+1. **ทดสอบ Phase 2 กับงาน R&D จริงจาก d_CEO 1 รอบ** — วงจรที่ยาว 297 วินาทีตอนนี้ควรตอบ
+   ทันทีแล้วเดินเบื้องหลัง · ดูว่ารายงานกลับเข้า QC gate ครบเหมือนเดิมไหม (เส้นทางนี้ย้ายบ้าน)
 2. **ทบทวนกติกา escalation กับงานเอกสาร** — UAT พบว่า task "รวมเนื้อหา" ถูก reviewer
    ปฏิเสธ 2 รอบทั้งที่งานย่อยเสร็จหมด (reviewer จริงเข้มกว่า fallback มาก — บทเรียนเดิม
    ใน runbook §7 ยังเป็นจริง) · พิจารณา: prompt reviewer ให้เกณฑ์ชัดขึ้น หรือให้ task
@@ -138,14 +172,33 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 ## Known Issues
 
 - **CI callback `PATCH /api/deployments/:id` ยังไม่มี auth** — ห้าม expose พอร์ตสาธารณะ (Risk #1)
-- **`/run` synchronous + ไม่ thread-safe ต่อโปรเจกต์** — ห้ามยิงซ้อนโปรเจกต์เดียวกัน (Risk #3)
+- **ทะเบียนรอบรันอยู่ในหน่วยความจำโปรเซสเดียว** — restart uvicorn ระหว่างรอบรัน = งานหยุด
+  และประวัติรอบรันหาย (`GET /run` → 404) **ผลงานที่ commit แล้วไม่หาย** กด Run ใหม่ทำต่อได้
+  · ยังไม่มีปุ่ม "ยกเลิกรอบรัน"
 - OpenAI/Gemini executors ยังไม่เคยรันกับ service จริง → token accounting 2 provider นี้ยังไม่ verify
 - Task ที่ acceptance criteria ต้องการ artifact จริง (repo/CI) จะ escalate เสมอ — พฤติกรรมถูกต้อง
   แต่ต้องเขียน spec ให้ deliverable เป็นเอกสาร/โค้ด (บทเรียน UAT ใน runbook §7)
 - test suite ยังไม่เคยรันบน PostgreSQL (DoD ของ ADR-01 ยังไม่ปิด)
 - uvicorn `--reload` บน Windows บางครั้งไม่จับไฟล์ที่แก้ — endpoint ใหม่ 404/405 ให้ restart
 
-## Decisions Made (2026-08-02)
+## Decisions Made
+
+### 2026-08-03 (Phase 2)
+
+6. **ใช้ thread ในโปรเซสเดียว ไม่เอา Celery/Redis** — single-user, งานผูกกับ SQLite ไฟล์เดียว
+   การเพิ่ม broker คือ dependency + ของที่ต้องดูแลโดยยังไม่มีปัญหาที่มันแก้ · ทางหนีเขียนไว้แล้ว:
+   เปลี่ยนแค่ `services/runs.py` ไฟล์เดียว (endpoint กับ engine ไม่รู้จักวิธีรัน)
+6.1 **ทะเบียนรอบรันอยู่ในหน่วยความจำ ไม่ทำตาราง `runs` ใน DB** — รอบรันเป็นสถานะชั่วคราว
+   ของโปรเซส ส่วน**ผลงานจริงอยู่ใน `tasks`/`audit_log`/`agent_messages` อยู่แล้ว**
+   (เจตนาเดียวกับ bus ADR-03) · ไม่มี migration = ไม่มีความเสี่ยงกับ `dep_pm.db`
+6.2 **lock เป็นราย project ไม่ใช่ global** — คนละโปรเจกต์รันพร้อมกันได้ · ซ้อนโปรเจกต์เดิม = 409
+   (ตรงกับข้อจำกัดจริงของ engine: ไม่ thread-safe **ต่อโปรเจกต์**)
+6.3 **`POST /run` เปลี่ยน response shape (breaking)** ไม่ทำ endpoint ใหม่แยก — ผู้ใช้ contract นี้
+   มีแค่ frontend ของเราเอง (แก้ในคอมมิตเดียวกันตามกติกา §9.1.6) การมี 2 เส้นทางถาวรแพงกว่า
+6.4 **d_CEO ล่มตอนรายงาน ≠ รอบรันล้ม** — งานพัฒนาเสร็จจริงไปแล้ว บันทึกเหตุไว้ใน
+   `ceo_report.detail` แล้วให้ผู้ใช้กดส่งซ้ำ (`status: "failed"` สงวนไว้ให้ engine พังจริง ๆ)
+
+### 2026-08-02 (Phase 0-1)
 
 1. **DEP-PM ไม่ยุบรวมกับ Solo_CEO** — เป็น **Team Lead R&D** ปลายสาย Vinit→Jarvis→d_CEO→DEP-PM
    เอกสาร "merge" ในรีโปอื่นถือว่าล้าสมัย · กติกา "ไม่ทำระบบ task ซ้อน" ยึดด้วย 1 task = 1 project
@@ -165,8 +218,9 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
 
 ## Questions for the User
 
-1. **push 4 commits ขึ้น GitHub เลยไหม** (ยังไม่เคย push งานตั้งแต่ 6 ก.ค.)
-2. **สร้าง task ทดสอบใน d_CEO ให้ทีม R&D ได้ไหม** เพื่อปิดวงจร Phase 1 ให้ครบ —
+1. **commit Phase 2 + push ขึ้น GitHub เลยไหม** (ตอนนี้ค้างใน working tree · ยังไม่เคย push
+   ตั้งแต่ 6 ก.ค. — ล้ำ origin 5 commits)
+2. **สร้าง task ทดสอบใน d_CEO ให้ทีม R&D ได้ไหม** เพื่อทดสอบวงจรเต็มรอบใหม่บน `/run` แบบ async —
    เป็นการเขียนข้อมูลจริงในระบบเลขา จึงยังไม่ทำเอง
-3. Phase 2 (`/run` async) ต่อเลยไหม — จำเป็นก่อนใช้งานประจำ
+3. อยากได้ **ปุ่มยกเลิกรอบรัน** ไหม (ตอนนี้ยกเลิกไม่ได้ ต้องรอจบหรือ restart backend)
 4. PostgreSQL / OPENAI+GEMINI keys — อันไหนพร้อมก่อน (กระทบลำดับ Phase 3)
