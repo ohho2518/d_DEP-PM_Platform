@@ -56,6 +56,15 @@ Design pattern: Declarative + `TimestampMixin`; `Task.updated_at` ใช้ `onu
 ### `app/agents/personas.py`
 4 system prompts (PM/DEV/ARCHITECT/REVIEWER) + map `PERSONA_PROMPTS: dict[AgentRole, str]`
 REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท่านั้น — สัญญากับ `runtime.review()`
+- **`NO_FABRICATION_RULE`** ต่อท้าย persona ที่ผลิตงานทุกตัว (PM/DEV/ARCHITECT):
+  ห้ามเขียนชื่อคน · ข้อความในเครื่องหมายคำพูด · วันเวลา · ไฟล์/ลิงก์/ภาพหน้าจอ · ตัวเลขผลวัด ·
+  endpoint ของระบบจริง **ที่ไม่ได้อยู่ใน task/spec/ผลงานก่อนหน้า** · ไม่มีข้อมูล → เขียน
+  "ต้องการข้อมูลจากคน:" · ยกตัวอย่างได้ถ้าติดป้าย `[ตัวอย่างสมมติ]`
+- REVIEWER มีเกณฑ์ **"จับการกุข้อมูลก่อนเรื่องอื่น"** — เจอแล้ว reject ทันที และระบุว่า
+  "สำคัญกว่าความครบของเนื้อหา" (ไม่งั้นจะปล่อยผ่านเพราะเนื้อหาครบตาม spec)
+- ⚠️ **ห้ามถอดออก** — 2026-08-03 QC ของ d_CEO จับได้ 2 เคสที่ agent กุหลักฐาน
+  (ชื่อคน+quote+timestamp+ภาพหน้าจอ · endpoint ที่ไม่ตรงระบบจริง) โดย **reviewer ของเราอนุมัติผ่าน**
+  · `tests/test_personas.py` ล็อกกติกานี้ไว้เป็นสัญญา
 
 ### `app/agents/routing.py`
 `route_task(db, task) -> AgentRole`:
