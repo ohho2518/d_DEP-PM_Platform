@@ -167,6 +167,9 @@ Response `200`: snapshot เดียวกับ §7.1 โดย `cancel_reques
 Request (ทุก field optional): `{ "status": "planned", "assignee_type": "human", "title": "…" }`
 - `status` ต้องเป็น transition ที่ถูกต้อง ไม่งั้น **409** `{"detail": "invalid transition: backlog -> done"}`
 - Transition ที่อนุญาต: ดู State Machine ใน `SYSTEM_DOCUMENTATION.md` §9
+- `escalated` มี 2 ทางออก: → `in_progress` (คนลงมือต่อเอง) · → `planned` (**ตีกลับเข้าคิว**
+  ให้ orchestrator ลองใหม่ — ใช้เมื่อแก้เหตุที่ทำให้ตันแล้ว · `revision_count` ไม่ถูกรีเซ็ต
+  จึงได้โอกาสอีกรอบเดียว ไม่วนจ่ายค่า LLM)
 Response `200`: Task | Side effects: audit `task.transition` และ/หรือ `task.updated`
 
 ---
@@ -293,6 +296,15 @@ Side effects ต่องาน: สร้าง project (`ceo_task_id` ผู�
 - ดึงซ้ำงานเดิมไม่ได้ (unique) — ได้ `count: 0`
 - `acknowledged: false` = สร้างโปรเจกต์แล้วแต่แจ้ง d_CEO ไม่สำเร็จ (retry ได้ด้วย §19)
 - **ผู้ใช้ยังต้อง confirm scope + กด Run เอง** — ระบบไม่รันให้อัตโนมัติ
+
+### 18.1) `POST /api/ceo/qc/:project_id` — สั่ง QC ตรวจซ้ำ (**ปุ่มฉุกเฉิน**)
+เรียก `POST /tasks/{id}/qc` ของ d_CEO · Response `200`: `{ "ceo_task_id": "…", "status": "…", "detail": "สั่ง QC ตรวจแล้ว" }`
+- **ปกติไม่ต้องใช้** — ตั้งแต่ contract v6 (2026-08-03) d_CEO ส่งเข้า QC ต่อเองเมื่อ PATCH
+  เลื่อนสถานะ**เข้า** `qc_review` พร้อม `output` ซึ่ง §19 ทำอยู่แล้ว (ยิงครั้งเดียว ทั้ง status+output)
+- ใช้เมื่อ QC ฝั่งเขาล่มตอนนั้นแล้วงานค้าง · **400** ไม่ใช่โปรเจกต์จาก d_CEO · **503** ต่อไม่ได้
+- ⚠️ **1 รอบ QC มีราคา** (~ครึ่งของค่างานหนึ่งชิ้น) อย่ายิงซ้ำเล่น
+
+---
 
 ### 19) `POST /api/ceo/report/:project_id` — ส่งผลงานกลับ
 ```json

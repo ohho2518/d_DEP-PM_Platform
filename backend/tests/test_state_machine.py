@@ -79,3 +79,25 @@ def test_patch_invalid_transition_returns_409(client):
     # deployed เป็น terminal
     resp = client.patch(f"/api/tasks/{tid}", json={"status": "backlog"})
     assert resp.status_code == 409
+
+
+# --- ตีกลับ escalated เข้าคิว (2026-08-03) ------------------------------------
+
+
+def test_escalated_has_two_recovery_paths():
+    """คนลงมือเองต่อ (in_progress) หรือตีกลับเข้าคิวให้ agent ลองใหม่ (planned)."""
+    assert ALLOWED_TRANSITIONS[TaskStatus.ESCALATED] == {
+        TaskStatus.IN_PROGRESS,
+        TaskStatus.PLANNED,
+    }
+
+
+def test_escalated_can_be_sent_back_to_the_queue(db_session):
+    task = _make_task(db_session, TaskStatus.ESCALATED)
+    task.revision_count = 2
+    transition(
+        db_session, task, TaskStatus.PLANNED, actor_type=ActorType.HUMAN, reason="แก้เหตุที่ตันแล้ว"
+    )
+    assert task.status == "planned"
+    # ห้ามรีเซ็ต revision_count ให้เอง — ตีกลับแล้วยังไม่ผ่านต้อง escalate เร็ว ไม่วนจ่ายค่า LLM
+    assert task.revision_count == 2

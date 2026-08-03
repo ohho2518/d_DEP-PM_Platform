@@ -21,12 +21,10 @@ npm run dev                       # http://localhost:3000 (ครั้งแร
 
 ตรวจสุขภาพ: `curl http://127.0.0.1:8500/health` → `{"status":"ok","agent_enabled":...}`
 
-> **⚠️ ห้ามใช้พอร์ต 8000 และ 8400** — ทั้งคู่รันค้างตลอดผ่าน Task Scheduler และ d_Jarvis
-> พึ่งพาอยู่ (ห้ามหยุด) · ทะเบียนพอร์ตของเครื่อง: `8000` d_CEO API · `8100` d_OCR ·
-> `8200` d_STT · `8300` d_InnoHub · `8400` **d_Jarvis web** · **`8500` DEP-PM (ตัวนี้)**
+> **⚠️ ห้ามใช้พอร์ต 8000 และ 8400** — ทั้งคู่รันค้างตลอดผ่าน Task Scheduler (d_CEO / d_Jarvis web)
 >
-> ตรวจก่อนจองพอร์ตใหม่เสมอ: `Get-NetTCPConnection -LocalPort <port> -State Listen`
-> (Windows ยอมให้ bind `127.0.0.1` ซ้อน `0.0.0.0` ได้ — จะบังบริการอื่นเงียบ ๆ โดยไม่ error)
+> 📌 **ทะเบียนพอร์ตฉบับจริงอยู่ที่ `D:\Dev_Proj_KM\d_InnoHub\_CANON\SERVICE_PORTS.md`**
+> (ของทั้ง eco + กติกาก่อนจองพอร์ต + เกณฑ์ bind) — ไม่ก๊อบตารางมาไว้ที่นี่อีกแล้ว
 
 ## 2. เปิดความสามารถแต่ละส่วน (env ใน `backend/.env`)
 

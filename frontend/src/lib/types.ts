@@ -175,7 +175,7 @@ export const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   in_progress: ["review"],
   review: ["done", "in_progress", "escalated"],
   done: ["deployed"],
-  escalated: ["in_progress"],
+  escalated: ["in_progress", "planned"],
   deployed: [],
 };
 

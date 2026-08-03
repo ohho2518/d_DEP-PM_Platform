@@ -152,3 +152,33 @@ def ceo_report(
         "counts": result.counts,
         "output": result.output,
     }
+
+
+@router.post("/qc/{project_id}")
+def ceo_request_qc(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    client: CeoClient | None = Depends(get_ceo_client),
+) -> dict:
+    """สั่ง QC ของ d_CEO ตรวจงานที่เรารายงานไปแล้ว — **ปุ่มฉุกเฉิน ปกติไม่ต้องใช้**.
+
+    ตั้งแต่ contract v6 (2026-08-03) d_CEO ส่งงานเข้า QC ต่อให้เองเมื่อ PATCH เลื่อนสถานะ
+    **เข้า** `qc_review` พร้อม `output` — ซึ่งเป็นสิ่งที่ `report_project` ทำอยู่แล้ว
+    endpoint นี้มีไว้เผื่อ QC ฝั่งเขาล่มตอนนั้นแล้วงานค้าง
+
+    ⚠️ **1 รอบ QC มีราคา** (~ครึ่งของค่างานหนึ่งชิ้น ตามที่เลขาวัดไว้ 2026-08-01) — อย่ายิงซ้ำเล่น
+    """
+    ceo = _require_client(client)
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
+    if not project.ceo_task_id:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "โปรเจกต์นี้ไม่ได้มาจาก d_CEO (ไม่มี ceo_task_id)"
+        )
+
+    try:
+        task = ceo.qc_task(project.ceo_task_id)
+    except CeoUnavailable as exc:
+        raise _unavailable(exc) from exc
+    return {"ceo_task_id": project.ceo_task_id, "status": task.status, "detail": "สั่ง QC ตรวจแล้ว"}

@@ -7,7 +7,8 @@ may set ``task.status`` directly.
     Backlog → Planned → Assigned → InProgress → Review → Done → Deployed
                                        ↑           │
                                        └─ Revision ┘  (Review fail ครบ MAX_REVISIONS → Escalated)
-    Escalated → InProgress  (คน/Senior Agent รับช่วงต่อ)
+    Escalated → InProgress  (คน/Senior Agent ลงมือทำต่อเอง)
+    Escalated → Planned     (ตีกลับเข้าคิวให้ agent ลองใหม่ — ใช้เมื่อแก้ "เหตุ" แล้ว)
 """
 from __future__ import annotations
 
@@ -25,7 +26,12 @@ ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.IN_PROGRESS: {TaskStatus.REVIEW},
     TaskStatus.REVIEW: {TaskStatus.DONE, TaskStatus.IN_PROGRESS, TaskStatus.ESCALATED},
     TaskStatus.DONE: {TaskStatus.DEPLOYED},
-    TaskStatus.ESCALATED: {TaskStatus.IN_PROGRESS},
+    # escalated → planned = "ตีกลับเข้าคิว" ให้ orchestrator หยิบไปทำใหม่ (engine หยิบเฉพาะ
+    # planned) · ใช้เมื่อแก้เหตุที่ทำให้ตันแล้ว เช่น 2026-08-03 แก้เรื่อง agent ไม่ได้รับผลงาน
+    # ของงานก่อนหน้า — ไม่งั้นงานที่ escalate ไปแล้วต้องให้คนทำเองอย่างเดียวตลอดไป
+    # ⚠️ `revision_count` **ไม่ถูกรีเซ็ต** โดยตั้งใจ: ตีกลับแล้วยังไม่ผ่านจะ escalate ทันที
+    # รอบเดียว ไม่วนจ่ายค่า LLM ซ้ำ ๆ (ต้องรีเซ็ตเองถ้าจงใจให้ลองใหม่เต็มโควตา)
+    TaskStatus.ESCALATED: {TaskStatus.IN_PROGRESS, TaskStatus.PLANNED},
     TaskStatus.DEPLOYED: set(),
 }
 

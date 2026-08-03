@@ -123,6 +123,18 @@ class CeoClient:
             raise ValueError("patch_task ต้องมีอย่างน้อย status หรือ output")
         return CeoTask.from_payload(self._request("PATCH", f"/tasks/{task_id}", json=body) or {})
 
+    def qc_task(self, task_id: str) -> CeoTask:
+        """สั่งให้ QC ของ d_CEO ตรวจงานนี้ (`POST /tasks/{id}/qc`) — **ปุ่มฉุกเฉิน**.
+
+        ปกติ**ไม่ต้องเรียก**: ตั้งแต่ contract v6 ของ d_CEO (2026-08-03) การ PATCH ที่เลื่อน
+        สถานะ**เข้า** `qc_review` พร้อมมี `output` จะถูกส่งเข้า QC ต่อให้อัตโนมัติ —
+        `patch_task` ของเราส่ง `status` + `output` ไปพร้อมกันใน request เดียวอยู่แล้ว
+
+        ใช้เมื่อ QC ฝั่งเขาล่มตอนนั้นแล้วงานค้าง `qc_review` เท่านั้น
+        ⚠️ **หนึ่งรอบ QC มีราคา** (~ครึ่งหนึ่งของค่างานหนึ่งชิ้น) — อย่ายิงซ้ำโดยไม่จำเป็น
+        """
+        return CeoTask.from_payload(self._request("POST", f"/tasks/{task_id}/qc") or {})
+
 
 def get_ceo_client() -> CeoClient | None:
     """FastAPI dependency — คืน None เมื่อยังไม่ตั้งค่า (endpoint แปลงเป็น 503).

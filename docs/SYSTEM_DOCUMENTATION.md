@@ -193,7 +193,8 @@ stateDiagram-v2
     review --> done: reviewer approve
     review --> in_progress: revision (ครั้งที่ < MAX)
     review --> escalated: reject ครบ MAX_REVISIONS (2)
-    escalated --> in_progress: คน/Senior รับช่วง
+    escalated --> in_progress: คน/Senior ลงมือต่อเอง
+    escalated --> planned: ตีกลับเข้าคิว (แก้เหตุแล้ว ให้ agent ลองใหม่)
     done --> deployed: (Sprint 4 pipeline)
     deployed --> [*]
 ```
@@ -303,6 +304,7 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 - **Branch strategy:** ปัจจุบัน commit ตรง master, 1 commit/sprint | เมื่อมี collaborator: feature branch + PR
 - **Versioning:** ยังไม่ tag — เริ่ม v0.x เมื่อ deploy จริง Sprint 4
 - **Dependency updates:** pin exact version ใน requirements.txt; อัปเดตพร้อมรัน test suite เต็ม
+- **ตีกลับงานที่ escalate:** `PATCH /api/tasks/:id {"status": "planned"}` → orchestrator หยิบไปทำใหม่รอบหน้า (ใช้หลังแก้ "เหตุ" ที่ทำให้ตัน) · `revision_count` ไม่ถูกรีเซ็ต = ได้อีกรอบเดียว
 - **ขั้นตอนเพิ่ม status ใหม่ (ตัวอย่าง maintenance ที่พบบ่อย):** เพิ่มใน `constants.TaskStatus` → `ALLOWED_TRANSITIONS` (backend) → `frontend/src/lib/types.ts` (ทั้ง type + ALLOWED_TRANSITIONS + STATUS_ORDER + สี) → เพิ่มเคสใน test_state_machine → อัปเดต docs
 
 ## 22. Future Improvements / Technical Debt (จัดอันดับ)

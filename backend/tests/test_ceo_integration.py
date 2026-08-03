@@ -42,6 +42,7 @@ class StubCeoClient:
         self.tasks = tasks or []
         self.online = online
         self.patches: list[dict] = []
+        self.qc_calls: list[str] = []
 
     def _guard(self) -> None:
         if not self.online:
@@ -72,6 +73,11 @@ class StubCeoClient:
         self._guard()
         self.patches.append({"task_id": task_id, "status": status, "output": output})
         return _ceo_task(task_id, "patched")
+
+    def qc_task(self, task_id: str):
+        self._guard()
+        self.qc_calls.append(task_id)
+        return _ceo_task(task_id, "qc requested")
 
 
 @pytest.fixture()
@@ -457,3 +463,43 @@ def test_cancelled_run_does_not_report_to_ceo(client, stub_ceo, db_session, monk
     assert record.status == "cancelled"
     assert record.ceo_report is None
     assert stub_ceo.patches == []  # ไม่แตะ d_CEO เลย
+
+
+# --- ปุ่มฉุกเฉิน: สั่ง QC ตรวจซ้ำ (Ticket 3.2) --------------------------------
+
+
+def test_report_sends_status_and_output_in_one_patch(client, stub_ceo, db_session):
+    """เงื่อนไขของ contract v6: ต้องมาพร้อมกันใน PATCH เดียวถึงจะถูก QC ตรวจต่ออัตโนมัติ."""
+    project = _project_from_ceo(db_session)
+    _done_task_with_work(db_session, project, "งาน", ["ผลงาน"])
+
+    client.post(f"/api/ceo/report/{project.id}")
+
+    assert len(stub_ceo.patches) == 1  # ไม่ใช่สองรอบ (status ก่อน แล้วค่อย output)
+    patch = stub_ceo.patches[0]
+    assert patch["status"] == "qc_review" and patch["output"]
+
+
+def test_qc_endpoint_asks_ceo_to_review(client, stub_ceo, db_session):
+    project = _project_from_ceo(db_session)
+
+    body = client.post(f"/api/ceo/qc/{project.id}").json()
+    assert body["ceo_task_id"] == "t-1"
+    assert stub_ceo.qc_calls == ["t-1"]
+
+
+def test_qc_endpoint_400_when_project_not_from_ceo(client, stub_ceo, db_session):
+    project = Project(name="ของเราเอง", type="new")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    assert client.post(f"/api/ceo/qc/{project.id}").status_code == 400
+    assert stub_ceo.qc_calls == []
+
+
+def test_qc_endpoint_503_when_ceo_offline(client, stub_ceo, db_session):
+    project = _project_from_ceo(db_session)
+    stub_ceo.online = False
+
+    assert client.post(f"/api/ceo/qc/{project.id}").status_code == 503

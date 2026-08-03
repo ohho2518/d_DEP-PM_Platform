@@ -248,3 +248,21 @@ def test_context_total_budget_drops_oldest_first(db_session, monkeypatch):
     ctx = spy.seen["C"]
     assert "ญ" * 20 in ctx  # ตัวใกล้ตัวเราถูกเก็บไว้
     assert "ตัดผลงานของงานเก่า 1 รายการ" in ctx
+
+
+def test_requeued_escalated_task_is_picked_up_again(db_session):
+    """escalated → planned แล้ว orchestrator ต้องหยิบไปทำใหม่ (engine หยิบเฉพาะ planned)."""
+    from app.constants import ActorType, TaskStatus
+    from app.orchestrator.state_machine import transition
+
+    project, tasks = _project_with_planned_tasks(db_session, ["ตัน"])
+    run_project(db_session, project.id, executor=RejectingReviewer(reject_times=None))
+    task = db_session.get(Task, tasks[0].id)
+    assert task.status == "escalated" and task.revision_count == MAX_REVISIONS
+
+    transition(db_session, task, TaskStatus.PLANNED, actor_type=ActorType.HUMAN, reason="ตีกลับ")
+    db_session.commit()
+
+    summary = run_project(db_session, project.id, executor=RejectingReviewer(reject_times=0))
+    assert summary.counts == {"done": 1}
+    assert db_session.get(Task, tasks[0].id).status == "done"
