@@ -149,13 +149,14 @@ backend/app/{main,config,constants}.py  FastAPI entry + settings + enums กล�
 backend/app/db/                       engine, session, GUID/JSON portable types (ADR-01)
 backend/app/models/                   ORM 6 ตาราง
 backend/app/schemas/                  Pydantic (project, task, scan)
-backend/app/api/                      routers: projects, tasks, agent_messages, portfolio, deployments, ceo
-backend/app/agents/                   personas 4 บทบาท, routing, runtime, providers, pm breakdown
+backend/app/api/                      routers: projects, tasks, agent_messages, portfolio, deployments, ceo, settings
+backend/app/agents/                   personas 4 บทบาท, routing, runtime, pm breakdown
+backend/app/agents/providers.py       **ผิวสัมผัสเดียวที่คุยกับผู้ให้บริการ AI** — ลำดับสำรอง + แยกชนิด error
 backend/app/orchestrator/             State Machine (transition-only) + engine (Solo Mode loop)
 backend/app/bus/                      In-process message bus (ADR-03)
 backend/app/metadata/                 MetadataProvider interface + Stub (ADR-02)
 backend/app/integrations/             client ของระบบข้างเคียง — ceo_client.py (d_CEO) §3.1
-backend/app/services/                 audit + task-plan persistence + deploy dispatcher + ceo_sync + runs (Run Manager)
+backend/app/services/                 audit + task-plan persistence + deploy dispatcher + ceo_sync + runs (Run Manager) + env_file (เขียน .env จากหน้า Settings)
 backend/alembic/                      migrations (schema, seed agent, token columns)
 backend/tests/                        pytest 60 เคส
 backend/ruff.toml                     lint config
@@ -165,6 +166,7 @@ frontend/src/app/page.tsx             Portfolio view
 frontend/src/app/projects/new/        New Project flow (STEP 1-4)
 frontend/src/app/projects/[id]/       Kanban Board + Task detail + Message Log
 frontend/src/app/deployments/         Deployments view (ประวัติ deploy ทุกโปรเจกต์)
+frontend/src/app/settings/            ตั้งค่า AI — คีย์ · ตัวหลัก · ลำดับสำรอง · ปุ่มทดสอบรายเจ้า
 frontend/src/components/AgentOffice.tsx  แอนิเมชันสถานะ agent บนหน้าบอร์ด
 ```
 
@@ -222,6 +224,9 @@ CLAUDE_MODEL=          # model id ของ Solo Mode
 MAX_TOKENS_PER_TASK=   # เพดาน token ต่อ task (Risk #3)
 AGENT_MODE=            # solo | team
 OPENAI_API_KEY= OPENAI_MODEL= GEMINI_API_KEY= GEMINI_MODEL=   # Team Mode
+LLM_PROVIDER=          # ตัวหลัก: anthropic | openai | google (ปริยาย anthropic)
+LLM_FALLBACKS=         # ลำดับสำรองคั่นด้วย comma เช่น "openai,google" · ว่าง = ไม่มีสำรอง
+                       # ↑ สองตัวนี้แก้จากหน้า /settings ได้ มีผลทันทีโดยไม่ต้อง restart
 GITHUB_TOKEN= GITHUB_REPO=    # deploy dispatch; ว่าง = stub mode
 AUTO_DEPLOY_ENABLED=   # true = task done → staging deployment อัตโนมัติ
 DEPLOY_CALLBACK_SECRET= # shared secret ของ CI callback (header X-DEP-PM-Secret) — ว่าง = ไม่ตรวจ
@@ -286,6 +291,13 @@ NEXT_PUBLIC_API_URL=   # base URL ของ backend — ค่าปัจจุ
 11. **ห้ามปิดงานฝั่ง d_CEO เอง** — ส่งได้แค่ `in_progress`/`qc_review` ทุกงานต้องผ่าน QC gate
 12. **งานเบื้องหลังห้ามใช้ session ของ request** — `get_db` ปิดมันพร้อม response · ขอ session ใหม่จาก
     `get_session_factory` (1 รอบรัน = 1 session) และห้ามส่ง ORM object ข้าม thread
+13. **ห้าม import SDK ของผู้ให้บริการ AI นอก `agents/providers.py`** (`anthropic` · `openai` ·
+    `google.genai`) — ทุกการเรียกโมเดลผ่าน `providers.call_chain()` ที่เดียว เพื่อให้ลำดับสำรอง
+    การแยกชนิด error และการติดป้ายว่า "ใครทำ" ทำงานครบทุกเส้นทาง (ใบสั่งงาน 2026-08-06)
+    · **ห้ามกลืน error ของผู้ให้บริการเป็น `except Exception` กว้าง ๆ** — ต้องแยกให้ได้ว่า
+    บัญชีใช้ไม่ได้ (สลับเจ้า) · ชั่วคราว (ลองซ้ำ) · โจทย์ผิด (**ห้ามสลับ** สลับไปก็ผิดเหมือนกัน)
+14. **ห้ามส่งคีย์ออกทาง API หรือลง log** — `/api/settings/llm` คืนได้เฉพาะค่า mask ·
+    หน้า Settings แก้คีย์ได้โดยไม่มี auth ⇒ **bind `127.0.0.1` เท่านั้น** (docs/SECURITY.md)
 
 ---
 

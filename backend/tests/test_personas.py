@@ -82,6 +82,34 @@ def test_parser_understands_the_verdict_the_prompt_promises():
     assert legacy is not None and legacy.needs_human is False
 
 
+def test_reviewer_sees_the_same_source_material_as_the_worker(db_session):
+    """reviewer ต้องได้ `description` ด้วย ไม่ใช่แค่ title+spec.
+
+    เจอจริง 2026-08-14: reviewer ปฏิเสธงานที่ถูกต้อง 2 รอบติดด้วยเหตุผลว่า "ไม่มี description
+    ต้นฉบับให้เทียบ จึงยืนยันไม่ได้ว่าไม่ได้กุ" — กติกาห้ามกุหลักฐานทำให้ช่องโหว่นี้กลายเป็น
+    ค่าใช้จ่ายจริงทุกรอบ (อาการเดียวกับบั๊ก upstream context ของ Phase 3a)
+    """
+    from app.agents.runtime import _review_prompt
+    from app.models.project import Project
+    from app.models.task import Task
+
+    project = Project(name="RP", type="new")
+    db_session.add(project)
+    db_session.flush()
+    task = Task(
+        project_id=project.id,
+        title="เขียนสรุป",
+        description="ข้อมูลต้นฉบับที่คนทำงานได้รับ",
+        spec="สรุปจาก description เท่านั้น",
+        depends_on=[],
+    )
+
+    prompt = _review_prompt(task, "ผลงาน")
+
+    assert "ข้อมูลต้นฉบับที่คนทำงานได้รับ" in prompt
+    assert "สรุปจาก description เท่านั้น" in prompt
+
+
 def test_pm_prompt_still_ends_with_the_json_only_instruction():
     """กติกาถูกแทรก **ก่อน** บล็อกรูปแบบผลลัพธ์ — คำสั่ง JSON ต้องยังเป็นสิ่งสุดท้ายที่โมเดลอ่าน."""
     tail = PERSONA_PROMPTS[AgentRole.PM].rstrip()[-200:]

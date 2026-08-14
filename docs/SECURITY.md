@@ -9,7 +9,8 @@
 ## Threat Model
 
 ### Assets
-1. **API keys** (Anthropic + Team Mode: OpenAI/Gemini — `AGENT_MODE=team`) — asset สำคัญสุด
+1. **API keys** (Anthropic · OpenAI · Gemini — ใช้ทั้งใน Solo Mode ผ่านลำดับสำรอง และ Team Mode)
+   — asset สำคัญสุด · ตั้งแต่ 2026-08-14 **แก้ได้จากหน้าเว็บ** (`/settings`) ⇒ ดูตารางภัยด้านล่าง
 2. เนื้อหา requirement/spec ของโปรเจกต์ (อาจมีข้อมูลธุรกิจ dPRO)
 3. ความถูกต้องของ audit trail (ถูกแก้ = เสียคุณค่าทั้งระบบ)
 4. **GitHub token ของ deploy pipeline** (`GITHUB_TOKEN`) — ใช้ fine-grained PAT สิทธิ์
@@ -31,7 +32,8 @@ flowchart LR
 | ภัย | สถานะ MVP | เหตุผล/แผน |
 |-----|-----------|------------|
 | ใครก็ได้ยิง API | ⚠️ จริง แต่ยอมรับ — localhost only, single-user | ต้องทำ auth **ก่อน deploy จริง Sprint 4** (บล็อก deploy ถ้ายังไม่มี) |
-| API key รั่ว | ✅ ป้องกัน: key อยู่ใน `.env` (gitignored), `.env.example` เป็น placeholder, ไม่เคย log | กติกาใน CLAUDE.md Security Rules |
+| **ใครก็ได้แก้คีย์ผ่านหน้า `/settings`** (ตั้งแต่ 2026-08-14) | 🔴 **จุดที่อ่อนไหวที่สุดในระบบตอนนี้** — `PUT /api/settings/llm` เขียนคีย์ลง `.env` ได้โดยไม่มี auth | ยอมรับเฉพาะขณะ bind `127.0.0.1` · **ห้าม expose พอร์ต 8500 ออกนอกเครื่องเด็ดขาดจนกว่าจะมี auth** — ข้อนี้เลื่อนสถานะ auth จาก "ควรมี" เป็น **บล็อกเกอร์** |
+| API key รั่ว | ✅ ป้องกัน: key อยู่ใน `.env` (gitignored), `.env.example` เป็น placeholder, ไม่เคย log · **API ไม่เคยคืนคีย์เต็ม** — `GET /api/settings/llm` คืนเฉพาะค่า mask (`sk-…4f2a`) และ `POST …/test` คืนแค่ผลว่าใช้ได้/ไม่ได้ | กติกาใน AGENTS.md §9.1.14 |
 | Prompt injection ผ่าน requirement/spec → agent ทำเกินสั่ง | ⚠️ มีจริงแต่ blast radius ต่ำ — agent MVP ไม่มี tool ข้างเคียง แค่คืนข้อความ; ผลถูกรีวิว+audit | จะวิกฤตเมื่อ agent มี tools (เขียนโค้ด/รัน command) — ต้อง sandbox ตอนนั้น |
 | ข้อมูลอ่อนไหวหลุดเข้า prompt (PDPA — Risk #6) | ⚠️ ยังไม่มี masking | แผน: field masking ก่อนส่งเข้า prompt/bus; ห้าม secrets ใน task spec (กติกาแล้ว, enforcement ยัง) |
 | SQL Injection | ✅ ป้องกันโดยโครงสร้าง — ORM ล้วน, ห้าม raw SQL (ADR-01), id เป็น UUID ผ่าน Pydantic validate |

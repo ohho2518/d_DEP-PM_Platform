@@ -1,10 +1,12 @@
 """Agent Runtime — executes a task with a persona and reviews the work product.
 
-สอง implementation:
-- :class:`ClaudeExecutor`  — เรียก Claude API ด้วย persona system prompt (เมื่อมี API key)
+สาม implementation:
+- :class:`SoloExecutor`     — ตัวหลักตัวเดียวทุกบทบาท (``LLM_PROVIDER`` → ``LLM_FALLBACKS``)
+- :class:`TeamExecutor`     — role → provider ตาม Blueprint §9 แล้วต่อด้วยลำดับสำรองชุดเดียวกัน
 - :class:`FallbackExecutor` — deterministic ไม่มี network call (ใช้ตอนไม่มี key / ใน tests)
 
-Orchestrator ไม่รู้จักความต่างนี้ — เห็นแค่ interface ``execute`` / ``review``.
+Orchestrator ไม่รู้จักความต่างนี้ — เห็นแค่ interface ``execute`` / ``review``
+(อ่าน ``last_use`` เพิ่มได้ถ้าอยากรู้ว่าใครทำงานชิ้นล่าสุด — ใช้ติดป้าย "ทำโดยตัวสำรอง")
 """
 from __future__ import annotations
 
@@ -14,7 +16,13 @@ from typing import Protocol
 
 from app.agents.personas import PERSONA_PROMPTS, REVIEWER_SYSTEM_PROMPT
 from app.agents.pm import _extract_json
-from app.agents.providers import LLMReply, ProviderCall
+from app.agents.providers import (
+    AllProvidersUnavailable,
+    LLMReply,
+    ProviderCall,
+    available_providers,
+    call_chain,
+)
 from app.config import get_settings
 from app.constants import AgentRole
 from app.models.task import Task
@@ -58,8 +66,16 @@ def _execute_prompt(task: Task, feedback: str | None, context: str | None = None
 
 
 def _review_prompt(task: Task, work: str) -> str:
+    """สิ่งที่ reviewer ได้เห็น — **ต้องมีวัตถุดิบชุดเดียวกับที่คนทำงานได้รับ**.
+
+    ⚠️ เดิมส่งแค่ title + spec (ไม่มี description) · หลังใส่กติกาห้ามกุหลักฐาน reviewer จึง
+    ปฏิเสธงานที่ถูกต้องด้วยเหตุผลว่า *"ไม่มี description ต้นฉบับแนบมา จึงยืนยันไม่ได้ว่า
+    รายละเอียดที่อ้างตรงกับต้นฉบับ"* แล้วงานวนจนหมดโควตา revision → escalated
+    (เจอจริง 2026-08-14 ตอนทดสอบ failover · อาการเดียวกับบั๊ก upstream context ของ Phase 3a)
+    """
     return (
         f"Task: {task.title}\n"
+        f"Description: {task.description or '-'}\n"
         f"Spec / acceptance criteria: {task.spec or '-'}\n\n"
         f"Work product ที่ต้องตรวจ:\n{work}"
     )
@@ -144,37 +160,57 @@ class FallbackExecutor:
         return ReviewResult(approved=True, comment="(fallback) ตรวจตาม spec แล้ว — approve")
 
 
-class ClaudeExecutor:
-    """เรียก Claude API ด้วย persona prompt ตาม role (Solo Mode — key เดียวทุกบทบาท)."""
+@dataclass
+class ProviderUse:
+    """ใครทำงานชิ้นล่าสุด — orchestrator เอาไปติดป้ายในผลงาน (**ห้ามสลับเงียบ**, ใบสั่งงาน 6 ส.ค. §4)."""
+
+    provider: str = ""
+    model: str = ""
+    primary: str = ""  # ตัวหลักของบทบาทนั้น (ไว้เทียบว่าถอยไปใช้ตัวสำรองหรือยัง)
+
+    @property
+    def degraded(self) -> bool:
+        return bool(self.provider) and bool(self.primary) and self.provider != self.primary
+
+
+class _ChainExecutor:
+    """ฐานร่วมของ Solo/Team — เรียก LLM ผ่าน ``providers.call_chain`` แล้วจำว่าใครทำงานล่าสุด.
+
+    ไม่มี client ของตัวเอง: ความรู้เรื่องผู้ให้บริการทั้งหมดอยู่ใน ``providers.py`` ที่เดียว
+    (AGENTS.md §9.1 — ห้าม import SDK ของเจ้าไหนนอกไฟล์นั้น)
+    """
 
     def __init__(self) -> None:
-        import anthropic
+        self.last_use = ProviderUse()
+        self._fallback = FallbackExecutor()
+        #: ตารางฟังก์ชันที่สร้างไว้ล่วงหน้า (Team Mode) — None = ให้ chain สร้างเองต่อ call
+        self._calls: dict[str, ProviderCall | None] | None = None
 
-        settings = get_settings()
-        self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        self._model = settings.claude_model
-        self._max_tokens = settings.max_tokens_per_task
+    def _primary_for(self, role: AgentRole) -> str:
+        raise NotImplementedError
 
-    def _call(self, system: str, prompt: str) -> LLMReply:
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = "".join(b.text for b in response.content if b.type == "text")
-        if not text.strip():
+    @staticmethod
+    def _may_use_deterministic(exc: AllProvidersUnavailable) -> bool:
+        """ถอยไปทาง deterministic ได้เฉพาะเมื่อ **ทั้งระบบไม่มีคีย์เลย** (สัญญาเดิม §9.1.8).
+
+        มีคีย์อยู่แล้วแต่บทบาทนี้ไปไม่ถึงเจ้าไหนเลย (ตั้งลำดับสำรองไม่ครบ / เจ้าตาย) =
+        **ต้องดัง** — ผลิตข้อความ deterministic แล้วนับว่าเสร็จคือการรายงานเกินจริง
+        """
+        return exc.only_missing_keys and not available_providers()
+
+    def _call_role(self, role: AgentRole, system: str, prompt: str) -> LLMReply:
+        primary = self._primary_for(role)
+        reply = call_chain(system, prompt, primary=primary, calls=self._calls)
+        self.last_use = ProviderUse(provider=reply.provider, model=reply.model, primary=primary)
+        if not reply.text.strip():
             # พบจริงใน UAT: adaptive thinking กินโควตา max_tokens จนหมด -> text ว่าง
             # คืน marker ชัดเจนแทน string ว่าง เพื่อให้ reviewer/audit เห็นสาเหตุ
-            text = (
-                f"(no text output — stop_reason={response.stop_reason}; "
+            reply.text = (
+                f"(no text output จาก {reply.provider or 'provider'} — "
+                f"stop_reason={reply.stop_reason or '-'}; "
                 "เพิ่ม MAX_TOKENS_PER_TASK หรือแตก task ให้เล็กลง)"
             )
-        return LLMReply(
-            text=text,
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
-        )
+        return reply
 
     def execute(
         self,
@@ -183,20 +219,48 @@ class ClaudeExecutor:
         feedback: str | None = None,
         context: str | None = None,
     ) -> str:
-        reply = self._call(PERSONA_PROMPTS[role], _execute_prompt(task, feedback, context))
+        try:
+            reply = self._call_role(
+                role, PERSONA_PROMPTS[role], _execute_prompt(task, feedback, context)
+            )
+        except AllProvidersUnavailable as exc:
+            if self._may_use_deterministic(exc):
+                return self._fallback.execute(task, role, feedback, context)
+            raise
         _add_usage(task, reply)
         return reply.text
 
     def review(self, task: Task, work: str) -> ReviewResult:
-        return _review_with_retry(task, self._call, _review_prompt(task, work))
+        role = AgentRole.REVIEWER
+        try:
+            return _review_with_retry(
+                task,
+                lambda system, prompt: self._call_role(role, system, prompt),
+                _review_prompt(task, work),
+            )
+        except AllProvidersUnavailable as exc:
+            if self._may_use_deterministic(exc):
+                return self._fallback.review(task, work)
+            raise
 
 
-class TeamExecutor:
+class SoloExecutor(_ChainExecutor):
+    """Solo Mode: ทุกบทบาทใช้ตัวหลักตัวเดียวกัน (``LLM_PROVIDER``) แล้วไล่ตาม ``LLM_FALLBACKS``.
+
+    เดิมชื่อ ``ClaudeExecutor`` และสร้าง client ของ Anthropic เอง — เปลี่ยนชื่อตอนทำใบสั่งงาน
+    2026-08-06 เพราะชื่อเดิมจะโกหกทันทีที่มันเรียกเจ้าอื่นได้
+    """
+
+    def _primary_for(self, role: AgentRole) -> str:
+        return get_settings().llm_provider
+
+
+class TeamExecutor(_ChainExecutor):
     """Team Mode (Sprint 4, Blueprint §9): map role → provider ต่างค่าย.
 
-    Mapping ตาม Blueprint: Codex Dev = OpenAI, Gemini SR = Google,
-    PM/Reviewer = Claude (Anthropic). Provider ที่ config ไม่ครบ → fallback chain:
-    provider ของ role → anthropic → deterministic text (ไม่ล้มกลางงาน)
+    Mapping ตาม Blueprint: Codex Dev = OpenAI, Gemini SR = Google, PM/Reviewer = Claude
+    · ตัวหลักของบทบาทล้ม → ไล่ต่อตาม ``LLM_FALLBACKS`` (เดิม hardcode ว่าถอยไป anthropic เท่านั้น)
+    · ไม่มีใครตั้งคีย์เลย → deterministic text (ไม่ล้มกลางงาน)
 
     Orchestrator ไม่รู้จักคลาสนี้โดยตรง — เห็นแค่ PersonaExecutor protocol (DoD Sprint 4)
     """
@@ -211,43 +275,22 @@ class TeamExecutor:
     def __init__(self) -> None:
         from app.agents.providers import BUILDERS
 
-        # สร้าง client ครั้งเดียวต่อ provider ที่ config ครบ
+        super().__init__()
+        # สร้าง client ครั้งเดียวต่อ provider ที่ config ครบ (เทสต์เสียบ call ปลอมผ่าน `_calls`)
         self._calls = {name: builder() for name, builder in BUILDERS.items()}
-        self._fallback = FallbackExecutor()
 
-    def _call_for(self, role: AgentRole):
-        provider = self.ROLE_PROVIDER[role]
-        return self._calls.get(provider) or self._calls.get("anthropic")
-
-    def execute(
-        self,
-        task: Task,
-        role: AgentRole,
-        feedback: str | None = None,
-        context: str | None = None,
-    ) -> str:
-        call = self._call_for(role)
-        if call is None:
-            return self._fallback.execute(task, role, feedback, context)
-        reply = _as_reply(call(PERSONA_PROMPTS[role], _execute_prompt(task, feedback, context)))
-        _add_usage(task, reply)
-        return reply.text
-
-    def review(self, task: Task, work: str) -> ReviewResult:
-        call = self._call_for(AgentRole.REVIEWER)
-        if call is None:
-            return self._fallback.review(task, work)
-        return _review_with_retry(task, call, _review_prompt(task, work))
+    def _primary_for(self, role: AgentRole) -> str:
+        return self.ROLE_PROVIDER[role]
 
 
 def get_executor() -> PersonaExecutor:
     """เลือก executor ตาม config — สลับ Solo ↔ Team ด้วย env `AGENT_MODE` เท่านั้น.
 
-    - team               → TeamExecutor (role → provider, fallback chain ต่อ role)
-    - solo + มี key      → ClaudeExecutor
-    - solo + ไม่มี key   → FallbackExecutor (deterministic)
+    - team                    → TeamExecutor (role → provider แล้วต่อด้วยลำดับสำรอง)
+    - solo + มีคีย์อย่างน้อย 1 → SoloExecutor (`LLM_PROVIDER` → `LLM_FALLBACKS`)
+    - solo + ไม่มีคีย์เลย      → FallbackExecutor (deterministic)
     """
     settings = get_settings()
     if settings.agent_mode == "team":
         return TeamExecutor()
-    return ClaudeExecutor() if settings.agent_enabled else FallbackExecutor()
+    return SoloExecutor() if settings.agent_enabled else FallbackExecutor()

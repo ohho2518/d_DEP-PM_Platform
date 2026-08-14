@@ -4,6 +4,7 @@ from app.api.ceo import router as ceo_router
 from app.api.deployments import router as deployments_router
 from app.api.portfolio import router as portfolio_router
 from app.api.projects import router as projects_router
+from app.api.settings import router as settings_router
 from app.api.tasks import router as tasks_router
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "portfolio_router",
     "deployments_router",
     "ceo_router",
+    "settings_router",
 ]

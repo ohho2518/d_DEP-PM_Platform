@@ -7,8 +7,11 @@ import type {
   CeoReport,
   CeoStatus,
   DeploymentList,
+  LlmSettings,
+  LlmSettingsUpdate,
   Portfolio,
   Project,
+  ProviderTestResult,
   RunSummary,
   Task,
   TaskList,
@@ -95,4 +98,22 @@ export const api = {
 
   ceoReport: (projectId: string) =>
     request<CeoReport>(`/api/ceo/report/${projectId}`, { method: "POST" }),
+
+  // --- ผู้ให้บริการ AI (ใบสั่งงาน 2026-08-06 "รองรับ AI หลายเจ้า") ------------
+  /** คีย์ที่ได้กลับมาเป็นแบบ mask เท่านั้น — backend ไม่เคยส่งคีย์เต็มออกมา */
+  llmSettings: () => request<LlmSettings>("/api/settings/llm"),
+
+  /** ไม่ส่ง key ของเจ้าไหน = ไม่แตะของเดิม · ส่งสตริงว่าง = ตั้งใจลบ */
+  saveLlmSettings: (body: LlmSettingsUpdate) =>
+    request<LlmSettings>("/api/settings/llm", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  /** ยิงจริงหนึ่งครั้งต่อเจ้า — ไม่ระบุ provider = ทดสอบทุกเจ้า */
+  testLlmProvider: (provider?: string) =>
+    request<{ results: ProviderTestResult[] }>("/api/settings/llm/test", {
+      method: "POST",
+      body: JSON.stringify({ provider: provider ?? null }),
+    }),
 };

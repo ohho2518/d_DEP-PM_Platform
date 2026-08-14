@@ -31,6 +31,10 @@ def _isolated_settings(monkeypatch):
     monkeypatch.setattr(settings, "openai_api_key", "")
     monkeypatch.setattr(settings, "gemini_api_key", "")
     monkeypatch.setattr(settings, "agent_mode", "solo")
+    # ลำดับผู้ให้บริการต้องกลับเป็นค่าปริยายทุก test — เทสต์ของหน้า Settings เขียนค่านี้จริง
+    # ผ่าน API (ไม่ใช่ monkeypatch) ถ้าไม่ล็อกไว้จะรั่วข้ามไฟล์แล้วหาสาเหตุยาก
+    monkeypatch.setattr(settings, "llm_provider", "anthropic")
+    monkeypatch.setattr(settings, "llm_fallbacks", "")
     monkeypatch.setattr(settings, "github_token", "")
     monkeypatch.setattr(settings, "github_repo", "")
     monkeypatch.setattr(settings, "auto_deploy_enabled", False)

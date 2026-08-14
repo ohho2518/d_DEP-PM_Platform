@@ -167,12 +167,51 @@ export interface DeploymentList {
   pagination: { total: number; limit: number; offset: number };
 }
 
+// --- ผู้ให้บริการ AI (ใบสั่งงาน 2026-08-06) ---------------------------------
+// ต้องตรงกับ backend/app/schemas/settings.py
+export interface ProviderStatus {
+  name: string;
+  model: string;
+  key_set: boolean;
+  /** เช่น "sk-…4f2a" — backend **ไม่เคย** ส่งคีย์เต็มออกมา */
+  key_masked: string;
+}
+
+export interface LlmSettings {
+  /** ตัวหลัก */
+  provider: string;
+  /** ลำดับสำรอง — ว่าง = ไม่มีตัวสำรอง (ล้มแล้วหยุด) */
+  fallbacks: string[];
+  providers: ProviderStatus[];
+}
+
+export interface LlmSettingsUpdate {
+  provider?: string;
+  fallbacks?: string[];
+  /** ชื่อเจ้า -> คีย์ใหม่ · **ไม่ส่ง = ไม่แตะของเดิม · ส่งค่าว่าง = ลบ** */
+  keys?: Record<string, string>;
+  models?: Record<string, string>;
+}
+
+/** ชนิดปัญหาเมื่อทดสอบไม่ผ่าน — ตรงกับตารางแยก error ใน providers.py */
+export type ProviderTestKind = "account" | "temporary" | "request" | "unknown";
+
+export interface ProviderTestResult {
+  provider: string;
+  ok: boolean;
+  model: string;
+  latency_ms: number;
+  kind: ProviderTestKind | null;
+  detail: string;
+}
+
 // State Machine ฝั่ง UI — ต้องตรงกับ backend/app/orchestrator/state_machine.py
 export const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   backlog: ["planned"],
   planned: ["assigned"],
   assigned: ["in_progress"],
-  in_progress: ["review"],
+  // in_progress → escalated = เครื่องมือใช้ไม่ได้กลางคัน (AI ล่มทุกเจ้า) ไม่ใช่ "งานไม่ผ่าน"
+  in_progress: ["review", "escalated"],
   review: ["done", "in_progress", "escalated"],
   done: ["deployed"],
   escalated: ["in_progress", "planned"],

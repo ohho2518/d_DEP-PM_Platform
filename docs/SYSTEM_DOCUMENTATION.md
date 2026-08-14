@@ -86,14 +86,32 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
   - ⚠️ **`context` = ผลงานจริงของงานก่อนหน้า (เพิ่ม 2026-08-03)** — provider ใหม่ **ต้องส่งต่อให้โมเดล** ไม่งั้นงานประเภท "ทำต่อจากของเดิม" จะผลิตได้แค่โครงเปล่าแล้วถูก reviewer ปฏิเสธจน escalate (บั๊กจริงจาก UAT — ดู `engine.upstream_context`)
   - **`ReviewResult(approved, comment, needs_human=False)`** — `needs_human` เพิ่ม 2026-08-03 มีค่าปริยาย จึงไม่กระทบ provider/เทสต์ที่สร้างแค่ 2 ฟิลด์แรก · ความหมายและเหตุผลอยู่ที่ §9 Escalation Rule
 - **`FallbackExecutor`:** deterministic — execute คืนข้อความ `(fallback:role) …` พร้อมจำนวนผลงานก่อนหน้าที่ได้รับ, review approve เสมอ → happy path E2E รันได้โดยไม่มี network
-- **`ClaudeExecutor`:** key เดียวทุก persona (Solo Mode); review parse JSON ผ่าน `_extract_json` เดิม
+- **`SoloExecutor`** (ชื่อเดิม `ClaudeExecutor` — เปลี่ยน 2026-08-14 เพราะมันเรียกเจ้าอื่นได้แล้ว):
+  ทุกบทบาทใช้ `LLM_PROVIDER` เป็นตัวหลัก แล้วไล่ต่อตาม `LLM_FALLBACKS`; review parse JSON ผ่าน `_extract_json` เดิม
+  - **ไม่มี client ของตัวเอง** — ทุกการเรียกผ่าน `providers.call_chain()` · `last_use` บอกว่าใคร
+    ทำงานชิ้นล่าสุด (`provider`/`model`/`primary`/`degraded`) ให้ orchestrator เอาไปติดป้าย
+  - **`_review_prompt` ต้องมี `description` ด้วย** — reviewer ที่ไม่เห็นวัตถุดิบชุดเดียวกับคนทำงาน
+    จะปฏิเสธงานที่ถูกต้องว่า "ไม่มีต้นฉบับให้เทียบ" แล้ววนจน escalate (เจอจริง 2026-08-14)
   - **การตัดสินใจสำคัญ (แก้แล้ว 2026-07-07 — debt #3):** review parse ไม่ได้ → retry 1 ครั้ง → ยังไม่ได้ = **reject** เข้า revision/escalation ปกติ (เดิม auto-approve ทำให้งานที่ไม่ถูกตรวจจริงหลุดเป็น done) | loop ถูก bound ด้วย `MAX_REVISIONS` จึงไม่วนไม่จบ
 - **`TeamExecutor` (Sprint 4):** map role→provider ตาม Blueprint §9 — DEV→openai (Codex),
-  SENIOR_ARCHITECT→google (Gemini), PM/REVIEWER→anthropic; fallback chain ต่อ role:
-  provider → anthropic → deterministic (ไม่ล้มกลางงานแม้ key ขาดบางตัว)
-- `app/agents/providers.py`: builder ต่อ provider — lazy import SDK, คืน None เมื่อ config ไม่ครบ
-- `get_executor()`: `AGENT_MODE=team` → TeamExecutor; solo + key → ClaudeExecutor; ไม่มี key → Fallback
-  (สลับโหมดด้วย env เท่านั้น — orchestrator ไม่เปลี่ยน = DoD Sprint 4)
+  SENIOR_ARCHITECT→google (Gemini), PM/REVIEWER→anthropic; **ตัวหลักของบทบาทล้ม → ไล่ต่อตาม
+  `LLM_FALLBACKS`** (เดิม hardcode ว่าถอยไป anthropic เท่านั้น — 2026-08-14 ย้ายไปอยู่ที่ env)
+- **`app/agents/providers.py` — ผิวสัมผัสเดียวที่คุยกับผู้ให้บริการ AI** (ใบสั่งงาน 2026-08-06):
+  - builder ต่อ provider — lazy import SDK, คืน None เมื่อ config ไม่ครบ (ไม่มีคีย์ = ข้ามเจ้านั้น)
+  - **`classify_error()` แยก 3 ชนิดตามตาราง §3 ของใบสั่งงาน:** `LlmAccountError` (เครดิตหมด/401/403
+    → **สลับเจ้าทันที** ลองซ้ำไม่มีประโยชน์) · `LlmTemporaryError` (429/5xx/timeout → ลองซ้ำเจ้าเดิม
+    ก่อนสลับ) · `LlmRequestError` (400 อื่น = โจทย์ผิด → **ห้ามสลับ** สลับไปก็ผิดเหมือนกัน จ่ายสองเจ้า)
+    - ⚠️ **ลำดับการตรวจสำคัญ**: เช็กข้อความที่บอกว่าบัญชีมีปัญหา (`credit balance`/`billing`/`quota`)
+      **ก่อน** สรุปว่า 400 = โจทย์ผิด — เคสจริงที่ทำให้ทั้งบ้านล่ม 6 ส.ค. มาเป็น **400**
+    - **เก็บ body ของ error เสมอ** ไม่ใช่แค่รหัสสถานะ (บทเรียน 29 ก.ค.: log มีแต่ `HTTP 400`
+      หาสาเหตุไม่เจอทั้งวัน)
+  - `call_chain(system, prompt, primary=…)` = ทางเดียวที่โค้ดอื่นเรียกโมเดล ·
+    `provider_chain()` = `[primary หรือ LLM_PROVIDER] + LLM_FALLBACKS` (ชื่อที่ไม่รู้จัก = ข้ามเงียบ ๆ)
+  - ทุกเจ้าใช้ไม่ได้ → `AllProvidersUnavailable` ที่บอกว่า**เจ้าไหนพังเพราะอะไรครบทุกตัว** ·
+    `only_missing_keys` แยก "ไม่มีใครตั้งคีย์เลย" (ถอยไป deterministic ตามสัญญาเดิมได้)
+    ออกจาก "ตั้งคีย์แล้วแต่พัง" (**ต้องดัง** — ผลิตข้อความ deterministic แล้วนับว่าเสร็จ = รายงานเกินจริง)
+- `get_executor()`: `AGENT_MODE=team` → TeamExecutor; solo + มีคีย์อย่างน้อย 1 เจ้า → SoloExecutor;
+  ไม่มีคีย์เลย → Fallback (สลับโหมดด้วย env เท่านั้น — orchestrator ไม่เปลี่ยน = DoD Sprint 4)
 
 ### `app/integrations/ceo_client.py` — ผิวสัมผัสกับ d_CEO (Phase 1)
 - **ไฟล์เดียวที่ยิง HTTP ไป d_CEO ได้** (แบบเดียวกับ `jarvis/ceo_client.py` ฝั่ง Jarvis)
@@ -200,6 +218,7 @@ stateDiagram-v2
     planned --> assigned: orchestrator route+assign
     assigned --> in_progress
     in_progress --> review: ส่ง work product
+    in_progress --> escalated: ผู้ให้บริการ AI ใช้ไม่ได้ทุกเจ้า
     review --> done: reviewer approve
     review --> in_progress: revision (ครั้งที่ < MAX)
     review --> escalated: reject ครบ MAX_REVISIONS (2)
@@ -240,6 +259,19 @@ reject + needs_human → escalated  (revision_count เท่าเดิม)
 - ทั้งสองเหตุใช้ `_escalate()` ตัวเดียวกันใน `engine.py` — ต่างกันแค่ `reason` ที่ไปโผล่ในรายงาน
   ถึง d_CEO ผ่าน `ceo_sync._escalation_reasons` (คอมเมนต์เต็มอยู่ใน `last_comment` เสมอ)
 
+**ทางที่สาม: เครื่องมือใช้ไม่ได้ (2026-08-14)** — `AllProvidersUnavailable` ระหว่าง execute/review
+→ `_llm_available()` escalate ทันทีแล้วโยนต่อ ⇒ รอบรันจบเป็น `failed` พร้อมเหตุที่อ่านรู้เรื่อง:
+```
+reason : "ผู้ให้บริการ AI ใช้ไม่ได้ทั้งหมด — anthropic = บัญชีใช้ไม่ได้ (credit balance too low)"
+audit  : "llm providers unavailable"   ·   revision_count ไม่ขยับ (ไม่ใช่ความผิดของงาน)
+```
+- **ทำไมต้อง escalate ไม่ใช่ปล่อยให้ exception ลอยขึ้นไปเฉย ๆ:** task จะค้าง `in_progress`
+  ให้มาแก้มือทีหลัง (ตารางด้านล่างเคยระบุอาการนี้ไว้) — จึงเพิ่มเส้น `in_progress → escalated`
+- **`_llm_available()` commit เองก่อนโยนต่อ** เพราะ `services/runs.py` จะ `db.rollback()`
+  เมื่อรับ exception — ไม่ commit ตรงนั้นการ escalate จะหายไปพร้อมกัน (จุดเดียวใน engine ที่ commit เอง)
+- `LlmRequestError` (โจทย์ผิด) **ไม่** escalate — rollback ปกติ, task กลับเป็น `planned`, รอบรัน `failed`
+  พร้อมเหตุ · ตั้งใจให้แก้ prompt/spec แล้วกด Run ใหม่ได้เลย
+
 ### Decision Tree — Breakdown source
 ```
 มี ANTHROPIC_API_KEY?
@@ -260,6 +292,8 @@ Existing: แทน breakdown ด้วย `POST /scan` (mock — ADR-02)
 | Claude API ล่ม/timeout ระหว่าง breakdown | fallback plan, ไม่ 500 | ผู้ใช้ลบ task แล้ว breakdown ใหม่ได้ |
 | Reviewer output เพี้ยน | auto-approve + note | ตรวจ audit/message log ย้อนหลัง |
 | Task escalated | หยุดที่ escalated + broadcast question | คนแก้แล้ว PATCH → in_progress (state machine อนุญาต) |
+| **ผู้ให้บริการ AI ล่ม/เครดิตหมดทุกเจ้า** | task → `escalated` พร้อมเหตุที่ระบุเจ้า+ข้อความจริง · รอบรัน `failed` · `/health` บอก `llm_providers` ที่เหลือ | ตั้งคีย์/ลำดับสำรองที่หน้า `/settings` (มีผลทันที) แล้วตีกลับ task เข้าคิว (`escalated → planned`) |
+| **ชื่อรุ่น/prompt ไม่ถูกต้อง** (`LlmRequestError`) | หยุดที่เจ้าแรก **ไม่ลามไปเจ้าอื่น** · task กลับเป็น `planned` (rollback) | แก้ชื่อรุ่นที่ `/settings` หรือแก้ spec แล้วกด Run ใหม่ |
 | Orchestrator crash กลาง run | task ที่ commit แล้วคงอยู่; task ที่ค้าง in_progress ต้อง PATCH มือ | rerun `/run` ทำต่อเฉพาะ planned ที่เหลือ |
 | รอบรันเบื้องหลังพัง (exception หลุด) | `GET /:id/run` → `status: "failed"` + `error`; lock ถูกปลดเสมอ | ดูเหตุใน `error` แล้วยิง `/run` ใหม่ (ทำต่อเฉพาะ planned ที่เหลือ) |
 | restart backend ระหว่างรอบรัน | thread เป็น daemon → ตายไปกับโปรเซส; ทะเบียนรอบรันหาย (`GET /run` = 404) | task ที่ commit แล้วยังอยู่ครบ — ยิง `/run` ใหม่ทำต่อได้ |
@@ -306,6 +340,8 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 | test_tasks.py | PATCH + messages |
 | test_state_machine.py | **transition matrix ทุกคู่ (64)** , audit, 409 ผ่าน API, เดินครบ lifecycle |
 | test_orchestrator.py | E2E happy path (API), audit ครบ 4 transitions, revision→done, **escalation ที่ MAX_REVISIONS**, **`needs_human` → escalate ตั้งแต่รีวิวแรก / revision_count ไม่ขยับ / reason แยกจาก "review ไม่ผ่าน" / flag ลง Message Log**, dependency ordering, dependent ของ escalated ค้าง planned, **context: เห็นผลงานทั้งกราฟบรรพบุรุษ / ใช้ฉบับล่าสุดหลัง revision / ตัดพร้อม marker / เพดานรวมตัดตัวเก่าก่อน** |
+| test_llm_providers.py | **ตารางแยก error §3 ทุกแถว** (เครดิตหมด/401/403 → สลับทันที · 429/5xx/timeout → ลองซ้ำก่อน · 400 อื่น → **ไม่แตะเจ้าที่สอง**), ข้ามเจ้าที่ไม่รู้จัก/ไม่มีคีย์, ทุกเจ้าล่ม → บอกครบว่าใครพังเพราะอะไร, ตัวสำรองที่ทำงานสำเร็จต้องระบุตัวเองได้ |
+| test_settings_api.py | คีย์ไม่เคยออกจาก API แบบเต็ม, **ไม่ส่ง = ไม่แตะ · ส่งค่าว่าง = ลบ**, คอมเมนต์/ตัวแปรอื่นใน `.env` ไม่หาย, **ไฟล์ที่เขียนไม่มี BOM**, บันทึกแล้วมีผลทันที, สำรอง `.env` ก่อนเขียน, ปุ่มทดสอบไม่แตะเน็ตเมื่อไม่มีคีย์ |
 | test_personas.py | กติกาห้ามกุหลักฐานอยู่ครบทุก persona ที่ผลิตงาน + ครบ 6 ประเภทหลักฐาน + ทางออก (`ต้องการข้อมูลจากคน` / `[ตัวอย่างสมมติ]`) + **ห้ามกุ "การกระทำ"**, reviewer: จับการกุก่อนเรื่องอื่น + **verdict `needs_human` / ห้าม approve งานที่ติดว่าเสร็จ / ห้ามสั่ง revision ที่ agent ทำไม่ได้**, **parser อ่านฟิลด์ที่ prompt สัญญาไว้จริง**, PM ยังจบด้วยคำสั่ง JSON |
 | test_routing_bus.py | routing keywords, publish persist+dispatch, endpoint 201/404 |
 | test_deployments.py | stub mode, invalid env 400, callback → task deployed, terminal immutable 409, portfolio, auto-deploy on/off |

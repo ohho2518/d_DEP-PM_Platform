@@ -1,29 +1,39 @@
 """PM Agent Task Breakdown — requirement text -> validated TaskPlan (Blueprint §6).
 
-Calls the Claude API (persona: PM) when an API key is configured, validates the JSON into
-:class:`TaskPlan`, and retries once on a parse failure (Risk #7). When no key is present, or
-after repeated parse failures, falls back to a single manual task so the flow never dead-ends.
+เรียกโมเดลผ่าน ``providers.call_chain`` (persona: PM) เมื่อมีคีย์ของผู้ให้บริการอย่างน้อยหนึ่งเจ้า,
+validate JSON เป็น :class:`TaskPlan`, และ retry หนึ่งครั้งเมื่อ parse ไม่ผ่าน (Risk #7) ·
+ไม่มีคีย์/เรียกไม่สำเร็จ → คืนแผน task เดียวพร้อม**บอกเหตุ** เพื่อให้ flow ไม่ตันและผู้ใช้รู้ว่าทำไม
 """
 from __future__ import annotations
 
 import json
+import logging
 import re
 
 from app.agents.personas import PM_SYSTEM_PROMPT
+from app.agents.providers import AllProvidersUnavailable, LlmError, call_chain
 from app.config import get_settings
 from app.constants import Priority
 from app.schemas.task import PlannedTask, TaskPlan
+
+logger = logging.getLogger(__name__)
 
 # Number of times to ask the model to fix invalid JSON before giving up (Risk #7).
 _MAX_PARSE_RETRIES = 1
 
 
 class BreakdownResult:
-    """Small container: the plan plus how it was produced ('agent' | 'fallback')."""
+    """Small container: the plan plus how it was produced ('agent' | 'fallback').
 
-    def __init__(self, plan: TaskPlan, source: str) -> None:
+    ``provider``/``model`` = ใครเป็นคนแตกงานจริง (ว่าง = ไม่ได้เรียกโมเดล) — เก็บไว้ให้ log
+    และผู้เรียกเอาไปแสดงต่อได้ ตามกติกา "ห้ามสลับเงียบ" ของใบสั่งงาน 2026-08-06
+    """
+
+    def __init__(self, plan: TaskPlan, source: str, *, provider: str = "", model: str = "") -> None:
         self.plan = plan
         self.source = source
+        self.provider = provider
+        self.model = model
 
 
 def _extract_json(text: str) -> str:
@@ -35,9 +45,16 @@ def _extract_json(text: str) -> str:
     return brace.group(0) if brace else text
 
 
-def _fallback_plan(requirement: str) -> TaskPlan:
-    """Deterministic single-task plan used when the agent is unavailable or unparseable."""
+def _fallback_plan(requirement: str, reason: str | None = None) -> TaskPlan:
+    """Deterministic single-task plan used when the agent is unavailable or unparseable.
+
+    ``reason`` ไปอยู่ใน ``spec`` เพื่อให้ผู้ใช้เห็นบนบอร์ดว่าทำไมได้ task เดียว —
+    degrade เงียบ ๆ คืออาการที่ใบสั่งงาน 2026-08-06 สั่งให้กำจัด
+    """
     title = requirement.strip().splitlines()[0][:120] if requirement.strip() else "Untitled task"
+    spec = "(fallback) PM Agent ไม่พร้อม — สร้าง task เดียวจาก requirement ให้ผู้ใช้แตกเอง"
+    if reason:
+        spec = f"{spec}\nเหตุ: {reason}"
     return TaskPlan(
         tasks=[
             PlannedTask(
@@ -46,7 +63,7 @@ def _fallback_plan(requirement: str) -> TaskPlan:
                 description=requirement.strip() or None,
                 priority=Priority.P2,
                 depends_on=[],
-                spec="(fallback) PM Agent ไม่พร้อม — สร้าง task เดียวจาก requirement ให้ผู้ใช้แตกเอง",
+                spec=spec,
             )
         ]
     )
@@ -58,44 +75,42 @@ def breakdown_requirement(requirement: str) -> BreakdownResult:
     Never raises for model/parse issues — returns a fallback plan instead so the API endpoint
     can always persist something and report the source to the caller.
     """
-    settings = get_settings()
-    if not settings.agent_enabled:
-        return BreakdownResult(_fallback_plan(requirement), source="fallback")
+    if not get_settings().agent_enabled:
+        return BreakdownResult(
+            _fallback_plan(requirement, "ยังไม่ได้ตั้งคีย์ของผู้ให้บริการ AI เลย"), source="fallback"
+        )
 
-    # Imported lazily so the package imports even if `anthropic` isn't installed yet.
-    import anthropic
-
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    messages = [{"role": "user", "content": f"Requirement:\n{requirement}"}]
-
-    last_text = ""
+    prompt = f"Requirement:\n{requirement}"
     for attempt in range(_MAX_PARSE_RETRIES + 1):
         try:
-            response = client.messages.create(
-                model=settings.claude_model,
-                max_tokens=settings.max_tokens_per_task,
-                system=PM_SYSTEM_PROMPT,
-                messages=messages,
-            )
-        except Exception:
-            # Network / auth / rate-limit — degrade gracefully rather than 500 the request.
-            return BreakdownResult(_fallback_plan(requirement), source="fallback")
+            reply = call_chain(PM_SYSTEM_PROMPT, prompt)
+        except (AllProvidersUnavailable, LlmError) as exc:
+            # ทุกเจ้าใช้ไม่ได้ / โจทย์ผิด — degrade อย่างมีศักดิ์ศรีแทนการ 500 ทั้ง request
+            # แต่ต้อง **บอกเหตุ** ไม่ใช่คืนแผนเปล่า ๆ ให้ผู้ใช้เดาเอง
+            logger.warning("PM Agent แตกงานไม่สำเร็จ: %s", exc)
+            return BreakdownResult(_fallback_plan(requirement, str(exc)), source="fallback")
 
-        last_text = "".join(block.text for block in response.content if block.type == "text")
         try:
-            data = json.loads(_extract_json(last_text))
-            return BreakdownResult(TaskPlan.model_validate(data), source="agent")
+            data = json.loads(_extract_json(reply.text))
+            return BreakdownResult(
+                TaskPlan.model_validate(data),
+                source="agent",
+                provider=reply.provider,
+                model=reply.model,
+            )
         except (json.JSONDecodeError, ValueError):
             if attempt < _MAX_PARSE_RETRIES:
                 # Ask the model to repair its own output (structured-retry, Risk #7).
-                messages.append({"role": "assistant", "content": last_text})
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": "ผลลัพธ์ก่อนหน้าไม่ใช่ JSON ที่ parse ได้ตามโครงสร้าง "
-                        "กรุณาตอบใหม่เป็น JSON ที่ถูกต้องเท่านั้น ไม่มีข้อความอื่น",
-                    }
+                # ส่งของเดิมกลับไปในพรอมป์ตเดียว — `call_chain` เป็น single-turn เพื่อให้ทุกเจ้า
+                # ใช้ผิวสัมผัสเดียวกันได้ (รูปแบบ message history ต่างกันในแต่ละค่าย)
+                prompt = (
+                    f"Requirement:\n{requirement}\n\n"
+                    f"ผลลัพธ์ก่อนหน้าไม่ใช่ JSON ที่ parse ได้ตามโครงสร้าง:\n{reply.text}\n\n"
+                    "กรุณาตอบใหม่เป็น JSON ที่ถูกต้องเท่านั้น ไม่มีข้อความอื่น"
                 )
             continue
 
-    return BreakdownResult(_fallback_plan(requirement), source="fallback")
+    return BreakdownResult(
+        _fallback_plan(requirement, "โมเดลตอบกลับเป็น JSON ที่อ่านไม่ได้หลังลองซ้ำแล้ว"),
+        source="fallback",
+    )

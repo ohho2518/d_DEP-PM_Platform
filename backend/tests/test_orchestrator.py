@@ -1,9 +1,11 @@
 """Orchestrator E2E: happy path, revision loop, escalation (Sprint 2 DoD)."""
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import select
 
-from app.agents.runtime import ReviewResult
+from app.agents.providers import AllProvidersUnavailable
+from app.agents.runtime import ProviderUse, ReviewResult
 from app.constants import MAX_REVISIONS
 from app.models.agent_message import AgentMessage
 from app.models.audit_log import AuditLog
@@ -195,6 +197,61 @@ def test_review_comment_records_the_needs_human_flag(db_session):
     ).scalars().one()
     assert comment.payload["needs_human"] is True
     assert comment.payload["approved"] is False
+
+
+# ---------------------------------------------------------------------------
+# ผู้ให้บริการ AI ล่มทั้งหมด (ใบสั่งงาน 2026-08-06 §6 "degrade ไม่ใช่พัง")
+# ---------------------------------------------------------------------------
+class DeadProvidersExecutor:
+    """เลียนแบบเช้าวันที่ 6 ส.ค.: ตั้งคีย์ไว้แล้วแต่ทุกเจ้าตอบว่าใช้ไม่ได้."""
+
+    def execute(self, task, role, feedback=None, context=None):
+        raise AllProvidersUnavailable({"anthropic": "บัญชีใช้ไม่ได้ (credit balance too low)"})
+
+    def review(self, task, work):  # pragma: no cover — ไม่มีทางถูกเรียกในเทสต์นี้
+        raise AssertionError("ไม่ควรถึงขั้นรีวิวเมื่อผลิตงานไม่ได้")
+
+
+def test_all_providers_down_escalates_instead_of_leaving_the_task_in_progress(db_session):
+    project, tasks = _project_with_planned_tasks(db_session, ["Do G"])
+
+    with pytest.raises(AllProvidersUnavailable):
+        run_project(db_session, project.id, executor=DeadProvidersExecutor())
+
+    task = db_session.get(Task, tasks[0].id)
+    assert task.status == "escalated"  # ไม่ค้าง in_progress ให้ต้องมาแก้มือ
+    question = db_session.execute(
+        select(AgentMessage).where(AgentMessage.message_type == "question")
+    ).scalars().one()
+    # เจ้าของต้องแยกออกทันทีว่านี่คือ "บัญชี/ผู้ให้บริการ" ไม่ใช่ "งานไม่ผ่าน"
+    assert "ผู้ให้บริการ AI ใช้ไม่ได้ทั้งหมด" in question.payload["reason"]
+    assert "credit balance" in question.payload["reason"]
+
+
+class FallbackProviderExecutor:
+    """งานสำเร็จ แต่ทำด้วย **ตัวสำรอง** — orchestrator ต้องติดป้ายให้คนตรวจเห็น."""
+
+    def __init__(self) -> None:
+        self.last_use = ProviderUse(provider="openai", model="gpt-5.2", primary="anthropic")
+
+    def execute(self, task, role, feedback=None, context=None):
+        return "เนื้อหางานที่ทำเสร็จแล้ว"
+
+    def review(self, task, work):
+        return ReviewResult(approved=True, comment="ok")
+
+
+def test_work_done_by_a_fallback_provider_is_labelled(db_session):
+    """ห้ามสลับเงียบ — ป้ายต้องอยู่ในตัวผลงาน เพราะผลงานถูกส่งต่อเข้ารายงานถึง d_CEO/QC."""
+    project, tasks = _project_with_planned_tasks(db_session, ["Do H"])
+    run_project(db_session, project.id, executor=FallbackProviderExecutor())
+
+    result = db_session.execute(
+        select(AgentMessage).where(AgentMessage.message_type == "result")
+    ).scalars().one()
+    assert "🤖 ทำโดย openai/gpt-5.2" in result.payload["work"]
+    assert "ตัวหลัก `anthropic` ใช้ไม่ได้" in result.payload["work"]
+    assert result.payload["provider"] == "openai"  # ค้นย้อนหลังได้จาก payload ด้วย
 
 
 # ---------------------------------------------------------------------------

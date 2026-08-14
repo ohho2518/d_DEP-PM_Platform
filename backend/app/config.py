@@ -23,12 +23,18 @@ class Settings(BaseSettings):
     max_tokens_per_task: int = 16000
 
     # --- Team Mode (Sprint 4, Blueprint §8-9) -------------------------------
-    # 'solo'  = Claude ทุกบทบาท (default) | 'team' = map role -> provider
+    # 'solo'  = ผู้ให้บริการเดียวทุกบทบาท (default) | 'team' = map role -> provider
     agent_mode: str = "solo"
     openai_api_key: str = ""
     openai_model: str = "gpt-5.2"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3-pro"
+
+    # --- รองรับ AI หลายเจ้า (ใบสั่งงาน 2026-08-06) --------------------------
+    # ตอบคนละคำถามกับ `agent_mode`: agent_mode = "บทบาทไหนใช้เจ้าไหนเป็นตัวหลัก",
+    # ส่วนสองตัวนี้ = "ตัวหลักคือใคร และล้มแล้วไปต่อที่ใคร" (ใช้ร่วมกันทั้ง solo/team)
+    llm_provider: str = "anthropic"
+    llm_fallbacks: str = ""  # คั่นด้วย comma เช่น "openai,google" · ว่าง = ไม่มีสำรอง (พฤติกรรมเดิม)
 
     # --- Deploy pipeline (Sprint 4, Blueprint §12) --------------------------
     # ครบทั้งคู่ => dispatch repository_dispatch จริง; ไม่ครบ => stub (บันทึก record อย่างเดียว)
@@ -52,9 +58,40 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:3000"
 
     @property
+    def provider_keys(self) -> dict[str, str]:
+        """ชื่อผู้ให้บริการ -> คีย์ (ค่าว่าง = ยังไม่ตั้ง).
+
+        อยู่ที่นี่เพราะ `providers.py` กับหน้า Settings ต้องใช้ตารางเดียวกัน —
+        ชื่อ key ต้องตรงกับ `providers.BUILDERS`
+        """
+        return {
+            "anthropic": self.anthropic_api_key.strip(),
+            "openai": self.openai_api_key.strip(),
+            "google": self.gemini_api_key.strip(),
+        }
+
+    @property
+    def provider_models(self) -> dict[str, str]:
+        """ชื่อผู้ให้บริการ -> รุ่นที่ตั้งไว้ (คู่กับ `provider_keys`)."""
+        return {
+            "anthropic": self.claude_model,
+            "openai": self.openai_model,
+            "google": self.gemini_model,
+        }
+
+    @property
+    def llm_fallback_list(self) -> list[str]:
+        """ลำดับสำรองที่ล้างค่าแล้ว — ตัวว่างถูกตัดทิ้ง, ตัวที่ไม่รู้จักปล่อยให้ chain ข้ามเอง."""
+        return [name.strip().lower() for name in self.llm_fallbacks.split(",") if name.strip()]
+
+    @property
     def agent_enabled(self) -> bool:
-        """True when a real Anthropic key is configured."""
-        return bool(self.anthropic_api_key.strip())
+        """True เมื่อมีคีย์ของผู้ให้บริการ **อย่างน้อยหนึ่งเจ้า**.
+
+        เดิมผูกกับ Anthropic ตัวเดียว — ตั้ง `LLM_PROVIDER=openai` แล้วระบบจะยังคิดว่า
+        ไม่มี agent (ใบสั่งงาน 2026-08-06: โค้ดธุรกิจห้ามผูกกับชื่อเจ้าใดเจ้าหนึ่ง)
+        """
+        return any(self.provider_keys.values())
 
     @property
     def ceo_enabled(self) -> bool:

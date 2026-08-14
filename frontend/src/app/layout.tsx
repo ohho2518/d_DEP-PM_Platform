@@ -42,6 +42,7 @@ export default function RootLayout({
               <Link href="/" className="hover:opacity-70">Portfolio</Link>
               <Link href="/deployments" className="hover:opacity-70">Deployments</Link>
               <Link href="/projects/new" className="hover:opacity-70">+ New Project</Link>
+              <Link href="/settings" className="hover:opacity-70">⚙ ตั้งค่า AI</Link>
             </nav>
           </div>
         </header>

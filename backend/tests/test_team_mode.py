@@ -1,6 +1,8 @@
 """Team Mode tests (Sprint 4) — ไม่มี key ใด ๆ ใน tests: ตรวจ mapping + fallback chain."""
 from __future__ import annotations
 
+import pytest
+
 from app.agents.runtime import FallbackExecutor, TeamExecutor, get_executor
 from app.constants import AgentRole
 
@@ -52,6 +54,7 @@ def test_team_executor_without_any_keys_degrades_to_fallback(db_session):
 
 def test_team_executor_uses_provider_call_when_available(db_session, monkeypatch):
     """เสียบ provider call ปลอมเข้า _calls — role ต้องเลือก provider ตาม mapping."""
+    from app.config import get_settings
     from app.models.project import Project
     from app.models.task import Task
 
@@ -62,16 +65,43 @@ def test_team_executor_uses_provider_call_when_available(db_session, monkeypatch
     db_session.add(task)
     db_session.flush()
 
+    # ลำดับสำรองมาจาก env แล้ว (ใบสั่งงาน 2026-08-06 §2) — ไม่ได้ hardcode ว่าถอยไป anthropic
+    monkeypatch.setattr(get_settings(), "llm_fallbacks", "anthropic")
+
     executor = TeamExecutor()
     executor._calls["openai"] = lambda system, prompt: "openai did it"
     executor._calls["anthropic"] = lambda system, prompt: '{"approved": true, "comment": "ok"}'
 
     assert executor.execute(task, AgentRole.DEV) == "openai did it"
-    # SR ไม่มี google call -> chain ไป anthropic
+    assert executor.last_use.provider == "openai" and executor.last_use.degraded is False
+    # SR ไม่มี google call -> ไล่ต่อตามลำดับสำรองไป anthropic
     assert executor.execute(task, AgentRole.SENIOR_ARCHITECT) == '{"approved": true, "comment": "ok"}'
+    assert executor.last_use.provider == "anthropic"
+    assert executor.last_use.degraded is True  # ต้องรู้ว่าชิ้นนี้ทำด้วยตัวสำรอง (ห้ามสลับเงียบ)
     # review ใช้ anthropic + parse JSON
     review = executor.review(task, "work")
     assert review.approved is True and review.comment == "ok"
+
+
+def test_role_without_any_reachable_provider_is_loud_not_silently_deterministic(
+    db_session, monkeypatch
+):
+    """มีคีย์ในระบบแต่บทบาทนี้ไปไม่ถึงเจ้าไหนเลย = ต้องดัง.
+
+    ผลิตข้อความ deterministic แล้วนับว่าเสร็จ คือการ "รายงานเกินจริง" แบบเดียวกับที่ QC
+    ของ d_CEO จับได้เมื่อ 2026-08-03 — ทางเงียบสงวนไว้ให้เคส "ไม่มีคีย์เลยทั้งระบบ" เท่านั้น
+    """
+    from app.agents.providers import AllProvidersUnavailable
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "anthropic_api_key", "sk-มีคีย์")
+    monkeypatch.setattr(get_settings(), "llm_fallbacks", "")  # ไม่ได้ตั้งลำดับสำรอง
+
+    task = _make_task(db_session, "sr task")
+    executor = TeamExecutor()  # google (ตัวหลักของ SR) ไม่มีคีย์
+
+    with pytest.raises(AllProvidersUnavailable):
+        executor.execute(task, AgentRole.SENIOR_ARCHITECT)
 
 
 def _make_task(db_session, title="t"):

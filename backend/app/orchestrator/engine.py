@@ -8,14 +8,16 @@ MAX_REVISIONS → escalated. ทุก handoff/result/review_comment ลง Mess
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.agents.providers import AllProvidersUnavailable
 from app.agents.routing import route_task
-from app.agents.runtime import PersonaExecutor, get_executor
+from app.agents.runtime import PersonaExecutor, ProviderUse, get_executor
 from app.bus import clip_work, latest_work_by_task, publish
 from app.constants import (
     MAX_REVISIONS,
@@ -220,6 +222,53 @@ def _escalate(
     )
 
 
+def _provider_use(executor: PersonaExecutor) -> ProviderUse:
+    """ใครทำงานชิ้นล่าสุด — executor ที่ไม่ได้เรียกโมเดล (deterministic/เทสต์) ไม่มี attribute นี้."""
+    use = getattr(executor, "last_use", None)
+    return use if isinstance(use, ProviderUse) else ProviderUse()
+
+
+def _tag_work_product(work: str, used: ProviderUse) -> str:
+    """ติดป้ายเมื่องานชิ้นนี้ทำด้วย **ตัวสำรอง** — คุณภาพและสไตล์ต่างกันจริง คนตรวจต้องรู้.
+
+    ป้ายอยู่ในตัว work product เอง (ไม่ใช่แค่ payload) เพราะผลงานถูกส่งต่อเข้ารายงานถึง d_CEO
+    และไปถึง QC — "ห้ามสลับเงียบ" ของใบสั่งงาน 2026-08-06 §4
+    """
+    if not used.degraded:
+        return work
+    return (
+        f"{work}\n\n"
+        f"> 🤖 ทำโดย {used.provider}/{used.model} — **ตัวสำรอง** "
+        f"(ตัวหลัก `{used.primary}` ใช้ไม่ได้ตอนนั้น)"
+    )
+
+
+@contextmanager
+def _llm_available(db: Session, task: Task) -> Iterator[None]:
+    """ทุกผู้ให้บริการใช้ไม่ได้ → หยุดอย่างมีศักดิ์ศรี แล้วโยนต่อให้รอบรันจบเป็น ``failed``.
+
+    - task ไป ``escalated`` **ไม่ค้าง ``in_progress``** ที่ต้องมาแก้มือทีหลัง
+    - **commit ทันทีก่อนโยนต่อ** เพราะผู้เรียก (`services/runs.py`) จะ `db.rollback()`
+      เมื่อรับ exception — ไม่งั้นการ escalate ที่เพิ่งบันทึกจะหายไปพร้อมกัน
+      (จุดเดียวในไฟล์นี้ที่ commit เอง — ทางปกติยัง commit ที่ `run_project` ตามกติกา §9.1.3)
+    """
+    try:
+        yield
+    except AllProvidersUnavailable as exc:
+        _escalate(
+            db,
+            task,
+            audit_reason="llm providers unavailable",
+            reason=(
+                "ผู้ให้บริการ AI ใช้ไม่ได้ทั้งหมด — "
+                f"{clip_work(str(exc), ESCALATION_REASON_CHAR_LIMIT)}"
+            ),
+            last_comment=str(exc),
+        )
+        db.commit()
+        raise
+
+
 def _run_task(db: Session, task: Task, executor: PersonaExecutor) -> TaskOutcome:
     # 1) Routing + assign
     role = route_task(db, task)
@@ -243,7 +292,10 @@ def _run_task(db: Session, task: Task, executor: PersonaExecutor) -> TaskOutcome
     context = upstream_context(db, task)
     feedback: str | None = None
     while True:
-        work = executor.execute(task, role, feedback=feedback, context=context)
+        with _llm_available(db, task):
+            work = executor.execute(task, role, feedback=feedback, context=context)
+        used = _provider_use(executor)
+        work = _tag_work_product(work, used)
         publish(
             db,
             project_id=task.project_id,
@@ -251,11 +303,18 @@ def _run_task(db: Session, task: Task, executor: PersonaExecutor) -> TaskOutcome
             from_agent_id=role.value,
             to_agent_id=AgentRole.REVIEWER.value,
             message_type=MessageType.RESULT,
-            payload={"work": work, "revision": task.revision_count},
+            payload={
+                "work": work,
+                "revision": task.revision_count,
+                "provider": used.provider,
+                "model": used.model,
+            },
         )
         transition(db, task, TaskStatus.REVIEW, actor_type=ActorType.AGENT, actor_id=role.value)
 
-        review = executor.review(task, work)
+        with _llm_available(db, task):
+            review = executor.review(task, work)
+        reviewed_by = _provider_use(executor)
         publish(
             db,
             project_id=task.project_id,
@@ -267,6 +326,9 @@ def _run_task(db: Session, task: Task, executor: PersonaExecutor) -> TaskOutcome
                 "approved": review.approved,
                 "comment": review.comment,
                 "needs_human": review.needs_human,
+                # QC ปลายทางต้องรู้ว่า "ตรวจด้วยรุ่นไหน" (ใบสั่งงาน 2026-08-06 §4)
+                "provider": reviewed_by.provider,
+                "model": reviewed_by.model,
             },
         )
 

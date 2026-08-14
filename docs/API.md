@@ -217,8 +217,15 @@ Response `200`:
 ---
 
 ### 12) `GET /health` — liveness
-Response: `{ "status": "ok", "agent_enabled": false, "ceo_enabled": true }`
-- `agent_enabled` = มี `ANTHROPIC_API_KEY` จริงหรือไม่ (UI ใช้บอกผู้ใช้ว่าอยู่โหมด fallback)
+Response:
+```json
+{ "status": "ok", "agent_enabled": true, "ceo_enabled": true,
+  "llm_providers": ["anthropic", "openai"], "llm_chain": ["anthropic", "openai"] }
+```
+- `agent_enabled` = มีคีย์ของผู้ให้บริการ AI **อย่างน้อยหนึ่งเจ้า** (เดิมผูกกับ Anthropic ตัวเดียว
+  — เปลี่ยน 2026-08-14 ตอนรองรับหลายเจ้า) · false = ระบบอยู่โหมด deterministic
+- `llm_providers` = เจ้าที่ตั้งคีย์ไว้แล้ว · `llm_chain` = **ลำดับที่จะถูกเรียกจริง**
+  (ตัวหลักก่อน แล้วตามด้วยตัวสำรอง) — ดูจากภายนอกได้ว่าตอนนี้ยังมีใครทำงานให้ได้บ้าง
 - `ceo_enabled` = ตั้ง `CEO_API_BASE` ไว้ไหม (**ออนไลน์จริงหรือไม่** ดูที่ §16)
 
 ---
@@ -318,6 +325,51 @@ Side effects ต่องาน: สร้าง project (`ceo_task_id` ผู�
 - **400** ถ้าโปรเจกต์ไม่มี `ceo_task_id` · **404** ไม่พบโปรเจกต์ · **503** ยังไม่ตั้งค่า/ปิดอยู่
 - เรียกอัตโนมัติให้แล้วเมื่อรอบรัน §7 จบ (ผลอยู่ใน `ceo_report` ของ §7.1) —
   endpoint นี้ไว้ยิงซ้ำเมื่อรอบอัตโนมัติล้มเหลว
+
+---
+
+## ตั้งค่าผู้ให้บริการ AI (ใบสั่งงาน 2026-08-06 "รองรับ AI หลายเจ้า")
+
+> 🔒 **กลุ่ม endpoint ที่อ่อนไหวที่สุดในระบบ** — อ่าน/เขียนคีย์จริงลง `backend/.env`
+> ระบบนี้ยังไม่มี authentication ⇒ **bind `127.0.0.1` เท่านั้น** (docs/SECURITY.md) ·
+> ขาออก**ไม่มีคีย์เต็มเด็ดขาด** (mask อย่างเดียว)
+
+### 20) `GET /api/settings/llm` — ค่าปัจจุบัน
+```json
+{ "provider": "anthropic", "fallbacks": ["openai"],
+  "providers": [
+    { "name": "anthropic", "model": "claude-sonnet-5", "key_set": true, "key_masked": "sk-…4f2a" },
+    { "name": "openai", "model": "gpt-5.2", "key_set": false, "key_masked": "" }
+  ] }
+```
+
+### 21) `PUT /api/settings/llm` — บันทึกคีย์/รุ่น/ลำดับ (**มีผลทันที ไม่ต้อง restart**)
+Request (ทุก field เป็น optional):
+```json
+{ "provider": "anthropic", "fallbacks": ["openai", "google"],
+  "keys": { "openai": "sk-…" }, "models": { "openai": "gpt-5.2" } }
+```
+- ⚠️ **ไม่ส่ง key ของเจ้าไหน = ไม่แตะของเดิม · ส่งสตริงว่าง = ตั้งใจลบ** (แค่เปิดหน้าเว็บแล้วกด
+  บันทึกต้องไม่ล้างคีย์ทิ้ง)
+- เขียนกลับ `.env` แบบ**แก้เฉพาะบรรทัดที่เกี่ยว** (คอมเมนต์/ตัวแปรอื่นอยู่ครบ) · UTF-8 **ไม่มี BOM**
+  (WORKING_RULES §6.1ข) · สำรองไฟล์เดิมไว้ที่ `BackUp/EnvSettings_<ts>/` ทุกครั้ง
+- ชื่อผู้ให้บริการที่ไม่รู้จัก → **400** · Response = เหมือน §20
+- ค่าที่ตั้งจะไปอยู่ใน `Settings` ที่โหลดไว้แล้วทันที (ไม่ล้าง `lru_cache` เพราะมีโมดูลที่จับ
+  instance ไว้ตั้งแต่ import)
+
+### 22) `POST /api/settings/llm/test` — ยิงจริงหนึ่งครั้งเพื่อดูว่าคีย์ใช้ได้ไหม
+Request: `{ "provider": "openai" }` (ไม่ระบุ = ทดสอบทุกเจ้า)
+```json
+{ "results": [
+  { "provider": "openai", "ok": true, "model": "gpt-5.2", "latency_ms": 3396, "kind": null, "detail": "" },
+  { "provider": "google", "ok": false, "model": "", "latency_ms": 412,
+    "kind": "account", "detail": "401 UNAUTHENTICATED. …" } ] }
+```
+- `kind` ∈ `account` (เครดิตหมด/คีย์ผิด) · `temporary` (429/5xx) · `request` (ชื่อรุ่น/prompt ผิด) ·
+  `unknown` — ใช้ `classify_error()` **ชุดเดียวกับตอนทำงานจริง** ⇒ ปุ่มนี้คือเครื่องมือตรวจ
+  ตารางแยก error ในตัว
+- ยิงเจ้านั้น **ตรง ๆ ไม่ผ่านลำดับสำรอง** (ต้องรู้ผลของเจ้านั้นจริง ไม่ใช่ผลของตัวสำรอง) ·
+  prompt สั้นที่สุด ⇒ ค่าใช้จ่ายแทบเป็นศูนย์
 
 ---
 

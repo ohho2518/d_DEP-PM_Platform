@@ -23,7 +23,9 @@ ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.BACKLOG: {TaskStatus.PLANNED},
     TaskStatus.PLANNED: {TaskStatus.ASSIGNED},
     TaskStatus.ASSIGNED: {TaskStatus.IN_PROGRESS},
-    TaskStatus.IN_PROGRESS: {TaskStatus.REVIEW},
+    # in_progress → escalated = เครื่องมือใช้ไม่ได้กลางคัน (ผู้ให้บริการ AI ล่มทุกเจ้า, 2026-08-14)
+    # ไม่ใช่ "งานไม่ผ่าน" — แต่ปล่อยค้าง `in_progress` แล้วต้องมาแก้มือทีหลังยิ่งแย่กว่า
+    TaskStatus.IN_PROGRESS: {TaskStatus.REVIEW, TaskStatus.ESCALATED},
     TaskStatus.REVIEW: {TaskStatus.DONE, TaskStatus.IN_PROGRESS, TaskStatus.ESCALATED},
     TaskStatus.DONE: {TaskStatus.DEPLOYED},
     # escalated → planned = "ตีกลับเข้าคิว" ให้ orchestrator หยิบไปทำใหม่ (engine หยิบเฉพาะ
