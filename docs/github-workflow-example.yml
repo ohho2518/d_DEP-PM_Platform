@@ -31,12 +31,15 @@ jobs:
           echo "Deploying to ${{ github.event.client_payload.environment }}"
           # ... build / test / deploy จริงตรงนี้ ...
 
+      # 🔑 ตั้งแต่ 2026-08-14 ฝั่ง backend **เปิดตรวจ shared secret แล้ว** — callback ที่ไม่ส่ง
+      # header `X-DEP-PM-Secret` จะได้ 401 และผลรัน CI จะไม่ถูกบันทึกกลับ (เงียบ ๆ)
       - name: Report success back to DEP-PM
         if: success()
         run: |
           curl -sS -X PATCH \
             "${{ secrets.DEP_PM_API_URL }}/api/deployments/${{ github.event.client_payload.deployment_id }}" \
             -H "Content-Type: application/json" \
+            -H "X-DEP-PM-Secret: ${{ secrets.DEP_PM_CALLBACK_SECRET }}" \
             -d "{\"status\": \"success\", \"commit_sha\": \"${GITHUB_SHA}\"}"
 
       - name: Report failure back to DEP-PM
@@ -45,4 +48,5 @@ jobs:
           curl -sS -X PATCH \
             "${{ secrets.DEP_PM_API_URL }}/api/deployments/${{ github.event.client_payload.deployment_id }}" \
             -H "Content-Type: application/json" \
+            -H "X-DEP-PM-Secret: ${{ secrets.DEP_PM_CALLBACK_SECRET }}" \
             -d "{\"status\": \"failed\"}"

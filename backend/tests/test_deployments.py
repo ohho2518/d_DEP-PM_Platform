@@ -84,14 +84,27 @@ def test_callback_terminal_status_is_immutable(client):
     assert resp.status_code == 409
 
 
-def test_list_deployments_newest_first_with_names(client):
+def test_list_deployments_newest_first_with_names(client, db_session):
     pid = _project(client, name="ListMe")
     tid = _done_task(client, pid)
-    client.post("/api/deployments", json={"project_id": pid, "environment": "staging"})
+    first = client.post(
+        "/api/deployments", json={"project_id": pid, "environment": "staging"}
+    ).json()
     client.post(
         "/api/deployments",
         json={"project_id": pid, "task_id": tid, "environment": "production"},
     )
+
+    # ⚠️ ต้องดันเวลาให้ต่างกันเอง — นาฬิกาของ Windows ก้าวทีละ ~15.6 ms (วัดจริง: `utcnow()`
+    # 400 ครั้งติดกันได้ค่าเดียว) สอง deployment ที่สร้างติดกันจึงมี `created_at` เท่ากันเป๊ะ
+    # แล้วลำดับตกไปขึ้นกับ tie-break ⇒ เทสต์เด้งประมาณ 1 ใน 5 รอบ (ของจริงที่เจอ 2026-08-14)
+    from datetime import timedelta
+
+    from app.models.deployment import Deployment
+
+    older = db_session.get(Deployment, uuid.UUID(first["id"]))
+    older.created_at = older.created_at - timedelta(minutes=1)
+    db_session.commit()
 
     body = client.get("/api/deployments").json()
     assert body["pagination"]["total"] == 2

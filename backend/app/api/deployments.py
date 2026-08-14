@@ -134,7 +134,15 @@ def list_deployments(
 
     total = db.execute(select(func.count()).select_from(base.subquery())).scalar_one()
     rows = (
-        db.execute(base.order_by(Deployment.created_at.desc()).limit(limit).offset(offset))
+        # tie-break ด้วย id เพราะ `created_at` ชนกันได้จริง: นาฬิกาของ Windows ก้าวทีละ ~15.6 ms
+        # (วัดแล้ว utcnow() 400 ครั้งติดกันได้ค่าเดียว) แถวที่สร้างในคำขอเดียวกันจึงเวลาเท่ากันเป๊ะ
+        # ⚠️ id เป็น UUID สุ่ม = ลำดับใน tie ไม่ใช่ลำดับที่สร้างจริง แต่ **คงที่ทุกครั้งที่เรียก**
+        # ซึ่งคือสิ่งที่ UI ต้องการ (รายการไม่สลับตำแหน่งเองตอนรีเฟรช)
+        db.execute(
+            base.order_by(Deployment.created_at.desc(), Deployment.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
         .scalars()
         .all()
     )

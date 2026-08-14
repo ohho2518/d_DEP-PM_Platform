@@ -68,6 +68,19 @@ def test_reviewer_has_a_needs_human_verdict_for_work_blocked_on_a_person():
     assert "ห้าม approve งานแบบนี้ว่าเสร็จ" in REVIEWER_SYSTEM_PROMPT
 
 
+def test_reviewer_must_not_escalate_a_whole_deliverable_over_one_missing_detail():
+    """`needs_human` มีไว้สำหรับงานที่ **ติดทั้งชิ้น** ไม่ใช่งานที่ขาดรายละเอียดจุดเดียว.
+
+    เจอจริง 2026-08-14 (project 662c3f43): คู่มือที่ reviewer เองบอกว่า "เขียนครบและใช้ภาษา
+    เข้าใจง่ายดี ไม่มีการกุข้อมูล" ถูกยกให้คนทั้งชิ้นเพราะไม่รู้ว่าปุ่มอยู่ตรงไหนบนจอ
+    ⇒ ผู้ใช้ไม่ได้เอกสารเลยทั้งที่พร้อมส่ง 95% (อาการเดียวกับที่เพิ่งแก้ฝั่ง PM)
+    """
+    assert "ขาดข้อมูล \"บางจุด\" ≠ ทำงานไม่ได้" in REVIEWER_SYSTEM_PROMPT
+    assert "ห้ามยกทั้งชิ้นให้คนเพราะรายละเอียดจุดเดียว" in REVIEWER_SYSTEM_PROMPT
+    # ต้องมีเกณฑ์ตัดสินที่ใช้ได้จริง ไม่ใช่แค่บอกว่า "อย่าเกินจำเป็น"
+    assert "ถ้าตัดส่วนที่ขาดออกแล้วผลงานยังมีประโยชน์กับคนอ่าน = approve" in REVIEWER_SYSTEM_PROMPT
+
+
 def test_reviewer_must_not_ask_for_things_the_agent_cannot_do():
     """คำสั่งแบบ "ยืนยันว่าส่งเรื่องไปแล้ว" คือการบีบให้ agent กุการกระทำ."""
     assert "ห้ามสั่ง revision ที่ agent ทำไม่ได้ในบทสนทนานี้" in REVIEWER_SYSTEM_PROMPT
@@ -80,6 +93,17 @@ def test_parser_understands_the_verdict_the_prompt_promises():
     # ของเดิมที่ไม่มีฟิลด์นี้ต้องยังทำงานเหมือนเดิม (revision loop ปกติ)
     legacy = _parse_review('{"approved": false, "comment": "แก้ตรงนี้"}')
     assert legacy is not None and legacy.needs_human is False
+
+
+def test_pm_must_not_hang_the_deliverable_off_a_human_blocked_task():
+    """เอกสารที่มีช่องว่างติดป้าย มีค่ากว่าเอกสารที่ไม่มีอยู่จริง.
+
+    เจอจริง 2026-08-14 (project 17db2a67): สถิติชิ้นเดียวที่ระบบไม่มี ทำให้คู่มือที่เขียนได้
+    80% ไม่ถูกผลิตเลย เพราะ PM ผูก task "รวมเล่ม" ไว้กับ task ที่รอข้อมูลจากคน
+    """
+    pm = PERSONA_PROMPTS[AgentRole.PM]
+    assert "ห้ามเป็น `depends_on` ของงานส่งมอบ" in pm
+    assert "[รอข้อมูล:" in pm  # ต้องบอกด้วยว่าให้เว้นช่องว่างแบบไหน ไม่ใช่ห้ามเฉย ๆ
 
 
 def test_reviewer_sees_the_same_source_material_as_the_worker(db_session):
