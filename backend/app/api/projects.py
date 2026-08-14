@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.pm import breakdown_requirement
-from app.constants import ActorType, ProjectType, RunStatus, TaskStatus
+from app.constants import ActorType, Priority, ProjectType, RunStatus, TaskStatus
 from app.db.session import get_db, get_session_factory
 from app.integrations.ceo_client import CeoClient, get_ceo_client
 from app.metadata.provider import get_metadata_provider
@@ -19,7 +20,16 @@ from app.models.project import Project
 from app.models.task import Task
 from app.orchestrator.engine import planned_task_count
 from app.orchestrator.state_machine import transition
-from app.schemas.project import ProjectCreate, ProjectRead, ProjectUsage
+from app.schemas.project import (
+    BootstrapRequest,
+    BootstrapResponse,
+    DeliverableRequest,
+    DeliverableResponse,
+    DesignUploadResponse,
+    ProjectCreate,
+    ProjectRead,
+    ProjectUsage,
+)
 from app.schemas.scan import ScanResponse
 from app.schemas.task import (
     BreakdownRequest,
@@ -32,7 +42,7 @@ from app.schemas.task import (
     TaskPlan,
     TaskRead,
 )
-from app.services import runs, usage
+from app.services import deliverables, design_files, runs, scaffold, usage
 from app.services.audit import record_audit
 from app.services.tasks import persist_task_plan
 
@@ -71,6 +81,70 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
 def get_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> Project:
     """รายละเอียดโปรเจกต์ — UI ใช้รู้ว่ามาจาก d_CEO ไหม (`ceo_task_id`)."""
     return _get_project_or_404(db, project_id)
+
+
+@router.post("/bootstrap", response_model=BootstrapResponse, status_code=status.HTTP_201_CREATED)
+def bootstrap_project(payload: BootstrapRequest, db: Session = Depends(get_db)) -> dict:
+    """เปิดโปรเจกต์ใหม่ **ของจริง**: โฟลเดอร์ + เอกสารกำกับ + git init แล้วลงบอร์ดในคราวเดียว.
+
+    ยกมาจาก `new-project-studio` ตาม ADR-05 — ส่วนนี้เป็น deterministic ล้วน **ไม่เรียก AI**
+    (ตรงกับหลัก "AI ล่ม ระบบไม่ล่ม") · การเติมเอกสารจากไฟล์ดีไซน์เป็นงานบนบอร์ดคนละขั้น
+
+    ลำดับตั้งใจ: **scaffold ก่อน แล้วค่อยลงบอร์ด** — ถ้าสร้างโฟลเดอร์ไม่ได้จะได้ไม่มี
+    project ค้างในระบบที่ไม่มีของจริงรองรับ · ไม่ auto-commit git (คนต้องตรวจก่อนเสมอ)
+    """
+    try:
+        manifest = scaffold.scaffold(
+            payload.target,
+            payload.name,
+            purpose=payload.purpose,
+            stack=payload.stack,
+            is_python=payload.is_python,
+            relation=payload.relation,
+            team=payload.team,
+            dual_ps=payload.dual_ps,
+        )
+    except scaffold.ScaffoldError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+    project = Project(
+        name=payload.name, type=ProjectType.NEW.value, local_path=manifest["target"]
+    )
+    db.add(project)
+    db.flush()
+
+    description = f"โปรเจกต์อยู่ที่: {manifest['target']}"
+    if payload.purpose:
+        description += f"\nPurpose: {payload.purpose}"
+    description += "\nปิด checklist ใน docs/REVIEW_CHECKLIST.md ก่อนเริ่ม Sprint 1"
+    task = Task(
+        project_id=project.id,
+        title="Sign-off เอกสารกำกับก่อนเริ่มงาน",
+        description=description,
+        status=TaskStatus.BACKLOG.value,
+        priority=Priority.P1.value,
+        depends_on=[],
+    )
+    db.add(task)
+    record_audit(
+        db,
+        actor_type=ActorType.HUMAN,
+        action="project.bootstrapped",
+        entity_type="project",
+        entity_id=None,
+        diff={"name": payload.name, "target": manifest["target"], "relation": payload.relation},
+    )
+    db.commit()
+    db.refresh(project)
+    db.refresh(task)
+
+    return {
+        "project": project,
+        "target": manifest["target"],
+        "created": manifest["created"],
+        "steps": manifest["steps"],
+        "first_task_id": str(task.id),
+    }
 
 
 @router.delete(
@@ -120,6 +194,88 @@ def delete_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> None
         db.delete(task)
     db.delete(project)
     db.commit()
+
+
+def _project_dir_or_400(project: Project) -> Path:
+    """โฟลเดอร์จริงของโปรเจกต์ — ทุกการเขียนไฟล์ต้องผ่านตรงนี้ (ADR-05 S3)."""
+    if not project.local_path:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "โปรเจกต์นี้ไม่ได้ผูกกับโฟลเดอร์บนดิสก์ — ใช้ได้เฉพาะโปรเจกต์ที่เปิดผ่าน /bootstrap",
+        )
+    folder = Path(project.local_path)
+    if not folder.is_dir():
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"ไม่พบโฟลเดอร์ของโปรเจกต์: {folder}"
+        )
+    return folder
+
+
+@router.post("/{project_id}/design-files", response_model=DesignUploadResponse)
+async def upload_design_files(
+    project_id: uuid.UUID,
+    files: list[UploadFile] = File(...),
+    note: str = Form(""),
+    db: Session = Depends(get_db),
+) -> dict:
+    """อัปโหลดไฟล์ดีไซน์เข้า `_design_input/` แล้วคืน requirement ที่ประกอบจากไฟล์เหล่านั้น.
+
+    **ไม่เรียก AI ที่นี่** — ได้ข้อความออกมาให้คนอ่านตรวจก่อน แล้วค่อยส่งต่อ `/breakdown`
+    ให้ PM Agent แตกงานตามปกติ (จะได้กติกาห้ามกุหลักฐาน + reviewer + audit ครบ)
+    """
+    project = _get_project_or_404(db, project_id)
+    folder = _project_dir_or_400(project)
+
+    uploads = [(f.filename or "", await f.read()) for f in files]
+    saved = design_files.save_uploads(folder, uploads)
+    requirement = design_files.build_requirement(folder, note)
+
+    record_audit(
+        db,
+        actor_type=ActorType.HUMAN,
+        action="project.design_files_uploaded",
+        entity_type="project",
+        entity_id=str(project.id),
+        diff={"files": saved},
+    )
+    db.commit()
+    return {
+        "saved": saved,
+        "requirement": requirement,
+        "requirement_chars": len(requirement),
+    }
+
+
+@router.post("/{project_id}/deliverables", response_model=DeliverableResponse)
+def write_deliverable(
+    project_id: uuid.UUID, payload: DeliverableRequest, db: Session = Depends(get_db)
+) -> dict:
+    """เขียนผลงานของ task ลงไฟล์จริงในโฟลเดอร์โปรเจกต์ (ADR-05 S3).
+
+    เป็นขั้นที่**คนสั่งเอง** — agent เขียนไฟล์เองไม่ได้ (ทุก LLM call ผ่าน providers ที่ไม่มี tool)
+    · สำรองไฟล์เดิมก่อนทับเสมอ · ไม่ commit ให้
+    """
+    project = _get_project_or_404(db, project_id)
+    folder = _project_dir_or_400(project)
+    task = db.get(Task, payload.task_id)
+    if task is None or task.project_id != project.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ไม่พบ task นี้ในโปรเจกต์")
+
+    try:
+        result = deliverables.write_task_work_product(db, task, folder, payload.path)
+    except deliverables.DeliverableError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+    record_audit(
+        db,
+        actor_type=ActorType.HUMAN,
+        action="task.deliverable_written",
+        entity_type="task",
+        entity_id=str(task.id),
+        diff={"path": result["path"], "bytes": result["bytes"], "backup": result["backup"]},
+    )
+    db.commit()
+    return result
 
 
 @router.get("/{project_id}/usage", response_model=ProjectUsage)

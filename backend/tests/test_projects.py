@@ -1,6 +1,10 @@
 """Project + task endpoint tests."""
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 
 def _new_project(client, name="Demo", type="new", repo_url=None):
     body = {"name": name, "type": type}
@@ -37,6 +41,205 @@ def test_create_and_list_tasks(client):
     body = listing.json()
     assert body["pagination"]["total"] == 1
     assert body["data"][0]["title"] == "Set up CI"
+
+
+# --- เปิดโปรเจกต์ใหม่ "ของจริง" (ADR-05 — ยก scaffold มาจาก new-project-studio) ---
+
+
+@pytest.fixture
+def scaffold_root(tmp_path, monkeypatch):
+    """ให้ scaffold ลงใน tmp_path — **ห้ามแตะ D:\\Dev_Proj ของจริงตอนเทสต์**."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "scaffold_allowed_root", str(tmp_path))
+    return tmp_path
+
+
+def test_bootstrap_creates_the_folder_and_puts_it_on_the_board(client, scaffold_root):
+    target = scaffold_root / "d_NewThing"
+
+    resp = client.post(
+        "/api/projects/bootstrap",
+        json={
+            "name": "d_NewThing",
+            "target": str(target),
+            "purpose": "ทดสอบการเปิดโปรเจกต์จริง",
+            "stack": "Python + FastAPI",
+            "relation": "product",
+        },
+    )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    # 1) ของจริงบนดิสก์
+    assert (target / "AGENTS.md").is_file()
+    assert (target / ".gitignore").is_file()
+    assert (target / "requirements.txt").is_file()
+    assert (target / ".git").is_dir()
+    assert (target / "docs" / "API.md").is_file()  # relation=product → เอกสาร dev มาตรฐาน
+    # 2) ลงบอร์ดให้ในคราวเดียว พร้อม task sign-off
+    assert body["project"]["name"] == "d_NewThing"
+    tasks = client.get(f"/api/projects/{body['project']['id']}/tasks").json()["data"]
+    assert len(tasks) == 1 and tasks[0]["id"] == body["first_task_id"]
+    assert str(target) in tasks[0]["description"]
+    # 3) บอกคนอ่านว่าเกิดอะไรขึ้นบ้าง
+    assert any("kit" in step for step in body["steps"])
+
+
+def test_bootstrap_refuses_a_target_outside_the_allowed_root(client, scaffold_root, tmp_path):
+    outside = tmp_path.parent / "ที่อื่นที่ไม่ได้อนุญาต"
+
+    resp = client.post(
+        "/api/projects/bootstrap", json={"name": "หลุดกรอบ", "target": str(outside)}
+    )
+
+    assert resp.status_code == 400
+    assert not outside.exists()  # ต้องไม่แอบสร้างก่อนแล้วค่อยปฏิเสธ
+
+
+def test_bootstrap_refuses_unknown_relation_before_touching_disk(client, scaffold_root):
+    target = scaffold_root / "d_BadRelation"
+
+    resp = client.post(
+        "/api/projects/bootstrap",
+        json={"name": "d_BadRelation", "target": str(target), "relation": "ไม่มีชั้นนี้"},
+    )
+
+    assert resp.status_code == 400
+    assert not target.exists()
+    assert client.get("/api/portfolio").json()["projects"] == []  # ไม่มี project ค้างบนบอร์ด
+
+
+# --- S3: ไฟล์ดีไซน์ + เขียนผลงานลงไฟล์จริง -----------------------------------
+
+
+def _bootstrap(client, scaffold_root, name="d_S3"):
+    resp = client.post(
+        "/api/projects/bootstrap",
+        json={"name": name, "target": str(scaffold_root / name), "relation": "product"},
+    )
+    return resp.json()["project"]["id"], scaffold_root / name
+
+
+def test_design_files_land_in_the_project_and_become_a_requirement(client, scaffold_root):
+    pid, folder = _bootstrap(client, scaffold_root)
+
+    resp = client.post(
+        f"/api/projects/{pid}/design-files",
+        files=[
+            ("files", ("โจทย์.md", "ต้องการระบบจองคิว 3 หน้าจอ".encode(), "text/markdown")),
+            ("files", ("mockup.png", b"\x89PNG fake", "image/png")),
+        ],
+        data={"note": "ดีไซน์รอบแรกจากลูกค้า"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["saved"] == ["mockup.png", "โจทย์.md"] or set(body["saved"]) == {
+        "mockup.png",
+        "โจทย์.md",
+    }
+    assert (folder / "_design_input" / "โจทย์.md").is_file()
+    # เนื้อความจากไฟล์ข้อความถูกดึงมา · รูปบอกตรง ๆ ว่าอ่านไม่ได้ (ไม่เดาเนื้อหาจากชื่อไฟล์)
+    assert "ระบบจองคิว 3 หน้าจอ" in body["requirement"]
+    assert "เป็นรูปภาพ — ระบบอ่านเนื้อหาไม่ได้" in body["requirement"]
+    assert "ดีไซน์รอบแรกจากลูกค้า" in body["requirement"]
+
+
+def test_design_upload_rejected_when_project_has_no_folder(client):
+    pid = _new_project(client, name="ไม่มีโฟลเดอร์").json()["id"]
+
+    resp = client.post(
+        f"/api/projects/{pid}/design-files",
+        files=[("files", ("a.md", b"x", "text/markdown"))],
+    )
+
+    assert resp.status_code == 400
+    assert "bootstrap" in resp.json()["detail"]
+
+
+def test_deliverable_writes_the_work_product_and_backs_up_what_it_replaces(
+    client, db_session, scaffold_root
+):
+    from app.bus import publish
+    from app.constants import MessageType
+    from app.models.task import Task
+
+    pid, folder = _bootstrap(client, scaffold_root, name="d_Deliverable")
+    task = Task(project_id=pid, title="เขียน overview", depends_on=[])
+    db_session.add(task)
+    db_session.flush()
+    publish(
+        db_session,
+        project_id=task.project_id,
+        task_id=task.id,
+        from_agent_id="dev",
+        to_agent_id="reviewer",
+        message_type=MessageType.RESULT,
+        payload={"work": "# ภาพรวมโปรเจกต์\n\nเนื้อหาที่ agent เขียน"},
+    )
+    db_session.commit()
+
+    resp = client.post(
+        f"/api/projects/{pid}/deliverables",
+        json={"task_id": str(task.id), "path": "docs/PROJECT_OVERVIEW.md"},
+    )
+
+    assert resp.status_code == 200
+    written = folder / "docs" / "PROJECT_OVERVIEW.md"
+    assert "เนื้อหาที่ agent เขียน" in written.read_text(encoding="utf-8")
+    # ไฟล์เดิมจาก kit ต้องถูกสำรองไว้ก่อนทับ (WORKING_RULES Rule 1)
+    backup = resp.json()["backup"]
+    assert backup and Path(backup).is_file()
+    assert written.read_bytes()[:3] != b"\xef\xbb\xbf"  # ไม่มี BOM
+
+
+def test_deliverable_refuses_to_write_outside_the_project_folder(
+    client, db_session, scaffold_root
+):
+    from app.bus import publish
+    from app.constants import MessageType
+    from app.models.task import Task
+
+    pid, _ = _bootstrap(client, scaffold_root, name="d_Escape")
+    task = Task(project_id=pid, title="งาน", depends_on=[])
+    db_session.add(task)
+    db_session.flush()
+    publish(
+        db_session,
+        project_id=task.project_id,
+        task_id=task.id,
+        from_agent_id="dev",
+        to_agent_id="reviewer",
+        message_type=MessageType.RESULT,
+        payload={"work": "ข้อความ"},
+    )
+    db_session.commit()
+
+    resp = client.post(
+        f"/api/projects/{pid}/deliverables",
+        json={"task_id": str(task.id), "path": "../../หนีออกไปข้างนอก.md"},
+    )
+
+    assert resp.status_code == 400
+    assert "เฉพาะใต้โฟลเดอร์ของโปรเจกต์" in resp.json()["detail"]
+
+
+def test_deliverable_refuses_when_the_task_has_no_work_yet(client, db_session, scaffold_root):
+    from app.models.task import Task
+
+    pid, _ = _bootstrap(client, scaffold_root, name="d_NoWork")
+    task = Task(project_id=pid, title="ยังไม่ได้ทำ", depends_on=[])
+    db_session.add(task)
+    db_session.commit()
+
+    resp = client.post(
+        f"/api/projects/{pid}/deliverables",
+        json={"task_id": str(task.id), "path": "docs/x.md"},
+    )
+
+    assert resp.status_code == 400
+    assert "ยังไม่มีผลงาน" in resp.json()["detail"]
 
 
 # --- ลบโปรเจกต์ (ล้างงานทดสอบออกจากบอร์ด) -------------------------------------

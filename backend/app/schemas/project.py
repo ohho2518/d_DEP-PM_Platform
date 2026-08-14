@@ -60,4 +60,55 @@ class ProjectRead(BaseModel):
     metadata_registry_ref: str | None
     # task ใน d_CEO ที่ถูก delegate ลงมาเป็นโปรเจกต์นี้ (null = สร้างเองในระบบ)
     ceo_task_id: str | None = None
+    #: โฟลเดอร์จริงบนดิสก์ (ตั้งตอน bootstrap — ADR-05) · null = ไม่มีโฟลเดอร์ผูกไว้
+    local_path: str | None = None
     created_at: datetime
+
+
+class BootstrapRequest(BaseModel):
+    """เปิดโปรเจกต์ใหม่ "ของจริง" — สร้างโฟลเดอร์ + เอกสาร + git แล้วลงบอร์ดในคราวเดียว (ADR-05)."""
+
+    name: str = Field(..., min_length=1, max_length=200)
+    #: โฟลเดอร์ปลายทาง — ต้องอยู่ใต้ `SCAFFOLD_ALLOWED_ROOT` เท่านั้น
+    target: str = Field(..., min_length=3)
+    purpose: str = ""
+    stack: str = ""
+    is_python: bool = True
+    #: general | product | service | middleware | eco-team | eco-core (ดู `services/scaffold.RELATION_LABELS`)
+    relation: str = "general"
+    team: str = ""
+    dual_ps: bool = False
+
+
+class DesignUploadResponse(BaseModel):
+    """ผลการอัปโหลดไฟล์ดีไซน์ (ADR-05 S3)."""
+
+    saved: list[str]
+    #: ข้อความที่ประกอบจากไฟล์ทั้งหมด — เอาไปยิงต่อที่ `/breakdown` ได้เลย
+    requirement: str
+    requirement_chars: int
+
+
+class DeliverableRequest(BaseModel):
+    task_id: uuid.UUID
+    #: path สัมพัทธ์ใต้โฟลเดอร์โปรเจกต์ เช่น `docs/PROJECT_OVERVIEW.md`
+    path: str = Field(..., min_length=1, max_length=300)
+
+
+class DeliverableResponse(BaseModel):
+    path: str
+    bytes: int
+    #: ที่อยู่สำเนาไฟล์เดิม (null = ยังไม่เคยมีไฟล์นี้)
+    backup: str | None
+    task_id: str
+
+
+class BootstrapResponse(BaseModel):
+    project: ProjectRead
+    target: str
+    #: ไฟล์/โฟลเดอร์ที่ scaffold สร้างให้
+    created: list[str]
+    #: ขั้นตอนที่ทำจริง — ไว้โชว์ให้คนอ่านว่าเกิดอะไรขึ้นบ้าง (รวมคำเตือนถ้าวางผิดที่)
+    steps: list[str]
+    #: task แรกที่ตั้งให้บนบอร์ด (sign-off เอกสารก่อนเริ่มงาน)
+    first_task_id: str

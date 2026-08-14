@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     ceo_team_name: str = "Research & Development"
     ceo_timeout_seconds: float = 15.0
 
+    # --- เปิดโปรเจกต์ใหม่จริง (ADR-05 — ยก scaffold มาจาก new-project-studio) --------
+    # รากที่อนุญาตให้สร้างโฟลเดอร์ได้ · target นอกรากนี้ถูกปฏิเสธ (กัน scaffold ลงที่มั่ว)
+    scaffold_allowed_root: str = r"D:\Dev_Proj"
+    # ว่าง = ใช้แม่แบบที่มากับรีโปนี้ (`backend/app/scaffold_kit/`) — เจ้าของแม่แบบคือที่นี่แล้ว
+    scaffold_kit_path: str = ""
+
     frontend_origin: str = "http://localhost:3000"
 
     @property

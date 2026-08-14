@@ -194,6 +194,11 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
         </div>
       </div>
 
+      {/* ไฟล์ดีไซน์ → requirement → PM แตกงาน (ADR-05 S3) — เฉพาะโปรเจกต์ที่มีโฟลเดอร์จริง */}
+      {project?.local_path && (
+        <DesignFilesPanel projectId={projectId} folder={project.local_path} onDone={refresh} />
+      )}
+
       {/* ออฟฟิศจำลอง — agent เดินเมื่อกำลังทำงานจริง (สถานะจาก tasks ที่ poll ทุก 4 วิ) */}
       <AgentOffice tasks={data.data} />
 
@@ -236,6 +241,127 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
       </div>
 
       {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} />}
+    </div>
+  );
+}
+
+/** อัปโหลดไฟล์ดีไซน์ → ได้ requirement → ส่งให้ PM แตกงาน (ADR-05 S3)
+ *  ขั้นอัปโหลด **ไม่เรียก AI** — คนได้อ่านข้อความที่ระบบดึงมาก่อนตัดสินใจส่งต่อ */
+function DesignFilesPanel({
+  projectId,
+  folder,
+  onDone,
+}: {
+  projectId: string;
+  folder: string;
+  onDone: () => void;
+}) {
+  const [files, setFiles] = useState<FileList | null>(null);
+  const [note, setNote] = useState("");
+  const [requirement, setRequirement] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  async function upload() {
+    if (!files?.length) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.uploadDesignFiles(projectId, Array.from(files), note);
+      setSaved(res.saved);
+      setRequirement(res.requirement);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendToPm() {
+    if (!requirement) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.breakdown(projectId, requirement);
+      setRequirement(null);
+      setSaved([]);
+      onDone();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card p-4">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between text-sm font-semibold"
+      >
+        <span>📎 ไฟล์ดีไซน์ → ให้ PM แตกงาน</span>
+        <span style={{ color: "var(--text3)" }}>{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-3">
+          <p className="font-mono text-[11px]" style={{ color: "var(--text3)" }}>
+            เก็บไว้ที่ {folder}\_design_input\ (git ไม่เก็บโฟลเดอร์นี้)
+          </p>
+
+          <input
+            type="file"
+            multiple
+            onChange={(e) => setFiles(e.target.files)}
+            className="block w-full text-sm"
+          />
+          <input
+            className="input"
+            placeholder="โน้ตถึง PM (ไม่บังคับ) — เช่น รอบนี้เอาแค่ 3 หน้าจอแรก"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button className="btn-ghost" onClick={upload} disabled={busy || !files?.length}>
+              {busy ? "กำลังอ่านไฟล์…" : "อัปโหลด + อ่านเนื้อหา"}
+            </button>
+            {requirement && (
+              <button className="btn-primary" onClick={sendToPm} disabled={busy}>
+                ส่งให้ PM แตกงาน ({requirement.length.toLocaleString()} ตัวอักษร)
+              </button>
+            )}
+          </div>
+
+          {error && (
+            <p className="text-sm" style={{ color: "var(--danger)" }}>
+              {error}
+            </p>
+          )}
+
+          {saved.length > 0 && (
+            <p className="text-xs" style={{ color: "var(--text2)" }}>
+              บันทึกแล้ว: {saved.join(" · ")}
+            </p>
+          )}
+
+          {requirement && (
+            <details open>
+              <summary className="cursor-pointer text-sm" style={{ color: "var(--text2)" }}>
+                ข้อความที่ระบบอ่านได้ (ตรวจก่อนส่ง)
+              </summary>
+              <pre
+                className="mt-2 max-h-64 overflow-auto rounded-[10px] p-2 text-[11px]"
+                style={{ background: "var(--bg)", color: "var(--text2)" }}
+              >
+                {requirement}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
     </div>
   );
 }

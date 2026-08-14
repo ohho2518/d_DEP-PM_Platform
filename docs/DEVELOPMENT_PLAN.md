@@ -99,6 +99,9 @@
 
 ## 2.1 แผนรวม new-project-studio (ADR-05) — 3 เฟส
 
+> ✅ **ทำครบทั้ง 3 เฟสแล้ว 2026-08-14** — ดู CHANGELOG วันเดียวกัน · รีโป `new-project-studio`
+> เปลี่ยนสถานะเป็น "อ่านอย่างเดียว หยุดพัฒนา" ตามมติผู้ใช้
+
 | เฟส | ได้อะไร | แตะอะไร |
 |---|---|---|
 | **S1 — scaffold เข้ามา** | `POST /api/projects/bootstrap`: สร้างโฟลเดอร์จริง + เอกสารกำกับ + git init แล้ว**สร้าง project ในบอร์ดพร้อม task "Sign-off REVIEW_CHECKLIST"** ให้ในคราวเดียว | `services/scaffold.py` (ย้ายจาก studio) · `app/scaffold_kit/` (แม่แบบเอกสาร) · `api/projects.py` · config 2 ตัว |

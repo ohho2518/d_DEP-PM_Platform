@@ -1,16 +1,21 @@
 // API client บาง ๆ ครอบ fetch — ทุก endpoint ตรงกับ Blueprint §13
 import type {
   AgentMessage,
+  BootstrapRequest,
+  BootstrapResult,
   BreakdownResponse,
   CeoInboxItem,
   CeoPullResult,
   CeoReport,
   CeoStatus,
+  DeliverableResult,
   DeploymentList,
+  DesignUploadResult,
   LlmSettings,
   LlmSettingsUpdate,
   Portfolio,
   Project,
+  ProjectUsage,
   ProviderTestResult,
   RunSummary,
   Task,
@@ -41,6 +46,42 @@ export const api = {
     request<Project>("/api/projects", { method: "POST", body: JSON.stringify(body) }),
 
   getProject: (projectId: string) => request<Project>(`/api/projects/${projectId}`),
+
+  /** เปิดโปรเจกต์ใหม่ "ของจริง" — สร้างโฟลเดอร์ + เอกสาร + git แล้วลงบอร์ดในคราวเดียว (ADR-05) */
+  bootstrapProject: (body: BootstrapRequest) =>
+    request<BootstrapResult>("/api/projects/bootstrap", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  deleteProject: (projectId: string) =>
+    request<unknown>(`/api/projects/${projectId}`, { method: "DELETE" }),
+
+  /** โทเคนของโปรเจกต์ แยกตามผู้ให้บริการ (§5 ใบสั่งงาน 2026-08-06) */
+  projectUsage: (projectId: string) =>
+    request<ProjectUsage>(`/api/projects/${projectId}/usage`),
+
+  /** อัปโหลดไฟล์ดีไซน์เข้า `_design_input/` แล้วได้ requirement กลับมาให้ตรวจก่อนส่ง PM (ADR-05 S3)
+   *  ⚠️ multipart — **ห้ามตั้ง Content-Type เอง** ต้องให้ browser ใส่ boundary ให้ */
+  uploadDesignFiles: async (projectId: string, files: File[], note = "") => {
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    form.append("note", note);
+    const res = await fetch(`${BASE}/api/projects/${projectId}/design-files`, {
+      method: "POST",
+      body: form,
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
+    return (await res.json()) as DesignUploadResult;
+  },
+
+  /** เขียนผลงานของ task ลงไฟล์จริงในโฟลเดอร์โปรเจกต์ — สำรองไฟล์เดิมให้อัตโนมัติ */
+  writeDeliverable: (projectId: string, taskId: string, path: string) =>
+    request<DeliverableResult>(`/api/projects/${projectId}/deliverables`, {
+      method: "POST",
+      body: JSON.stringify({ task_id: taskId, path }),
+    }),
 
   listTasks: (projectId: string) =>
     request<TaskList>(`/api/projects/${projectId}/tasks?limit=200`),

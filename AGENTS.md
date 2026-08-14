@@ -157,6 +157,10 @@ backend/app/bus/                      In-process message bus (ADR-03)
 backend/app/metadata/                 MetadataProvider interface + Stub (ADR-02)
 backend/app/integrations/             client ของระบบข้างเคียง — ceo_client.py (d_CEO) §3.1
 backend/app/services/                 audit + task-plan persistence + deploy dispatcher + ceo_sync + runs (Run Manager) + env_file (เขียน .env จากหน้า Settings) + usage (โทเคนแยกตามผู้ให้บริการ)
+backend/app/services/scaffold.py      เปิดโปรเจกต์ใหม่จริง — copy kit · git init · เอกสารกำกับ (ADR-05, ย้ายมาจาก new-project-studio)
+backend/app/services/design_files.py  อ่านไฟล์ดีไซน์ที่อัปโหลด → requirement ให้ PM แตกงาน
+backend/app/services/deliverables.py  เขียนผลงานของ task ลงไฟล์จริง (มีรั้ว + สำรองก่อนทับ)
+backend/app/scaffold_kit/             แม่แบบเอกสารโปรเจกต์ใหม่ — **เจ้าของแม่แบบคือรีโปนี้แล้ว**
 backend/alembic/                      migrations (schema, seed agent, token columns)
 backend/tests/                        pytest 60 เคส
 backend/ruff.toml                     lint config
@@ -234,6 +238,8 @@ CEO_API_BASE=          # base URL ของ d_CEO (ปริยาย http://127
 CEO_TEAM_NAME=         # ชื่อทีมใน d_CEO ที่เรารับงาน (ปริยาย "Research & Development")
 CEO_TIMEOUT_SECONDS=   # timeout ต่อ request ไป d_CEO (ปริยาย 15)
 FRONTEND_ORIGIN=       # CORS origin เดียว (ไม่ใช่ *)
+SCAFFOLD_ALLOWED_ROOT= # รากที่ยอมให้ /bootstrap สร้างโฟลเดอร์ (ปริยาย D:\Dev_Proj) — นอกรากนี้ = 400
+SCAFFOLD_KIT_PATH=     # ว่าง = ใช้แม่แบบที่มากับรีโป (backend/app/scaffold_kit/)
 ```
 
 **`frontend/.env.local`**

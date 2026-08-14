@@ -30,6 +30,9 @@ class Project(Base, TimestampMixin):
     # task ใน d_CEO ที่ถูก delegate ลงมาเป็นโปรเจกต์นี้ (Phase 1 — AGENTS.md §3.1).
     # null = โปรเจกต์ที่สร้างเองในระบบ | unique: 1 task ธุรกิจ = 1 project (ห้ามรับซ้ำ)
     ceo_task_id: Mapped[str | None] = mapped_column(String(36), nullable=True, unique=True)
+    # โฟลเดอร์จริงบนดิสก์ของโปรเจกต์นี้ (ADR-05) — ตั้งตอน bootstrap · null = ไม่มีโฟลเดอร์ผูกไว้
+    # ใช้เป็น "รั้ว" ของทุกการเขียนไฟล์: ไฟล์ดีไซน์เข้า `_design_input/` และผลงานเขียนได้เฉพาะใต้นี้
+    local_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     tasks: Mapped[list[Task]] = relationship(
         back_populates="project", cascade="all, delete-orphan"

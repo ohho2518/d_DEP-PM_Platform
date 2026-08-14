@@ -334,6 +334,42 @@ Side effects ต่องาน: สร้าง project (`ceo_task_id` ผู�
 > ระบบนี้ยังไม่มี authentication ⇒ **bind `127.0.0.1` เท่านั้น** (docs/SECURITY.md) ·
 > ขาออก**ไม่มีคีย์เต็มเด็ดขาด** (mask อย่างเดียว)
 
+### 1.3) `POST /api/projects/bootstrap` — เปิดโปรเจกต์ใหม่ **ของจริง** (ADR-05)
+Request:
+```json
+{ "name": "d_NewThing", "target": "D:\\Dev_Proj\\4_RND\\d_NewThing",
+  "purpose": "…", "stack": "Python 3.12 + FastAPI",
+  "relation": "product", "is_python": true, "team": "", "dual_ps": false }
+```
+Response `201`: `{ project, target, created[], steps[], first_task_id }`
+- สร้าง**โฟลเดอร์จริง** + เอกสารกำกับจาก kit + ตัวชี้ `_CANON` + `.gitignore` + `git init`
+  แล้ว**ลงบอร์ดพร้อม task "Sign-off เอกสารกำกับก่อนเริ่มงาน"** ในคราวเดียว
+- **ไม่เรียก AI เลย** (deterministic ล้วน — "AI ล่ม ระบบไม่ล่ม") · **ไม่ auto-commit** git
+- `relation` กำหนดว่าจะได้เอกสารชุดไหน (`eco-core`/`eco-team` ได้ `INTEGRATION_CEO.md` เพิ่ม)
+- **400** เมื่อ target อยู่นอก `SCAFFOLD_ALLOWED_ROOT` หรือ `relation` ไม่รู้จัก
+  — ตรวจก่อนแตะดิสก์ ไม่มีโฟลเดอร์/โปรเจกต์ค้าง
+
+### 1.4) `POST /api/projects/:id/design-files` — อัปโหลดไฟล์ดีไซน์ (multipart)
+Form: `files` (หลายไฟล์) + `note` (ไม่บังคับ) →
+`{ "saved": ["โจทย์.md", …], "requirement": "…", "requirement_chars": 12345 }`
+- เก็บไฟล์ที่ `<โฟลเดอร์โปรเจกต์>/_design_input/` (kit `.gitignore` กันไว้แล้ว)
+- ดึงข้อความจาก `.md/.txt/.pdf/.docx` · **รูปภาพบอกตรง ๆ ว่าอ่านไม่ได้** ไม่เดาจากชื่อไฟล์
+- เพดาน 20,000 ตัวอักษร/ไฟล์ · 60,000 รวม — เกินแล้วบอกว่าไฟล์ไหนถูกข้าม
+- **ไม่เรียก AI** — คนอ่าน `requirement` ตรวจก่อน แล้วค่อยส่งต่อ `/breakdown` เอง
+- **400** ถ้าโปรเจกต์ไม่มี `local_path` (ไม่ได้เปิดผ่าน `/bootstrap`)
+
+### 1.5) `POST /api/projects/:id/deliverables` — เขียนผลงานของ task ลงไฟล์จริง
+Request: `{ "task_id": "…", "path": "docs/PROJECT_OVERVIEW.md" }` →
+`{ path, bytes, backup, task_id }`
+- เอา **work product ฉบับล่าสุด** ของ task (จาก Message Bus) ไปเขียนเป็นไฟล์
+- 🔒 เขียนได้เฉพาะ**ใต้โฟลเดอร์ของโปรเจกต์นั้น** (`..` ถูกปฏิเสธ) ·
+  **สำรองไฟล์เดิมก่อนทับเสมอ** ลง `BackUp/Deliverable_<เวลา>/` (WORKING_RULES Rule 1) ·
+  UTF-8 ไม่มี BOM · **ไม่ commit ให้**
+- **เป็นขั้นที่คนสั่งเอง** — agent เขียนไฟล์เองไม่ได้ (LLM ทุกตัวผ่าน providers ที่ไม่มี tool)
+- **400** ถ้า task ยังไม่มีผลงาน / path หลุดกรอบ / โปรเจกต์ไม่มีโฟลเดอร์
+
+---
+
 ### 1.2) `DELETE /api/projects/:id` — ลบโปรเจกต์ (ล้างงานทดสอบออกจากบอร์ด)
 - `204` = ลบแล้ว · ลบ tasks / agent_messages / deployments ของโปรเจกต์นั้นไปด้วย
 - **409 ถ้าโปรเจกต์ผูกกับงานของ d_CEO** (`ceo_task_id`) — ฝั่งโน้นยังอ้างอยู่

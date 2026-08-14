@@ -49,6 +49,8 @@ export interface Project {
   status: string;
   /** task ใน d_CEO ที่ถูก delegate ลงมาเป็นโปรเจกต์นี้ (null = สร้างเองในระบบ) */
   ceo_task_id: string | null;
+  /** โฟลเดอร์จริงบนดิสก์ (ตั้งตอน bootstrap — ADR-05) */
+  local_path: string | null;
   created_at: string;
 }
 
@@ -176,6 +178,51 @@ export interface DeploymentList {
   pagination: { total: number; limit: number; offset: number };
 }
 
+// --- เปิดโปรเจกต์ใหม่ "ของจริง" (ADR-05) -------------------------------------
+// ต้องตรงกับ backend/app/schemas/project.py
+export type ProjectRelation =
+  | "general"
+  | "product"
+  | "service"
+  | "middleware"
+  | "eco-team"
+  | "eco-core";
+
+export interface BootstrapRequest {
+  name: string;
+  /** โฟลเดอร์ปลายทาง — ต้องอยู่ใต้ SCAFFOLD_ALLOWED_ROOT ของ backend */
+  target: string;
+  purpose?: string;
+  stack?: string;
+  is_python?: boolean;
+  relation?: ProjectRelation;
+  team?: string;
+  dual_ps?: boolean;
+}
+
+export interface DesignUploadResult {
+  saved: string[];
+  /** ข้อความที่ประกอบจากไฟล์ทั้งหมด — ส่งต่อ /breakdown ได้เลย */
+  requirement: string;
+  requirement_chars: number;
+}
+
+export interface DeliverableResult {
+  path: string;
+  bytes: number;
+  /** ที่อยู่สำเนาไฟล์เดิม (null = ยังไม่เคยมีไฟล์นี้) */
+  backup: string | null;
+  task_id: string;
+}
+
+export interface BootstrapResult {
+  project: Project;
+  target: string;
+  created: string[];
+  steps: string[];
+  first_task_id: string;
+}
+
 // --- ผู้ให้บริการ AI (ใบสั่งงาน 2026-08-06) ---------------------------------
 // ต้องตรงกับ backend/app/schemas/settings.py
 export interface ProviderStatus {
@@ -184,6 +231,21 @@ export interface ProviderStatus {
   key_set: boolean;
   /** เช่น "sk-…4f2a" — backend **ไม่เคย** ส่งคีย์เต็มออกมา */
   key_masked: string;
+}
+
+export interface ProjectUsage {
+  project_id: string;
+  totals: { input: number; output: number; calls: number };
+  by_provider: {
+    provider: string;
+    model: string;
+    input: number;
+    output: number;
+    calls: number;
+    tasks: number;
+  }[];
+  /** โทเคนที่นับรวมไว้แต่ระบุเจ้าไม่ได้ — งานก่อน 2026-08-14 */
+  untracked: { input: number; output: number; calls: number };
 }
 
 export interface LlmSettings {
