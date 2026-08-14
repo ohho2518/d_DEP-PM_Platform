@@ -17,7 +17,7 @@ from app.models.project import Project
 from app.models.task import Task
 from app.orchestrator.engine import planned_task_count
 from app.orchestrator.state_machine import transition
-from app.schemas.project import ProjectCreate, ProjectRead
+from app.schemas.project import ProjectCreate, ProjectRead, ProjectUsage
 from app.schemas.scan import ScanResponse
 from app.schemas.task import (
     BreakdownRequest,
@@ -30,7 +30,7 @@ from app.schemas.task import (
     TaskPlan,
     TaskRead,
 )
-from app.services import runs
+from app.services import runs, usage
 from app.services.audit import record_audit
 from app.services.tasks import persist_task_plan
 
@@ -69,6 +69,16 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
 def get_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> Project:
     """รายละเอียดโปรเจกต์ — UI ใช้รู้ว่ามาจาก d_CEO ไหม (`ceo_task_id`)."""
     return _get_project_or_404(db, project_id)
+
+
+@router.get("/{project_id}/usage", response_model=ProjectUsage)
+def project_token_usage(project_id: uuid.UUID, db: Session = Depends(get_db)) -> dict:
+    """โทเคนของโปรเจกต์ **แยกตามผู้ให้บริการ** — ถังสำหรับเพดานค่าใช้จ่ายต่อเจ้า (§5).
+
+    ไม่แปลงเป็นเงิน: ตารางราคาเปลี่ยนบ่อยและต้องมาจากเจ้าของ ไม่ใช่ตัวเลขที่เราเดาเอง
+    """
+    _get_project_or_404(db, project_id)
+    return usage.project_usage(db, project_id)
 
 
 @router.get("/{project_id}/tasks", response_model=TaskList)

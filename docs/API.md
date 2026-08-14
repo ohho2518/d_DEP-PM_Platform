@@ -334,6 +334,26 @@ Side effects ต่องาน: สร้าง project (`ceo_task_id` ผู�
 > ระบบนี้ยังไม่มี authentication ⇒ **bind `127.0.0.1` เท่านั้น** (docs/SECURITY.md) ·
 > ขาออก**ไม่มีคีย์เต็มเด็ดขาด** (mask อย่างเดียว)
 
+### 19.1) `GET /api/projects/:id/usage` — โทเคนแยกตามผู้ให้บริการ
+```json
+{ "project_id": "…",
+  "totals": { "input": 3208, "output": 651, "calls": 2 },
+  "by_provider": [
+    { "provider": "anthropic", "model": "claude-sonnet-5",
+      "input": 3208, "output": 651, "calls": 2, "tasks": 1 } ],
+  "untracked": { "input": 0, "output": 0, "calls": 0 } }
+```
+- **ถังสำหรับเพดานค่าใช้จ่ายต่อเจ้า** (§5 ใบสั่งงาน 2026-08-06) — ราคาต่อโทเคนแต่ละเจ้าไม่เท่ากัน
+  ยอดรวมก้อนเดียวจึงคุมไม่อยู่เมื่อระบบสลับเจ้าเอง
+- `by_provider` เรียงจากตัวที่กินมากสุด · `tasks` = จำนวน task ที่เจ้านั้นมีส่วนร่วม
+  (1 task มีได้หลายเจ้า — Team Mode: dev=openai, reviewer=anthropic)
+- ⚠️ **`untracked` = โทเคนที่นับรวมไว้แต่ระบุเจ้าไม่ได้** — งานที่ทำก่อน 2026-08-14 ·
+  จงใจแยกให้เห็นแทนการเดาย้อนหลังว่าเป็นของเจ้าไหน
+- **ยังไม่แปลงเป็นเงิน** — ตารางราคาเปลี่ยนบ่อยและต้องมาจากเจ้าของ ไม่ใช่ตัวเลขที่ระบบเดาเอง
+- `TaskRead` ก็มี `token_usage` ของ task นั้นด้วย (`{"<provider>": {model, input, output, calls}}`)
+
+---
+
 ### 20) `GET /api/settings/llm` — ค่าปัจจุบัน
 ```json
 { "provider": "anthropic", "fallbacks": ["openai"],

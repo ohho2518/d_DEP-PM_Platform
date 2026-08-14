@@ -156,7 +156,7 @@ backend/app/orchestrator/             State Machine (transition-only) + engine (
 backend/app/bus/                      In-process message bus (ADR-03)
 backend/app/metadata/                 MetadataProvider interface + Stub (ADR-02)
 backend/app/integrations/             client ของระบบข้างเคียง — ceo_client.py (d_CEO) §3.1
-backend/app/services/                 audit + task-plan persistence + deploy dispatcher + ceo_sync + runs (Run Manager) + env_file (เขียน .env จากหน้า Settings)
+backend/app/services/                 audit + task-plan persistence + deploy dispatcher + ceo_sync + runs (Run Manager) + env_file (เขียน .env จากหน้า Settings) + usage (โทเคนแยกตามผู้ให้บริการ)
 backend/alembic/                      migrations (schema, seed agent, token columns)
 backend/tests/                        pytest 60 เคส
 backend/ruff.toml                     lint config

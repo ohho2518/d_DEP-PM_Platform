@@ -52,6 +52,9 @@ class TaskRead(BaseModel):
     revision_count: int
     tokens_input: int
     tokens_output: int
+    #: โทเคนแยกตามผู้ให้บริการ — `{"anthropic": {"model": …, "input": …, "output": …, "calls": …}}`
+    #: None/ว่าง = task เก่าที่ทำก่อน 2026-08-14 (แยกที่มาไม่ได้ ไม่ใช่ว่าไม่ได้ใช้โทเคน)
+    token_usage: dict | None = None
     created_at: datetime
     updated_at: datetime
 

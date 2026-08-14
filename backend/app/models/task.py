@@ -52,6 +52,13 @@ class Task(Base):
     tokens_output: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    # เดียวกันแต่ **แยกตามผู้ให้บริการ** — ราคาต่อโทเคนของแต่ละเจ้าไม่เท่ากัน เพดานก้อนเดียว
+    # จึงคุมไม่อยู่เมื่อสลับเจ้า (§5 ของใบสั่งงาน 2026-08-06)
+    #   {"anthropic": {"model": "claude-sonnet-5", "input": 1234, "output": 567, "calls": 3}}
+    # 1 task มีได้หลายเจ้าจริง ๆ: Team Mode ให้ dev=openai แต่ reviewer=anthropic ในงานเดียวกัน
+    # nullable เพราะ task ที่มีอยู่ก่อน 2026-08-14 แยกที่มาไม่ได้ — ต้องนับเป็น "ไม่ทราบเจ้า"
+    # ไม่ใช่เดาว่าเป็นของ Anthropic (ADR-01: JSON ผ่าน JSONType เท่านั้น ห้าม JSONB เฉพาะ PG)
+    token_usage: Mapped[dict | None] = mapped_column(JSONType, nullable=True, default=dict)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), default=utcnow, nullable=False

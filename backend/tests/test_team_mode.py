@@ -166,6 +166,57 @@ def test_token_usage_accumulates_on_task(db_session):
     assert task.tokens_output == 50
 
 
+def test_token_usage_is_split_per_provider(db_session):
+    """§5 ใบสั่งงาน 2026-08-06: ราคาต่อโทเคนแต่ละเจ้าไม่เท่ากัน ยอดรวมก้อนเดียวจึงคุมงบไม่ได้.
+
+    เคสจริงจาก Team Mode 2026-08-14: **task เดียวมี 2 เจ้า** — dev=openai, reviewer=anthropic
+    """
+    from app.agents.providers import LLMReply
+
+    task = _make_task(db_session)
+    executor = TeamExecutor()
+    executor._calls["openai"] = lambda system, prompt: LLMReply(
+        text="work", input_tokens=100, output_tokens=40, provider="openai", model="gpt-5.2"
+    )
+    executor._calls["anthropic"] = lambda system, prompt: LLMReply(
+        text='{"approved": true, "comment": "ok"}',
+        input_tokens=30,
+        output_tokens=10,
+        provider="anthropic",
+        model="claude-sonnet-5",
+    )
+
+    executor.execute(task, AgentRole.DEV)
+    executor.review(task, "work")
+
+    assert task.tokens_input == 130 and task.tokens_output == 50  # ยอดรวมเดิมต้องไม่เปลี่ยนพฤติกรรม
+    assert task.token_usage == {
+        "openai": {"input": 100, "output": 40, "calls": 1, "model": "gpt-5.2"},
+        "anthropic": {"input": 30, "output": 10, "calls": 1, "model": "claude-sonnet-5"},
+    }
+
+
+def test_token_usage_accumulates_across_calls_of_the_same_provider(db_session):
+    """revision loop เรียกเจ้าเดิมซ้ำ — ต้องบวกทับ ไม่ใช่เขียนทับ (คอลัมน์ JSON ไม่ track การแก้ในที่)."""
+    from app.agents.providers import LLMReply
+
+    task = _make_task(db_session)
+    executor = TeamExecutor()
+    executor._calls["openai"] = lambda system, prompt: LLMReply(
+        text="work", input_tokens=10, output_tokens=5, provider="openai", model="gpt-5.2"
+    )
+
+    executor.execute(task, AgentRole.DEV)
+    executor.execute(task, AgentRole.DEV)
+
+    assert task.token_usage["openai"] == {
+        "input": 20,
+        "output": 10,
+        "calls": 2,
+        "model": "gpt-5.2",
+    }
+
+
 def test_plain_string_provider_call_counts_zero_tokens(db_session):
     """Custom/legacy call ที่คืน str ล้วน — ต้องไม่พังและนับ usage เป็น 0."""
     task = _make_task(db_session)

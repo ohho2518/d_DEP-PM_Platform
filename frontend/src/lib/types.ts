@@ -28,8 +28,17 @@ export interface Task {
   revision_count: number;
   tokens_input: number;
   tokens_output: number;
+  /** โทเคนแยกตามผู้ให้บริการ · null/ว่าง = งานที่ทำก่อน 2026-08-14 (แยกที่มาไม่ได้) */
+  token_usage: Record<string, ProviderTokenEntry> | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProviderTokenEntry {
+  input?: number;
+  output?: number;
+  calls?: number;
+  model?: string;
 }
 
 export interface Project {

@@ -22,6 +22,33 @@ class ProjectCreate(BaseModel):
         return self
 
 
+class ProviderUsage(BaseModel):
+    """โทเคนที่ผู้ให้บริการเจ้าหนึ่งใช้ไปในโปรเจกต์นี้."""
+
+    provider: str
+    model: str = ""
+    input: int = 0
+    output: int = 0
+    calls: int = 0
+    tasks: int = 0
+
+
+class UsageTotals(BaseModel):
+    input: int = 0
+    output: int = 0
+    calls: int = 0
+
+
+class ProjectUsage(BaseModel):
+    """ถังสำหรับเพดานค่าใช้จ่ายต่อเจ้า (§5 ใบสั่งงาน 2026-08-06) — ยังไม่แปลงเป็นเงิน."""
+
+    project_id: str
+    totals: UsageTotals
+    by_provider: list[ProviderUsage]
+    #: โทเคนที่นับรวมไว้แต่ระบุเจ้าไม่ได้ — งานที่ทำก่อน 2026-08-14 (ไม่ใช่ศูนย์แปลว่า "ไม่ได้ใช้")
+    untracked: UsageTotals
+
+
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

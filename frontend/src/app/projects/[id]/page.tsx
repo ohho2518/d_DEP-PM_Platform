@@ -320,6 +320,15 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
             <div>
               tokens: {task.tokens_input.toLocaleString()} in ·{" "}
               {task.tokens_output.toLocaleString()} out
+              {/* แยกตามผู้ให้บริการ — งานเดียวมีได้หลายเจ้า (dev กับ reviewer คนละค่ายได้) */}
+              {task.token_usage &&
+                Object.entries(task.token_usage).map(([provider, u]) => (
+                  <div key={provider} className="pl-3 text-xs" style={{ color: "var(--text3)" }}>
+                    ↳ {provider}
+                    {u.model ? ` (${u.model})` : ""}: {(u.input ?? 0).toLocaleString()} in ·{" "}
+                    {(u.output ?? 0).toLocaleString()} out · {u.calls ?? 0} ครั้ง
+                  </div>
+                ))}
             </div>
           )}
           {task.agent_role && <div>agent role: {task.agent_role}</div>}

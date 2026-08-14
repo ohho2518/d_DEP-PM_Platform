@@ -84,6 +84,9 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 ### `app/agents/runtime.py` — Executor abstraction
 - **`PersonaExecutor` (Protocol):** `execute(task, role, feedback=None, context=None) -> str` และ `review(task, work) -> ReviewResult` — orchestrator เห็นแค่นี้ (จุดเสียบ Team Mode)
   - ⚠️ **`context` = ผลงานจริงของงานก่อนหน้า (เพิ่ม 2026-08-03)** — provider ใหม่ **ต้องส่งต่อให้โมเดล** ไม่งั้นงานประเภท "ทำต่อจากของเดิม" จะผลิตได้แค่โครงเปล่าแล้วถูก reviewer ปฏิเสธจน escalate (บั๊กจริงจาก UAT — ดู `engine.upstream_context`)
+  - **`_add_usage()` เก็บโทเคน 2 ชั้น**: ยอดรวมของ task (เดิม) + **แยกตามผู้ให้บริการ**ลง
+    `tasks.token_usage` (§5 ใบสั่งงาน 2026-08-06) · ⚠️ ต้อง**สร้าง dict ใหม่แล้วมอบหมายกลับ**
+    เพราะคอลัมน์ JSON ไม่ track การแก้ในที่ — แก้ dict เดิมแล้วค่าจะหายตอน commit
   - **`ReviewResult(approved, comment, needs_human=False)`** — `needs_human` เพิ่ม 2026-08-03 มีค่าปริยาย จึงไม่กระทบ provider/เทสต์ที่สร้างแค่ 2 ฟิลด์แรก · ความหมายและเหตุผลอยู่ที่ §9 Escalation Rule
 - **`FallbackExecutor`:** deterministic — execute คืนข้อความ `(fallback:role) …` พร้อมจำนวนผลงานก่อนหน้าที่ได้รับ, review approve เสมอ → happy path E2E รันได้โดยไม่มี network
 - **`SoloExecutor`** (ชื่อเดิม `ClaudeExecutor` — เปลี่ยน 2026-08-14 เพราะมันเรียกเจ้าอื่นได้แล้ว):
@@ -341,6 +344,7 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 | test_state_machine.py | **transition matrix ทุกคู่ (64)** , audit, 409 ผ่าน API, เดินครบ lifecycle |
 | test_orchestrator.py | E2E happy path (API), audit ครบ 4 transitions, revision→done, **escalation ที่ MAX_REVISIONS**, **`needs_human` → escalate ตั้งแต่รีวิวแรก / revision_count ไม่ขยับ / reason แยกจาก "review ไม่ผ่าน" / flag ลง Message Log**, dependency ordering, dependent ของ escalated ค้าง planned, **context: เห็นผลงานทั้งกราฟบรรพบุรุษ / ใช้ฉบับล่าสุดหลัง revision / ตัดพร้อม marker / เพดานรวมตัดตัวเก่าก่อน** |
 | test_llm_providers.py | **ตารางแยก error §3 ทุกแถว** (เครดิตหมด/401/403 → สลับทันที · 429/5xx/timeout → ลองซ้ำก่อน · 400 อื่น → **ไม่แตะเจ้าที่สอง**), ข้ามเจ้าที่ไม่รู้จัก/ไม่มีคีย์, ทุกเจ้าล่ม → บอกครบว่าใครพังเพราะอะไร, ตัวสำรองที่ทำงานสำเร็จต้องระบุตัวเองได้ |
+| test_projects.py (ส่วนโทเคน) | `/usage` รวมข้าม task + เรียงตัวที่กินมากสุด, **งานเก่าโผล่เป็น `untracked` ไม่ถูกเดาเป็นเจ้าใดเจ้าหนึ่ง**, 404 เมื่อไม่มีโปรเจกต์ |
 | test_settings_api.py | คีย์ไม่เคยออกจาก API แบบเต็ม, **ไม่ส่ง = ไม่แตะ · ส่งค่าว่าง = ลบ**, คอมเมนต์/ตัวแปรอื่นใน `.env` ไม่หาย, **ไฟล์ที่เขียนไม่มี BOM**, บันทึกแล้วมีผลทันที, สำรอง `.env` ก่อนเขียน, ปุ่มทดสอบไม่แตะเน็ตเมื่อไม่มีคีย์ |
 | test_personas.py | กติกาห้ามกุหลักฐานอยู่ครบทุก persona ที่ผลิตงาน + ครบ 6 ประเภทหลักฐาน + ทางออก (`ต้องการข้อมูลจากคน` / `[ตัวอย่างสมมติ]`) + **ห้ามกุ "การกระทำ"**, reviewer: จับการกุก่อนเรื่องอื่น + **verdict `needs_human` / ห้าม approve งานที่ติดว่าเสร็จ / ห้ามสั่ง revision ที่ agent ทำไม่ได้**, **parser อ่านฟิลด์ที่ prompt สัญญาไว้จริง**, PM ยังจบด้วยคำสั่ง JSON |
 | test_routing_bus.py | routing keywords, publish persist+dispatch, endpoint 201/404 |

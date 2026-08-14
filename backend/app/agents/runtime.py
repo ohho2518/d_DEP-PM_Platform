@@ -46,9 +46,28 @@ def _as_reply(value: LLMReply | str) -> LLMReply:
 
 
 def _add_usage(task: Task, reply: LLMReply) -> None:
-    """สะสม token usage ลง task (debt #7) — ผู้เรียก orchestrator เป็นคน commit."""
+    """สะสม token usage ลง task (debt #7) — ผู้เรียก orchestrator เป็นคน commit.
+
+    เก็บ 2 ชั้น: ยอดรวมของ task (เหมือนเดิม) และ **แยกตามผู้ให้บริการ** เพราะราคาต่อโทเคน
+    ของแต่ละเจ้าไม่เท่ากัน (§5 ของใบสั่งงาน 2026-08-06) · 1 task มีได้หลายเจ้าจริง —
+    Team Mode ให้ dev=openai แต่ reviewer=anthropic ในงานเดียวกัน
+    """
     task.tokens_input = (task.tokens_input or 0) + reply.input_tokens
     task.tokens_output = (task.tokens_output or 0) + reply.output_tokens
+    if not reply.provider:
+        return  # executor deterministic / เทสต์ที่คืน str ล้วน — ไม่มีเจ้าให้ลง
+
+    # ⚠️ ต้อง**สร้าง dict ใหม่แล้วมอบหมายกลับ** — คอลัมน์ JSON ไม่ track การแก้ในที่
+    # (แก้ dict เดิมแล้ว SQLAlchemy จะไม่เห็นว่าเปลี่ยน ค่าที่สะสมจะหายตอน commit)
+    usage = dict(task.token_usage or {})
+    entry = dict(usage.get(reply.provider) or {})
+    entry["input"] = int(entry.get("input", 0)) + reply.input_tokens
+    entry["output"] = int(entry.get("output", 0)) + reply.output_tokens
+    entry["calls"] = int(entry.get("calls", 0)) + 1
+    if reply.model:
+        entry["model"] = reply.model  # รุ่นล่าสุดที่เจ้านี้ใช้ (ชื่อรุ่นเปลี่ยนได้ระหว่างทาง)
+    usage[reply.provider] = entry
+    task.token_usage = usage
 
 
 def _execute_prompt(task: Task, feedback: str | None, context: str | None = None) -> str:

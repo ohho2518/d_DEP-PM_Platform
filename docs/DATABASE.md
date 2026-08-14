@@ -147,6 +147,7 @@ Query pattern: `GET /portfolio` อ่านทุกแถว (โปรเจ�
 | estimate_points | INT | NULL |
 | revision_count | INT | NOT NULL default 0 |
 | tokens_input / tokens_output | INT | NOT NULL default 0 — LLM usage สะสมทุก execute/review call ของ task (debt #7) |
+| token_usage | JSON (`JSONType`) | NULL ได้ — **โทเคนแยกตามผู้ให้บริการ** `{"anthropic": {"model": …, "input": …, "output": …, "calls": …}}` · 1 task มีได้หลายเจ้าจริง (Team Mode: dev=openai, reviewer=anthropic) · **NULL = งานก่อน 2026-08-14 ที่แยกที่มาไม่ได้** — รายงานนับเป็น `untracked` ไม่ใช่เดาว่าเป็นของ Anthropic |
 | created_at / updated_at | DATETIME(tz) | updated_at มี onupdate (Python-side) |
 
 **Indexes:** `ix_tasks_project_id` (ทุก query กรองโปรเจกต์), `ix_tasks_status` (orchestrator หา planned, portfolio group by)
@@ -186,6 +187,7 @@ Status flow: `queued` → `running` (dispatch สำเร็จ) → `success|f
 | `b2f1c0d3e4a5` | seed agent "Claude Solo" | fixed UUID `00000000-…-0001` → deterministic ทุก environment; downgrade ลบเฉพาะแถวนี้ |
 | `c7d4e2a9b1f3` | เพิ่ม `tasks.tokens_input/tokens_output` | server_default "0" — แถวเก่าได้ 0 อัตโนมัติ |
 | `e5a91c73b204` | เพิ่ม `projects.ceo_task_id` + unique constraint | ใช้ `batch_alter_table` (SQLite ไม่รองรับ ADD CONSTRAINT) · แถวเก่าได้ NULL = ไม่ถือว่ามาจาก d_CEO |
+| `f3a9c1d7e2b8` | เพิ่ม `tasks.token_usage` (JSON) | §5 ใบสั่งงาน 2026-08-06 — โทเคนแยกตามผู้ให้บริการ · **nullable โดยตั้งใจ**: แถวเก่าแยกที่มาไม่ได้จริง ปล่อย NULL แล้วรายงานเป็น `untracked` · เขียนมือพร้อม `import app.db.types` (บทเรียนของ `a14314b6f9a2`) · apply กับ DB จริงแล้ว 2026-08-14 (57 tasks ครบ) |
 
 ### กติกา migration (จาก ADR-01 + CLAUDE.md Database Rules)
 1. คอลัมน์ JSON ใช้ SQLAlchemy `JSON` (ห้าม JSONB ตรง ๆ — map ตอน deploy PG)
