@@ -230,6 +230,8 @@ AGENT_MODE=            # solo | team
 OPENAI_API_KEY= OPENAI_MODEL= GEMINI_API_KEY= GEMINI_MODEL=   # Team Mode
 LLM_PROVIDER=          # ตัวหลัก: anthropic | openai | google (ปริยาย anthropic)
 LLM_FALLBACKS=         # ลำดับสำรองคั่นด้วย comma เช่น "openai,google" · ว่าง = ไม่มีสำรอง
+LLM_TIMEOUT_SECONDS=   # เพดานเวลาต่อการเรียกโมเดล 1 ครั้ง (ปริยาย 120) — **อย่าปล่อยให้ใช้ค่า
+                       # ปริยายของ SDK ที่ 600 วิ** ไม่งั้นลองซ้ำ+ไล่เจ้าสำรองใช้เวลาครึ่งชั่วโมง
                        # ↑ สองตัวนี้แก้จากหน้า /settings ได้ มีผลทันทีโดยไม่ต้อง restart
 GITHUB_TOKEN= GITHUB_REPO=    # deploy dispatch; ว่าง = stub mode
 AUTO_DEPLOY_ENABLED=   # true = task done → staging deployment อัตโนมัติ

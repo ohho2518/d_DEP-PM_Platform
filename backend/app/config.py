@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # ส่วนสองตัวนี้ = "ตัวหลักคือใคร และล้มแล้วไปต่อที่ใคร" (ใช้ร่วมกันทั้ง solo/team)
     llm_provider: str = "anthropic"
     llm_fallbacks: str = ""  # คั่นด้วย comma เช่น "openai,google" · ว่าง = ไม่มีสำรอง (พฤติกรรมเดิม)
+    # เพดานเวลาต่อการเรียกโมเดลหนึ่งครั้ง — **ต้องตั้งเอง** เพราะค่าปริยายของ SDK คือ 600 วินาที
+    # ⚠️ เจอจริง 2026-08-14: prompt ที่ได้จาก PDF ทำให้ `/breakdown` ค้างครบ 10 นาที
+    # ถ้าไม่มีเพดานนี้ การ "ลองซ้ำ + ไล่เจ้าสำรอง" จะกลายเป็นครึ่งชั่วโมงต่อหนึ่ง task
+    llm_timeout_seconds: float = 120.0
 
     # --- Deploy pipeline (Sprint 4, Blueprint §12) --------------------------
     # ครบทั้งคู่ => dispatch repository_dispatch จริง; ไม่ครบ => stub (บันทึก record อย่างเดียว)

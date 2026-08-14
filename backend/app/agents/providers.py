@@ -171,7 +171,10 @@ def build_anthropic() -> ProviderCall | None:
         return None
     import anthropic
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    # timeout ต้องตั้งเอง — ค่าปริยายของ SDK คือ 600 วิ ซึ่งนานเกินกว่าจะสลับเจ้าได้ทัน
+    client = anthropic.Anthropic(
+        api_key=settings.anthropic_api_key, timeout=settings.llm_timeout_seconds
+    )
 
     def call(system: str, prompt: str) -> LLMReply:
         def run() -> LLMReply:
@@ -205,7 +208,7 @@ def build_openai() -> ProviderCall | None:
     except ImportError:
         return None
 
-    client = OpenAI(api_key=settings.openai_api_key)
+    client = OpenAI(api_key=settings.openai_api_key, timeout=settings.llm_timeout_seconds)
 
     def call(system: str, prompt: str) -> LLMReply:
         def run() -> LLMReply:
@@ -242,7 +245,10 @@ def build_gemini() -> ProviderCall | None:
     except ImportError:
         return None
 
-    client = genai.Client(api_key=settings.gemini_api_key)
+    client = genai.Client(
+        api_key=settings.gemini_api_key,
+        http_options={"timeout": int(settings.llm_timeout_seconds * 1000)},  # genai รับเป็น ms
+    )
 
     def call(system: str, prompt: str) -> LLMReply:
         def run() -> LLMReply:

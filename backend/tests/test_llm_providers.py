@@ -194,6 +194,35 @@ def test_no_provider_configured_at_all_is_still_a_clear_message(chain_of):
     assert "ยังไม่ได้ตั้งคีย์" in str(exc_info.value)
 
 
+def test_every_provider_client_gets_an_explicit_timeout(monkeypatch):
+    """ค่าปริยายของ SDK คือ 600 วิ — นานเกินกว่าจะสลับเจ้าได้ทัน.
+
+    เจอจริง 2026-08-14: `/breakdown` ด้วย prompt ที่ได้จาก PDF ค้างครบ 10 นาที ·
+    ถ้าไม่ตั้งเพดานเอง "ลองซ้ำ + ไล่เจ้าสำรอง" จะกลายเป็นครึ่งชั่วโมงต่อหนึ่ง task
+    """
+    settings = get_settings()
+    monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-test")
+    monkeypatch.setattr(settings, "openai_api_key", "sk-openai-test")
+    monkeypatch.setattr(settings, "llm_timeout_seconds", 42.0)
+
+    import anthropic
+    from openai import OpenAI
+
+    captured: dict[str, float] = {}
+    monkeypatch.setattr(
+        anthropic, "Anthropic", lambda **kw: captured.setdefault("anthropic", kw["timeout"])
+    )
+    monkeypatch.setattr(
+        "openai.OpenAI", lambda **kw: captured.setdefault("openai", kw["timeout"])
+    )
+    assert OpenAI  # กัน linter ตัด import ที่ใช้ผ่าน monkeypatch
+
+    providers.build_anthropic()
+    providers.build_openai()
+
+    assert captured == {"anthropic": 42.0, "openai": 42.0}
+
+
 def test_available_providers_follows_the_keys_that_are_set(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "openai_api_key", "sk-test")
