@@ -109,8 +109,18 @@ task ที่ค้างอยู่กลายเป็น `escalated` (ไ�
 4. ผลงานที่ทำด้วยตัวสำรองจะมีป้าย `🤖 ทำโดย <เจ้า>/<รุ่น> — ตัวสำรอง` ต่อท้าย —
    **อย่าลบป้ายออก** ก่อนส่ง QC (คุณภาพ/สไตล์ต่างกันจริง คนตรวจต้องรู้)
 
-> 📌 สถานะคีย์บนเครื่องนี้ (ตรวจจริง 2026-08-14): Anthropic ✅ · OpenAI ✅ ·
-> **Gemini ❌ 401** — คีย์ที่อยู่ใน `.env` เป็น OAuth token ไม่ใช่ API key ของ AI Studio
+> 📌 สถานะคีย์บนเครื่องนี้ (ตรวจจริง 2026-08-14): **Anthropic ✅ · OpenAI ✅ · Gemini ✅**
+>
+> ⚠️ **ถ้าปุ่มทดสอบขึ้น "คำขอไม่ถูกต้อง (404)" ให้สงสัยชื่อรุ่นก่อนสงสัยคีย์** — ฝั่ง Google
+> เปลี่ยนชื่อรุ่นบ่อยและปิดรุ่นเก่าสำหรับผู้ใช้ใหม่ · เคสจริง: `GEMINI_MODEL=gemini-3-pro`
+> **ไม่มีอยู่จริง** ทั้งที่คีย์ดีมาตลอด (เสียเวลาสรุปผิดไปหนึ่งรอบ) · วิธีดูรายชื่อรุ่นที่บัญชีเรียกได้:
+> ```powershell
+> Invoke-RestMethod "https://generativelanguage.googleapis.com/v1beta/models" `
+>   -Headers @{ "x-goog-api-key" = "<คีย์>" } | Select-Object -ExpandProperty models |
+>   Where-Object { $_.supportedGenerationMethods -contains "generateContent" } | Select-Object name
+> ```
+> บนบัญชีนี้: `gemini-3-flash-preview` ✅ · `gemini-3.1-flash-lite` ✅ ·
+> `gemini-3.1-pro-preview` = **429 quota** (ชั้น pro ต้องมี billing) · รุ่น 2.5 = ปิดสำหรับผู้ใช้ใหม่
 
 ## 5. อาการผิดปกติที่พบบ่อย
 

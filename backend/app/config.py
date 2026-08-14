@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-5.2"
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3-pro"
+    # ⚠️ ค่าเดิม "gemini-3-pro" **ไม่มีอยู่จริง** บน API v1beta → 404 ทุกครั้ง (เจอ 2026-08-14)
+    # ตัวนี้ยิงผ่านจริงแล้ว · ชื่อรุ่นฝั่ง Google เปลี่ยนบ่อย — ตรวจด้วยปุ่มทดสอบที่หน้า /settings
+    gemini_model: str = "gemini-3-flash-preview"
 
     # --- รองรับ AI หลายเจ้า (ใบสั่งงาน 2026-08-06) --------------------------
     # ตอบคนละคำถามกับ `agent_mode`: agent_mode = "บทบาทไหนใช้เจ้าไหนเป็นตัวหลัก",
