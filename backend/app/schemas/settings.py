@@ -14,12 +14,20 @@ class ProviderStatus(BaseModel):
     model: str
     key_set: bool
     key_masked: str = ""  # เช่น "sk-a…4f2a" · ว่าง = ยังไม่ได้ตั้งคีย์
+    #: ราคาต่อ 1 ล้านโทเคน (USD) ที่ระบบใช้ **ประมาณการ** ค่าใช้จ่าย — แก้ได้ที่ `.env` เท่านั้น
+    #: (อ่านอย่างเดียวตั้งใจ: เป็นตัวเลขที่ต้องยืนยันกับบิลจริง ไม่ใช่ค่าที่ควรกดเปลี่ยนเล่น)
+    price_in: float = 0.0
+    price_out: float = 0.0
 
 
 class LlmSettingsRead(BaseModel):
     provider: str  # ตัวหลัก
     fallbacks: list[str]  # ลำดับสำรอง
     providers: list[ProviderStatus]
+    #: เพดานค่าใช้จ่าย **ต่อโปรเจกต์** (USD) · 0 = ไม่จำกัด
+    budget_usd: float = 0.0
+    #: เกินเพดานแล้วทำอะไร — warn (เตือน) | stop (ไม่เริ่ม task ใหม่)
+    budget_action: str = "warn"
 
 
 class LlmSettingsUpdate(BaseModel):
@@ -35,6 +43,10 @@ class LlmSettingsUpdate(BaseModel):
     keys: dict[str, str] = Field(default_factory=dict)
     #: ชื่อผู้ให้บริการ -> ชื่อรุ่นใหม่ (ไม่ส่ง = คงเดิม)
     models: dict[str, str] = Field(default_factory=dict)
+    #: เพดานต่อโปรเจกต์ (USD) · 0 = ไม่จำกัด · ติดลบไม่รับ
+    budget_usd: float | None = Field(default=None, ge=0)
+    #: warn | stop — ค่าอื่นถูกปฏิเสธที่ router (ไม่ปล่อยให้ตกไปเป็น warn เงียบ ๆ)
+    budget_action: str | None = None
 
 
 class ProviderTestRequest(BaseModel):

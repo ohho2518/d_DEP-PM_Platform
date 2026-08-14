@@ -19,6 +19,7 @@ from app.agents.providers import AllProvidersUnavailable
 from app.agents.routing import route_task
 from app.agents.runtime import PersonaExecutor, ProviderUse, get_executor
 from app.bus import clip_work, latest_work_by_task, publish
+from app.config import get_settings
 from app.constants import (
     MAX_REVISIONS,
     ActorType,
@@ -29,6 +30,7 @@ from app.constants import (
 )
 from app.models.task import Task
 from app.orchestrator.state_machine import transition
+from app.services import usage
 
 # Agent id ที่ seed ไว้ใน migration b2f1c0d3e4a5 (Claude Solo).
 SOLO_AGENT_ID = "00000000-0000-0000-0000-000000000001"
@@ -57,6 +59,9 @@ class TaskOutcome:
 class RunSummary:
     project_id: str
     outcomes: list[TaskOutcome] = field(default_factory=list)
+    #: เหตุที่รอบรันหยุดก่อนงานหมด (ตอนนี้มีเหตุเดียว: ถึงเพดานค่าใช้จ่าย §5)
+    #: None = จบเพราะไม่มีงานให้ทำต่อแล้ว ซึ่งเป็นเรื่องปกติ
+    stopped_reason: str | None = None
 
     @property
     def counts(self) -> dict[str, int]:
@@ -406,6 +411,12 @@ def run_project(
 
     while max_tasks is None or len(summary.outcomes) < max_tasks:
         if should_continue is not None and not should_continue():
+            break
+        # เพดานค่าใช้จ่าย (§5) — ถามก่อนหยิบ task ถัดไป **ไม่ตัดกลาง task**
+        # (เจตนาเดียวกับปุ่มยกเลิก: งานที่จ่ายค่า token ไปแล้วต้องได้ผลงานกลับมา)
+        exceeded = usage.over_budget(db, project_id)
+        if exceeded and get_settings().llm_budget_action == "stop":
+            summary.stopped_reason = f"หยุดเพราะถึงเพดานค่าใช้จ่าย — {exceeded}"
             break
         task = _next_runnable(db, project_id)
         if task is None:

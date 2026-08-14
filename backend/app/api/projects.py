@@ -153,16 +153,29 @@ def bootstrap_project(payload: BootstrapRequest, db: Session = Depends(get_db)) 
     response_class=Response,
     response_model=None,
 )
-def delete_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> None:
+def delete_project(
+    project_id: uuid.UUID, unlink_ceo: bool = False, db: Session = Depends(get_db)
+) -> None:
     """ลบโปรเจกต์พร้อมของทั้งหมดที่ห้อยอยู่ — ใช้ล้างงานทดสอบออกจากบอร์ด.
 
     🔴 **ลบแล้วไม่มีทางกู้จาก API** (ผลงาน agent ทั้งหมดของโปรเจกต์นั้นหายไปด้วย) —
     สำรอง `backend/dep_pm.db` ก่อนเสมอตาม WORKING_RULES Rule 3
 
-    ปฏิเสธ (409) โปรเจกต์ที่ผูกกับงานของ d_CEO เพราะฝั่งโน้นยังอ้าง `ceo_task_id` อยู่
-    — ต้องจงใจตัดสายก่อน ไม่ใช่ลบทิ้งแล้วให้เลขาชี้ไปที่ของที่ไม่มีอยู่
+    ปฏิเสธ (409) โปรเจกต์ที่ผูกกับงานของ d_CEO เพราะฝั่งโน้นยังอ้าง `ceo_task_id` อยู่ ·
+    ตั้งใจจะลบจริง ๆ ให้ส่ง `?unlink_ceo=true` — **เจตนาต้องเขียนออกมา** ไม่ใช่ลบผ่านไปเงียบ ๆ
+    (ใช้ตอนงานฝั่งเลขาปิดแล้วและไม่ต้องเก็บของทดสอบไว้)
     """
     project = _get_project_or_404(db, project_id)
+    if project.ceo_task_id and unlink_ceo:
+        record_audit(
+            db,
+            actor_type=ActorType.HUMAN,
+            action="project.ceo_link_removed",
+            entity_type="project",
+            entity_id=str(project.id),
+            diff={"ceo_task_id": project.ceo_task_id, "reason": "ลบโปรเจกต์ทดสอบ"},
+        )
+        project.ceo_task_id = None
     if project.ceo_task_id:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -280,9 +293,10 @@ def write_deliverable(
 
 @router.get("/{project_id}/usage", response_model=ProjectUsage)
 def project_token_usage(project_id: uuid.UUID, db: Session = Depends(get_db)) -> dict:
-    """โทเคนของโปรเจกต์ **แยกตามผู้ให้บริการ** — ถังสำหรับเพดานค่าใช้จ่ายต่อเจ้า (§5).
+    """โทเคนของโปรเจกต์ **แยกตามผู้ให้บริการ** + ค่าใช้จ่ายเทียบเพดาน (§5).
 
-    ไม่แปลงเป็นเงิน: ตารางราคาเปลี่ยนบ่อยและต้องมาจากเจ้าของ ไม่ใช่ตัวเลขที่เราเดาเอง
+    ⚠️ ตัวเลขเงินเป็น **ประมาณการจากราคาประกาศ** ที่ตั้งไว้ใน `.env` ไม่ใช่บิลจริงของบัญชี
+    (ส่วนลด/เครดิต/ราคาพิเศษไม่ถูกนับ) — ห้ามเอาไปอ้างเป็นค่าใช้จ่ายจริง
     """
     _get_project_or_404(db, project_id)
     return usage.project_usage(db, project_id)

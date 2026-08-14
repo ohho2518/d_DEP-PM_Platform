@@ -284,6 +284,23 @@ def test_delete_project_refuses_when_it_came_from_ceo(client, db_session):
     assert client.get(f"/api/projects/{pid}").status_code == 200  # ยังอยู่ครบ
 
 
+def test_delete_ceo_project_only_when_the_intent_is_written_out(client, db_session):
+    """`?unlink_ceo=true` = พูดออกมาว่าตั้งใจตัดสาย — ใช้ตอนงานฝั่งเลขาปิดแล้ว."""
+    from app.models.audit_log import AuditLog
+    from app.models.project import Project
+
+    pid = _new_project(client, name="งานเลขาที่ปิดแล้ว").json()["id"]
+    db_session.get(Project, pid).ceo_task_id = "d89c03a8-0000-0000-0000-000000000000"
+    db_session.commit()
+
+    assert client.delete(f"/api/projects/{pid}").status_code == 409  # ไม่บอกเจตนา = ไม่ลบ
+    assert client.delete(f"/api/projects/{pid}?unlink_ceo=true").status_code == 204
+
+    # การตัดสายต้องมีร่องรอย ไม่ใช่หายไปเฉย ๆ
+    actions = [a.action for a in db_session.query(AuditLog).all()]
+    assert "project.ceo_link_removed" in actions
+
+
 def test_delete_missing_project_404(client):
     assert client.delete("/api/projects/00000000-0000-0000-0000-000000000000").status_code == 404
 

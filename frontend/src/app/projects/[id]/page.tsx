@@ -11,6 +11,7 @@ import {
   type AgentMessage,
   type DeliverableResult,
   type Project,
+  type ProjectUsage,
   type RunSummary,
   type Task,
   type TaskStatus,
@@ -33,6 +34,10 @@ function runNotice(run: RunSummary): string {
     return `❌ รอบรันล้มเหลว: ${run.error ?? "ไม่ทราบสาเหตุ"} (ผลงานที่ทำเสร็จก่อนหน้ายังอยู่)`;
   if (run.status === "cancelled")
     return `⏹ หยุดรอบรันแล้ว — ทำไป ${run.processed}/${run.total} งาน (ที่เสร็จแล้วยังอยู่ครบ กด Run ใหม่เพื่อทำต่อ · ยังไม่ส่งผลกลับเลขา)`;
+  // หยุดเพราะเพดานค่าใช้จ่าย — ต้องบอกเป็นเรื่องหลัก ไม่ใช่หางต่อท้าย "เสร็จแล้ว"
+  // (งานยังไม่หมด แต่รอบไม่ได้ล้ม — ขยับเพดานที่หน้า Settings แล้วกด Run ต่อได้)
+  if (run.stopped_reason)
+    return `💰 ${run.stopped_reason} — ทำไป ${run.processed}/${run.total} งาน (ที่เหลือยังค้างอยู่ ขยับเพดานที่หน้า Settings แล้วกด Run ต่อ)`;
   if (run.processed === 0) return "ไม่มี task สถานะ planned ให้รัน (ยืนยัน scope ก่อน)";
 
   const parts = Object.entries(run.counts)
@@ -57,6 +62,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   const [run, setRun] = useState<RunSummary | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [project, setProject] = useState<Project | null>(null);
+  const [usage, setUsage] = useState<ProjectUsage | null>(null);
   const [reporting, setReporting] = useState(false);
 
   const running = run?.status === "running";
@@ -66,6 +72,13 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   useEffect(() => {
     api.getProject(projectId).then(setProject).catch(() => setProject(null));
   }, [projectId]);
+
+  // ค่าใช้จ่ายโดยประมาณ — โหลดตอนเปิดหน้าและตอนรอบรันจบ · จงใจไม่ poll ระหว่างรัน
+  // (ตัวเลขขยับต่อ task ไม่ใช่ต่อวินาที และหน้านี้ poll สองอย่างอยู่แล้ว)
+  useEffect(() => {
+    if (running) return;
+    api.projectUsage(projectId).then(setUsage).catch(() => setUsage(null));
+  }, [projectId, running]);
 
   // รอบรันอยู่ฝั่ง backend แล้ว (Phase 2) — เปิด/รีเฟรชหน้ากลางรอบก็เห็นความคืบหน้าต่อได้
   // 404 = โปรเจกต์นี้ยังไม่เคยรันในโปรเซสนี้
@@ -204,6 +217,35 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
       <AgentOffice tasks={data.data} />
 
       {running && run && <RunProgress run={run} tasks={data.data} />}
+
+      {usage && (usage.by_provider.length > 0 || usage.budget.limit_usd > 0) && (
+        <p
+          className="card flex flex-wrap items-center gap-2 px-3 py-2 text-xs"
+          style={{ color: "var(--text2)" }}
+          title="ประมาณการจากราคาที่ตั้งไว้ในหน้า Settings — ไม่ใช่บิลจริงของบัญชี"
+        >
+          <span>
+            💰 ใช้ไป<b>ประมาณ</b> ${usage.budget.spent_usd.toFixed(2)}
+            {usage.budget.limit_usd > 0 && ` / เพดาน $${usage.budget.limit_usd.toFixed(2)}`}
+          </span>
+          {usage.by_provider.map((p) => (
+            <span key={p.provider} className="chip">
+              {p.provider}: {(p.input + p.output).toLocaleString()} tok · ${p.cost_usd.toFixed(2)}
+            </span>
+          ))}
+          {usage.budget.over && (
+            <span style={{ color: "var(--danger)" }}>
+              เกินเพดานแล้ว —{" "}
+              {usage.budget.action === "stop" ? "รอบรันจะไม่เริ่มงานใหม่" : "เตือนอย่างเดียว"}
+            </span>
+          )}
+          {usage.budget.excludes_untracked && (
+            <span style={{ color: "var(--text3)" }}>
+              (ไม่รวมโทเคนของงานเก่าที่ระบุเจ้าไม่ได้ — ของจริงสูงกว่านี้)
+            </span>
+          )}
+        </p>
+      )}
 
       {notice && (
         <p className="card px-3 py-2 text-xs" style={{ color: "var(--text2)" }}>

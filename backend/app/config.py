@@ -43,6 +43,21 @@ class Settings(BaseSettings):
     # ถ้าไม่มีเพดานนี้ การ "ลองซ้ำ + ไล่เจ้าสำรอง" จะกลายเป็นครึ่งชั่วโมงต่อหนึ่ง task
     llm_timeout_seconds: float = 120.0
 
+    # --- เพดานค่าใช้จ่าย (§5 ใบสั่งงาน 2026-08-06) ---------------------------
+    # ราคาต่อ **1 ล้านโทเคน** (USD) · ค่าตั้งต้นมาจากหน้าประกาศราคาของแต่ละเจ้า ณ 2026-08-14
+    # ⚠️ **ยังไม่ได้ยืนยันกับบิลจริงของบัญชีนี้** — ราคาเปลี่ยนบ่อยและแต่ละบัญชีมีเงื่อนไขต่างกัน
+    # ⇒ ระบบรายงานตัวเลขพร้อมป้ายว่า "ประมาณการ" เสมอ ห้ามเอาไปอ้างเป็นค่าใช้จ่ายจริง
+    llm_price_anthropic_in: float = 3.0
+    llm_price_anthropic_out: float = 15.0
+    llm_price_openai_in: float = 1.25
+    llm_price_openai_out: float = 10.0
+    llm_price_google_in: float = 0.30
+    llm_price_google_out: float = 2.50
+    #: เพดานต่อโปรเจกต์ (USD) · 0 = ไม่จำกัด (ค่าปริยาย — ไม่เปลี่ยนพฤติกรรมเดิม)
+    llm_budget_usd: float = 0.0
+    #: เกินเพดานแล้วทำอะไร — `warn` = เตือนอย่างเดียว (ปริยาย) · `stop` = ไม่เริ่ม task ใหม่
+    llm_budget_action: str = "warn"
+
     # --- Deploy pipeline (Sprint 4, Blueprint §12) --------------------------
     # ครบทั้งคู่ => dispatch repository_dispatch จริง; ไม่ครบ => stub (บันทึก record อย่างเดียว)
     github_token: str = ""
@@ -113,6 +128,15 @@ class Settings(BaseSettings):
             "anthropic": self.claude_model,
             "openai": self.openai_model,
             "google": self.gemini_model,
+        }
+
+    @property
+    def provider_prices(self) -> dict[str, tuple[float, float]]:
+        """ชื่อผู้ให้บริการ -> (ราคา input, ราคา output) ต่อ 1 ล้านโทเคน — **ประมาณการ**."""
+        return {
+            "anthropic": (self.llm_price_anthropic_in, self.llm_price_anthropic_out),
+            "openai": (self.llm_price_openai_in, self.llm_price_openai_out),
+            "google": (self.llm_price_google_in, self.llm_price_google_out),
         }
 
     @property

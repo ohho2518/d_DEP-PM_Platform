@@ -31,6 +31,8 @@ class ProviderUsage(BaseModel):
     output: int = 0
     calls: int = 0
     tasks: int = 0
+    #: **ประมาณการ** จากราคาประกาศใน `.env` ไม่ใช่บิลจริงของบัญชีนี้ (ดู `services/usage.py`)
+    cost_usd: float = 0.0
 
 
 class UsageTotals(BaseModel):
@@ -39,14 +41,29 @@ class UsageTotals(BaseModel):
     calls: int = 0
 
 
+class BudgetStatus(BaseModel):
+    """เพดานค่าใช้จ่ายต่อโปรเจกต์ (§5) — ตัวเลขเป็น **ประมาณการ** ทั้งหมด."""
+
+    #: รวมค่าใช้จ่ายโดยประมาณของทุกเจ้า (USD) — คิดเฉพาะโทเคนที่รู้ว่าเจ้าไหนใช้
+    spent_usd: float = 0.0
+    #: 0 = ไม่ได้ตั้งเพดาน
+    limit_usd: float = 0.0
+    #: warn = เตือนอย่างเดียว · stop = รอบรันไม่เริ่ม task ใหม่
+    action: str = "warn"
+    over: bool = False
+    #: True = มีโทเคนที่ระบุเจ้าไม่ได้ ⇒ ของจริงสูงกว่าตัวเลขนี้ (อย่าอ่านว่า "ใช้น้อย")
+    excludes_untracked: bool = False
+
+
 class ProjectUsage(BaseModel):
-    """ถังสำหรับเพดานค่าใช้จ่ายต่อเจ้า (§5 ใบสั่งงาน 2026-08-06) — ยังไม่แปลงเป็นเงิน."""
+    """ถังสำหรับเพดานค่าใช้จ่ายต่อเจ้า (§5 ใบสั่งงาน 2026-08-06)."""
 
     project_id: str
     totals: UsageTotals
     by_provider: list[ProviderUsage]
     #: โทเคนที่นับรวมไว้แต่ระบุเจ้าไม่ได้ — งานที่ทำก่อน 2026-08-14 (ไม่ใช่ศูนย์แปลว่า "ไม่ได้ใช้")
     untracked: UsageTotals
+    budget: BudgetStatus
 
 
 class ProjectRead(BaseModel):

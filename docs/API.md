@@ -131,7 +131,7 @@ Response `202`:
 ```json
 { "run_id": "…", "project_id": "…", "status": "running",
   "total": 6, "processed": 0, "counts": {}, "outcomes": [],
-  "ceo_report": null, "error": null,
+  "ceo_report": null, "error": null, "stopped_reason": null,
   "started_at": "2026-08-03T02:29:26.686806+00:00", "finished_at": null }
 ```
 - **409** = โปรเจกต์นี้มีรอบรันค้างอยู่ (`{"detail": "โปรเจกต์นี้กำลังรันอยู่แล้ว (run_id=…)"}`) —
@@ -158,6 +158,10 @@ Response `200`: รูปเดียวกับ §7 แต่ค่าอั�
 - `status` ∈ `running` | `succeeded` | `failed` | `cancelled` (คนละชุดกับ `TaskStatus`) · `failed` → ดู `error`
   (ผลงานที่ commit ไปแล้วก่อนพังยังอยู่ — engine commit ต่อ task)
 - `processed` < `total` ตอนจบ = ปกติ: task ที่รอ dependency ซึ่ง escalated จะค้าง `planned` ทั้งรอบ
+- `stopped_reason` ≠ null = รอบ**จบเรียบร้อย (`succeeded`) แต่หยุดก่อนงานหมด** — ตอนนี้มีเหตุเดียว
+  คือถึงเพดานค่าใช้จ่ายและตั้งไว้ว่า `stop` (§19.1) · **คนละช่องกับ `error` โดยเจตนา**:
+  ไม่ใช่ความล้มเหลว · เพดานถูกถามก่อนหยิบ task ใหม่เท่านั้น (ไม่ตัดกลาง task) ·
+  งานที่เหลือยังค้าง `planned` — ขยับเพดานแล้วกด Run ใหม่ทำต่อได้ทันที
 - `ceo_report` = `null` เมื่อโปรเจกต์ไม่ได้มาจาก d_CEO — ถ้ามาจาก d_CEO และงานจบครบ
   ระบบรายงานกลับเข้า QC gate ให้อัตโนมัติหลังรอบรันจบ (ล้มเหลว = บันทึกไว้ใน `ceo_report.detail`
   ไม่ทำให้รอบรัน `failed` · ยิง §19 ซ้ำเองได้)
@@ -395,14 +399,16 @@ Request: `{ "task_id": "…", "path": "docs/PROJECT_OVERVIEW.md" }` →
 
 ---
 
-### 19.1) `GET /api/projects/:id/usage` — โทเคนแยกตามผู้ให้บริการ
+### 19.1) `GET /api/projects/:id/usage` — โทเคนแยกตามผู้ให้บริการ + ค่าใช้จ่ายเทียบเพดาน
 ```json
 { "project_id": "…",
   "totals": { "input": 3208, "output": 651, "calls": 2 },
   "by_provider": [
     { "provider": "anthropic", "model": "claude-sonnet-5",
-      "input": 3208, "output": 651, "calls": 2, "tasks": 1 } ],
-  "untracked": { "input": 0, "output": 0, "calls": 0 } }
+      "input": 3208, "output": 651, "calls": 2, "tasks": 1, "cost_usd": 0.0194 } ],
+  "untracked": { "input": 0, "output": 0, "calls": 0 },
+  "budget": { "spent_usd": 0.0194, "limit_usd": 5.0, "action": "warn",
+              "over": false, "excludes_untracked": false } }
 ```
 - **ถังสำหรับเพดานค่าใช้จ่ายต่อเจ้า** (§5 ใบสั่งงาน 2026-08-06) — ราคาต่อโทเคนแต่ละเจ้าไม่เท่ากัน
   ยอดรวมก้อนเดียวจึงคุมไม่อยู่เมื่อระบบสลับเจ้าเอง
@@ -410,7 +416,11 @@ Request: `{ "task_id": "…", "path": "docs/PROJECT_OVERVIEW.md" }` →
   (1 task มีได้หลายเจ้า — Team Mode: dev=openai, reviewer=anthropic)
 - ⚠️ **`untracked` = โทเคนที่นับรวมไว้แต่ระบุเจ้าไม่ได้** — งานที่ทำก่อน 2026-08-14 ·
   จงใจแยกให้เห็นแทนการเดาย้อนหลังว่าเป็นของเจ้าไหน
-- **ยังไม่แปลงเป็นเงิน** — ตารางราคาเปลี่ยนบ่อยและต้องมาจากเจ้าของ ไม่ใช่ตัวเลขที่ระบบเดาเอง
+- 🔴 **`cost_usd` / `spent_usd` เป็น "ประมาณการ"** — คิดจากราคาใน `.env` (`LLM_PRICE_*`)
+  × โทเคนที่นับได้ **ไม่ใช่บิลจริง** (ส่วนลด/เครดิต/ราคาพิเศษของบัญชีไม่ถูกนับ)
+  · `excludes_untracked: true` = มีโทเคนที่ระบุเจ้าไม่ได้ ⇒ ของจริง**สูงกว่า**ตัวเลขนี้
+- `budget.limit_usd = 0` = ไม่ได้ตั้งเพดาน · `action` = `warn` (เตือน) | `stop` (ไม่เริ่ม task ใหม่)
+  — ดู §12 `POST /:id/run` เรื่อง `stopped_reason`
 - `TaskRead` ก็มี `token_usage` ของ task นั้นด้วย (`{"<provider>": {model, input, output, calls}}`)
 
 ---
@@ -418,18 +428,26 @@ Request: `{ "task_id": "…", "path": "docs/PROJECT_OVERVIEW.md" }` →
 ### 20) `GET /api/settings/llm` — ค่าปัจจุบัน
 ```json
 { "provider": "anthropic", "fallbacks": ["openai"],
+  "budget_usd": 0, "budget_action": "warn",
   "providers": [
-    { "name": "anthropic", "model": "claude-sonnet-5", "key_set": true, "key_masked": "sk-…4f2a" },
-    { "name": "openai", "model": "gpt-5.2", "key_set": false, "key_masked": "" }
+    { "name": "anthropic", "model": "claude-sonnet-5", "key_set": true, "key_masked": "sk-…4f2a",
+      "price_in": 3.0, "price_out": 15.0 },
+    { "name": "openai", "model": "gpt-5.2", "key_set": false, "key_masked": "",
+      "price_in": 1.25, "price_out": 10.0 }
   ] }
 ```
+- `price_in`/`price_out` = ราคาต่อ **1 ล้านโทเคน** ที่ใช้ประมาณการค่าใช้จ่าย — **อ่านอย่างเดียว**
+  (แก้ที่ `.env` เท่านั้น: เป็นตัวเลขที่ต้องยืนยันกับบิลจริงก่อน ไม่ใช่ค่าที่ควรกดเปลี่ยนจากหน้าเว็บ)
 
 ### 21) `PUT /api/settings/llm` — บันทึกคีย์/รุ่น/ลำดับ (**มีผลทันที ไม่ต้อง restart**)
 Request (ทุก field เป็น optional):
 ```json
 { "provider": "anthropic", "fallbacks": ["openai", "google"],
-  "keys": { "openai": "sk-…" }, "models": { "openai": "gpt-5.2" } }
+  "keys": { "openai": "sk-…" }, "models": { "openai": "gpt-5.2" },
+  "budget_usd": 5.0, "budget_action": "stop" }
 ```
+- `budget_usd` ติดลบ → **422** · `budget_action` นอกเหนือ `warn`/`stop` → **400**
+  (ไม่ปล่อยให้ค่าพิมพ์ผิดตกไปเป็น `warn` เงียบ ๆ แล้วเจ้าของนึกว่าตั้งเพดานไว้แล้ว)
 - ⚠️ **ไม่ส่ง key ของเจ้าไหน = ไม่แตะของเดิม · ส่งสตริงว่าง = ตั้งใจลบ** (แค่เปิดหน้าเว็บแล้วกด
   บันทึกต้องไม่ล้างคีย์ทิ้ง)
 - เขียนกลับ `.env` แบบ**แก้เฉพาะบรรทัดที่เกี่ยว** (คอมเมนต์/ตัวแปรอื่นอยู่ครบ) · UTF-8 **ไม่มี BOM**

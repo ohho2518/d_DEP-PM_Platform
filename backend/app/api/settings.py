@@ -38,6 +38,9 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 #: ตัวอักษรท้ายคีย์ที่ยอมให้เห็น — พอให้คนยืนยันว่า "ใช่คีย์ตัวที่ตั้งใจ" โดยไม่เผยของจริง
 MASK_VISIBLE_CHARS = 4
 
+#: สิ่งที่ทำได้เมื่อถึงเพดานค่าใช้จ่าย (§5) — ตรงกับ `config.llm_budget_action`
+BUDGET_ACTIONS = ("warn", "stop")
+
 
 def _mask(key: str) -> str:
     if not key:
@@ -50,15 +53,20 @@ def _current() -> LlmSettingsRead:
     settings = get_settings()
     keys = settings.provider_keys
     models = settings.provider_models
+    prices = settings.provider_prices
     return LlmSettingsRead(
         provider=settings.llm_provider,
         fallbacks=settings.llm_fallback_list,
+        budget_usd=settings.llm_budget_usd,
+        budget_action=settings.llm_budget_action,
         providers=[
             ProviderStatus(
                 name=name,
                 model=models.get(name, ""),
                 key_set=bool(keys.get(name)),
                 key_masked=_mask(keys.get(name, "")),
+                price_in=prices.get(name, (0.0, 0.0))[0],
+                price_out=prices.get(name, (0.0, 0.0))[1],
             )
             for name in BUILDERS
         ],
@@ -98,6 +106,16 @@ def update_llm_settings(payload: LlmSettingsUpdate) -> LlmSettingsRead:
         values["LLM_PROVIDER"] = _known_provider(payload.provider)
     if payload.fallbacks is not None:
         values["LLM_FALLBACKS"] = ",".join(_known_provider(name) for name in payload.fallbacks)
+    if payload.budget_usd is not None:
+        values["LLM_BUDGET_USD"] = f"{payload.budget_usd:g}"
+    if payload.budget_action is not None:
+        action = payload.budget_action.strip().lower()
+        if action not in BUDGET_ACTIONS:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"budget_action ต้องเป็น {' หรือ '.join(BUDGET_ACTIONS)} เท่านั้น",
+            )
+        values["LLM_BUDGET_ACTION"] = action
 
     if values:
         write_env(values)

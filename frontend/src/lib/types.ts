@@ -106,6 +106,9 @@ export interface RunSummary {
   ceo_report: CeoReport | null;
   /** เหตุที่รอบรันล้ม (status = "failed" เท่านั้น) */
   error: string | null;
+  /** รอบจบเรียบร้อย (succeeded) แต่ **หยุดก่อนงานหมด** — ตอนนี้มีเหตุเดียวคือถึงเพดาน
+   *  ค่าใช้จ่าย · งานที่เหลือยังค้าง planned กด Run ใหม่ได้ทันทีที่ขยับเพดาน */
+  stopped_reason: string | null;
   /** ผู้ใช้กดยกเลิกแล้ว — รอ task ปัจจุบันจบก่อนถึงจะหยุดจริง */
   cancel_requested: boolean;
   /** ISO 8601 **UTC** */
@@ -231,6 +234,9 @@ export interface ProviderStatus {
   key_set: boolean;
   /** เช่น "sk-…4f2a" — backend **ไม่เคย** ส่งคีย์เต็มออกมา */
   key_masked: string;
+  /** ราคาต่อ 1 ล้านโทเคน (USD) ที่ใช้ประมาณการค่าใช้จ่าย — อ่านอย่างเดียว แก้ที่ .env */
+  price_in: number;
+  price_out: number;
 }
 
 export interface ProjectUsage {
@@ -243,10 +249,24 @@ export interface ProjectUsage {
     output: number;
     calls: number;
     tasks: number;
+    /** **ประมาณการ** จากราคาที่ตั้งไว้ใน .env ไม่ใช่บิลจริง */
+    cost_usd: number;
   }[];
   /** โทเคนที่นับรวมไว้แต่ระบุเจ้าไม่ได้ — งานก่อน 2026-08-14 */
   untracked: { input: number; output: number; calls: number };
+  budget: {
+    spent_usd: number;
+    /** 0 = ไม่ได้ตั้งเพดาน */
+    limit_usd: number;
+    action: BudgetAction;
+    over: boolean;
+    /** true = มีโทเคนที่ระบุเจ้าไม่ได้ ⇒ ของจริงสูงกว่าตัวเลขนี้ */
+    excludes_untracked: boolean;
+  };
 }
+
+/** เกินเพดานแล้วทำอะไร — backend: `config.llm_budget_action` */
+export type BudgetAction = "warn" | "stop";
 
 export interface LlmSettings {
   /** ตัวหลัก */
@@ -254,6 +274,9 @@ export interface LlmSettings {
   /** ลำดับสำรอง — ว่าง = ไม่มีตัวสำรอง (ล้มแล้วหยุด) */
   fallbacks: string[];
   providers: ProviderStatus[];
+  /** เพดานค่าใช้จ่าย **ต่อโปรเจกต์** (USD) · 0 = ไม่จำกัด */
+  budget_usd: number;
+  budget_action: BudgetAction;
 }
 
 export interface LlmSettingsUpdate {
@@ -262,6 +285,8 @@ export interface LlmSettingsUpdate {
   /** ชื่อเจ้า -> คีย์ใหม่ · **ไม่ส่ง = ไม่แตะของเดิม · ส่งค่าว่าง = ลบ** */
   keys?: Record<string, string>;
   models?: Record<string, string>;
+  budget_usd?: number;
+  budget_action?: BudgetAction;
 }
 
 /** ชนิดปัญหาเมื่อทดสอบไม่ผ่าน — ตรงกับตารางแยก error ใน providers.py */

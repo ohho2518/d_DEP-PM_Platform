@@ -63,6 +63,10 @@ class RunRecord:
     outcomes: list[dict[str, object]] = field(default_factory=list)
     ceo_report: dict[str, object] | None = None
     error: str | None = None
+    #: รอบจบเรียบร้อยแต่ **หยุดก่อนงานหมด** — ตอนนี้มีเหตุเดียวคือถึงเพดานค่าใช้จ่าย (§5)
+    #: คนละช่องกับ ``error`` โดยเจตนา: นี่ไม่ใช่ความล้มเหลว รอบยัง ``succeeded``
+    #: และงานที่เหลือยังค้าง ``planned`` รอกด Run ใหม่ได้ทันทีที่ขยับเพดาน
+    stopped_reason: str | None = None
     started_at: datetime = field(default_factory=utcnow)
     finished_at: datetime | None = None
     cancel_requested: bool = False
@@ -84,6 +88,7 @@ class RunRecord:
             "outcomes": list(self.outcomes),
             "ceo_report": self.ceo_report,
             "error": self.error,
+            "stopped_reason": self.stopped_reason,
             "cancel_requested": self.cancel_requested,
             "started_at": self.started_at.isoformat(),
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
@@ -192,12 +197,16 @@ class RunManager:
         """ตัวงานจริงใน thread — engine commit ต่อ task อยู่แล้ว ที่นี่จึงไม่ commit ซ้ำ."""
         db = session_factory()
         try:
-            run_project(
+            summary = run_project(
                 db,
                 project_id,
                 on_outcome=lambda o: self._record_outcome(record, o),
                 should_continue=lambda: not record.cancel_requested,
             )
+            # getattr เพราะ test เสียบ engine ปลอมที่ไม่คืนอะไร — ที่นี่สนใจการจัดการรอบรัน
+            # ไม่ใช่ตัว engine (ดู test_runs.py) · engine จริงคืน RunSummary เสมอ
+            with self._lock:
+                record.stopped_reason = getattr(summary, "stopped_reason", None)
             if record.cancel_requested:
                 # ยกเลิกกลางคัน = รอบนี้ยังไม่จบ → **ไม่รายงานกลับ d_CEO**
                 # (งานที่ทำเสร็จไปแล้วยังอยู่ ผู้ใช้กด Run ใหม่ทำต่อ หรือกดส่งผลเองได้)

@@ -4,7 +4,12 @@
 // ไม่ใช่ต้องไปแก้ไฟล์ .env แล้ว restart backend กลางวิกฤต
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { LlmSettings, ProviderTestKind, ProviderTestResult } from "@/lib/types";
+import type {
+  BudgetAction,
+  LlmSettings,
+  ProviderTestKind,
+  ProviderTestResult,
+} from "@/lib/types";
 
 const LABELS: Record<string, string> = {
   anthropic: "Anthropic (Claude)",
@@ -25,6 +30,8 @@ export default function SettingsPage() {
   const [fallbacks, setFallbacks] = useState<string[]>([]);
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [modelDrafts, setModelDrafts] = useState<Record<string, string>>({});
+  const [budget, setBudget] = useState("0");
+  const [budgetAction, setBudgetAction] = useState<BudgetAction>("warn");
   const [results, setResults] = useState<Record<string, ProviderTestResult>>({});
   const [testing, setTesting] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -38,6 +45,8 @@ export default function SettingsPage() {
       setPrimary(data.provider);
       setFallbacks(data.fallbacks);
       setModelDrafts(Object.fromEntries(data.providers.map((p) => [p.name, p.model])));
+      setBudget(String(data.budget_usd));
+      setBudgetAction(data.budget_action);
       setKeyDrafts({});
     } catch (e) {
       setError(String(e));
@@ -62,8 +71,13 @@ export default function SettingsPage() {
         fallbacks,
         keys,
         models: modelDrafts,
+        // ช่องว่าง/พิมพ์ผิด = ไม่จำกัด (0) — ไม่ส่ง NaN ไปให้ backend ปฏิเสธเป็น 422
+        budget_usd: Math.max(0, Number(budget) || 0),
+        budget_action: budgetAction,
       });
       setSettings(data);
+      setBudget(String(data.budget_usd));
+      setBudgetAction(data.budget_action);
       setKeyDrafts({});
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -166,6 +180,64 @@ export default function SettingsPage() {
             </span>
           )}
         </div>
+      </div>
+
+      {/* เพดานค่าใช้จ่าย (§5 ใบสั่งงาน 2026-08-06) */}
+      <div className="card space-y-3 p-4">
+        <h2 className="text-sm font-semibold">เพดานค่าใช้จ่าย (ต่อโปรเจกต์)</h2>
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="text-sm">
+            <span style={{ color: "var(--text2)" }}>เพดาน (USD) · 0 = ไม่จำกัด</span>
+            <input
+              type="number"
+              min={0}
+              step="0.5"
+              className="input mt-1 w-40"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+            />
+          </label>
+          <div className="flex items-center gap-3 text-sm">
+            {(["warn", "stop"] as BudgetAction[]).map((action) => (
+              <label key={action} className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="budget-action"
+                  checked={budgetAction === action}
+                  onChange={() => setBudgetAction(action)}
+                />
+                {action === "warn" ? "เตือนอย่างเดียว" : "หยุดไม่เริ่มงานใหม่"}
+              </label>
+            ))}
+          </div>
+        </div>
+        <p className="text-xs" style={{ color: "var(--text3)" }}>
+          ⚠️ ตัวเลขค่าใช้จ่ายเป็น<b>ประมาณการ</b>จากราคาที่ตั้งไว้ข้างล่าง <b>ไม่ใช่บิลจริง</b>{" "}
+          (ส่วนลด/เครดิตไม่ถูกนับ) · &ldquo;หยุด&rdquo; หมายถึงไม่หยิบ task ใหม่ —
+          ตัวที่กำลังทำอยู่ยังทำจนจบเสมอ เพราะจ่ายค่าโทเคนไปแล้ว
+        </p>
+        <table className="w-full text-left text-xs" style={{ color: "var(--text2)" }}>
+          <thead style={{ color: "var(--text3)" }}>
+            <tr>
+              <th className="py-1">ราคาที่ใช้ประมาณการ (USD ต่อ 1 ล้านโทเคน)</th>
+              <th className="py-1">เข้า</th>
+              <th className="py-1">ออก</th>
+            </tr>
+          </thead>
+          <tbody>
+            {settings.providers.map((p) => (
+              <tr key={p.name}>
+                <td className="py-1">{LABELS[p.name] ?? p.name}</td>
+                <td className="py-1">${p.price_in}</td>
+                <td className="py-1">${p.price_out}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="text-[11px]" style={{ color: "var(--text3)" }}>
+          ราคาแก้ได้ที่ <code>backend/.env</code> (<code>LLM_PRICE_*</code>) — ตั้งใจไม่ให้แก้จากหน้านี้
+          เพราะเป็นตัวเลขที่ต้องยืนยันกับบิลจริงก่อน
+        </p>
       </div>
 
       {settings.providers.map((p) => {

@@ -35,10 +35,18 @@ def _isolated_settings(monkeypatch):
     # ผ่าน API (ไม่ใช่ monkeypatch) ถ้าไม่ล็อกไว้จะรั่วข้ามไฟล์แล้วหาสาเหตุยาก
     monkeypatch.setattr(settings, "llm_provider", "anthropic")
     monkeypatch.setattr(settings, "llm_fallbacks", "")
+    # เพดานค่าใช้จ่าย (§5) ปิดเป็นค่าปริยาย — เครื่อง dev ที่ตั้งเพดานจริงไว้ต้องไม่ทำให้
+    # เทสต์รอบรันหยุดกลางคัน · เทสต์ที่ต้องการเพดานตั้งเองใน test_usage_budget.py
+    monkeypatch.setattr(settings, "llm_budget_usd", 0.0)
+    monkeypatch.setattr(settings, "llm_budget_action", "warn")
     monkeypatch.setattr(settings, "github_token", "")
     monkeypatch.setattr(settings, "github_repo", "")
     monkeypatch.setattr(settings, "auto_deploy_enabled", False)
     monkeypatch.setattr(settings, "deploy_callback_secret", "")
+    # ประตูหน้าบ้านปิดเป็นค่าปริยายในเทสต์ — พอเครื่อง dev ตั้ง API_TOKEN จริง เทสต์ทุกตัว
+    # ที่ยิง /api/* จะกลายเป็น 401 ทันที (เจอจริงตอนตั้งค่าจริงครั้งแรก 2026-08-14)
+    # เทสต์ที่ต้องการโหมดล็อกให้ตั้งเองใน test_api_auth.py
+    monkeypatch.setattr(settings, "api_token", "")
     # ปิดการเชื่อม d_CEO เป็นค่าเริ่มต้น — test ที่ต้องใช้ override dependency ด้วย stub เอง
     # (กันไม่ให้ suite เผลอยิงไปที่ Solo_CEO API ที่รันอยู่จริงบนเครื่อง dev)
     monkeypatch.setattr(settings, "ceo_api_base", "")

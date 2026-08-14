@@ -161,6 +161,7 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 - `upstream_context(db, task)`: ประกอบ "ผลงานจริงของงานก่อนหน้า" เป็นข้อความให้ agent อ่าน — **ผลงานล่าสุดของทั้งกราฟ** (ไม่ใช่แค่ dependency ตรง) · เพดาน `UPSTREAM_WORK_CHAR_LIMIT` = 6,000 ต่อชิ้น และ `UPSTREAM_CONTEXT_CHAR_LIMIT` = 24,000 รวม — เกินแล้ว**ตัดตัวเก่าสุดก่อน** พร้อมบอกจำนวนที่ตัดไว้ในหัวข้อความ · ประกอบครั้งเดียวก่อนเข้า revision loop
 - `run_project(db, project_id, executor=None, max_tasks=None, on_outcome=None, should_continue=None)`: วนจน `_next_runnable` คืน None; **commit ต่อ task**; executor param = จุด inject mock ใน tests; `on_outcome` ถูกเรียกหลัง commit ของแต่ละ task (Phase 2: run manager ใช้ทำ progress — engine ไม่รู้จักผู้ฟัง) · `should_continue` ถูกถามก่อนหยิบ task ถัดไป คืน False = หยุดรอบ (ปุ่มยกเลิก)
 - `planned_task_count(db, project_id)`: จำนวน task `planned` ตอนนี้ — run manager ใช้ตั้ง "เป้า" ของรอบรัน
+- **เพดานค่าใช้จ่าย (§5 ใบสั่งงาน 2026-08-06):** ถาม `usage.over_budget()` **ที่เดียวกับ `should_continue`** คือก่อนหยิบ task ถัดไป · เกิน + `LLM_BUDGET_ACTION=stop` → จบลูปแล้วใส่เหตุใน `RunSummary.stopped_reason` (`warn` = ไม่ทำอะไร แค่ตัวเลขบน UI ขึ้นแดง) · **ไม่ตัดกลาง task** ด้วยเหตุผลเดียวกับปุ่มยกเลิก · `stopped_reason` ไหลออกไปถึง `GET /:id/run` โดย**ไม่ปนกับ `error`** — ถึงเพดานไม่ใช่ความล้มเหลว งานที่เหลือยังค้าง `planned` ครบ
 - **Thread safety:** ตัว engine ไม่ thread-safe — ความปลอดภัยมาจาก **lock ต่อโปรเจกต์ใน `services/runs.py`** (ยิง `/run` ซ้อนโปรเจกต์เดิม = 409) และ 1 รอบรัน = 1 session
 
 ### `app/services/runs.py` — Run Manager (Phase 2)
@@ -168,7 +169,7 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 - `start_run(project_id, session_factory, ceo_client, total) -> RunRecord`: จองโปรเจกต์ (มีรอบค้าง → `RunAlreadyActive` → 409) แล้วสตาร์ต **daemon thread**
 - `get_run(run_id)` / `latest_run_for_project(project_id)`: ให้ `GET /:id/run` · `wait_for_run` ใช้ใน tests · `reset_runs` ล้างทะเบียน (tests)
 - `cancel_run(run_id)`: ตั้งธง `cancel_requested` — engine ถาม `should_continue()` **ก่อนหยิบ task ถัดไป** จึงหยุด "ระหว่างช่อง" ไม่ตัดกลาง task (ตัดกลาง = task ค้างสถานะ + จ่าย token ฟรี) · รอบที่ถูกยกเลิก **ไม่รายงานกลับ d_CEO**
-- `RunRecord`: `status` (`RunStatus` = running/succeeded/failed/cancelled), `total`/`processed`/`counts`/`outcomes`, `ceo_report`, `error`, `started_at`/`finished_at` → `snapshot()` = body ที่ API ตอบ
+- `RunRecord`: `status` (`RunStatus` = running/succeeded/failed/cancelled), `total`/`processed`/`counts`/`outcomes`, `ceo_report`, `error`, **`stopped_reason`** (จบเรียบร้อยแต่หยุดก่อนงานหมด — ตอนนี้มีเหตุเดียวคือถึงเพดานค่าใช้จ่าย), `started_at`/`finished_at` → `snapshot()` = body ที่ API ตอบ
 - **ทะเบียนอยู่ในหน่วยความจำของโปรเซส** เหมือน bus (ADR-03) — restart แล้วประวัติรอบรันหาย แต่ผลงานจริงใน `tasks`/`audit_log`/`agent_messages` ไม่หาย (เก็บประวัติล่าสุด `MAX_HISTORY` = 50 รอบ)
 - งานเบื้องหลังเปิด session ของตัวเอง (`get_session_factory`) — ใช้ session ของ request ไม่ได้เพราะถูกปิดพร้อม response
 - รายงานกลับ d_CEO อัตโนมัติหลังรอบรันจบ (ย้ายมาจาก `api/projects.py`) — ล้มเหลว = เก็บใน `ceo_report.detail` **ไม่ทำให้รอบรันเป็น failed**
@@ -183,6 +184,7 @@ REVIEWER สั่งตอบ JSON `{"approved": bool, "comment": str}` เท�
 
 ### `app/services/`
 - `audit.record_audit(...)`: add-not-commit (convention เดียวกับ transition/publish)
+- `usage.project_usage/estimate_cost/over_budget`: รวมโทเคนของโปรเจกต์**แยกตามเจ้า** แล้วคูณราคาที่ตั้งไว้ (`LLM_PRICE_*` ต่อ 1 ล้านโทเคน) — 🔴 **เป็น "ประมาณการ" เสมอ ไม่ใช่บิลจริง** (ส่วนลด/เครดิตไม่ถูกนับ) · โทเคนที่ระบุเจ้าไม่ได้ (งานก่อน 2026-08-14) **ไม่ถูกคิดเงิน** แต่ยกธง `excludes_untracked` ไว้ — ไม่งั้นตัวเลขจะอ่านว่า "ใช้น้อย" ทั้งที่แค่ไม่รู้ที่มา · เจ้าที่ไม่มีราคาตั้งไว้คืน 0 (ไม่ล้ม)
 - `tasks.persist_task_plan(db, project_id, plan)`: **two-pass ref resolution** —
   pass 1 สร้างทุกแถว + flush (ได้ UUID), pass 2 แปลง depends_on ref→UUID; **ref ที่ resolve ไม่ได้ถูก drop เงียบ** (LLM อาจอ้าง ref มั่ว — เลือก tolerate มากกว่า reject ทั้ง plan)
 
@@ -345,6 +347,7 @@ Router (HTTP เท่านั้น) → Services/Orchestrator (business logic
 | test_orchestrator.py | E2E happy path (API), audit ครบ 4 transitions, revision→done, **escalation ที่ MAX_REVISIONS**, **`needs_human` → escalate ตั้งแต่รีวิวแรก / revision_count ไม่ขยับ / reason แยกจาก "review ไม่ผ่าน" / flag ลง Message Log**, dependency ordering, dependent ของ escalated ค้าง planned, **context: เห็นผลงานทั้งกราฟบรรพบุรุษ / ใช้ฉบับล่าสุดหลัง revision / ตัดพร้อม marker / เพดานรวมตัดตัวเก่าก่อน** |
 | test_llm_providers.py | **ตารางแยก error §3 ทุกแถว** (เครดิตหมด/401/403 → สลับทันที · 429/5xx/timeout → ลองซ้ำก่อน · 400 อื่น → **ไม่แตะเจ้าที่สอง**), ข้ามเจ้าที่ไม่รู้จัก/ไม่มีคีย์, ทุกเจ้าล่ม → บอกครบว่าใครพังเพราะอะไร, ตัวสำรองที่ทำงานสำเร็จต้องระบุตัวเองได้ |
 | test_projects.py (ส่วนโทเคน) | `/usage` รวมข้าม task + เรียงตัวที่กินมากสุด, **งานเก่าโผล่เป็น `untracked` ไม่ถูกเดาเป็นเจ้าใดเจ้าหนึ่ง**, 404 เมื่อไม่มีโปรเจกต์ |
+| test_usage_budget.py | สูตรคิดเงิน (input/output คนละราคา, เจ้าที่ไม่มีราคา = 0 ไม่ล้ม), `warn` ทำงานต่อ vs `stop` **หยุดก่อนหยิบ task ถัดไป** (งานที่เหลือยังค้าง `planned`), API บอกเหตุผ่าน `stopped_reason` โดย `status` ยังเป็น `succeeded`, ตั้งเพดานจากหน้าเว็บแล้วได้ **ตัวเลข** ไม่ใช่ข้อความ, ค่าติดลบ/โหมดมั่วถูกปฏิเสธ |
 | test_settings_api.py | คีย์ไม่เคยออกจาก API แบบเต็ม, **ไม่ส่ง = ไม่แตะ · ส่งค่าว่าง = ลบ**, คอมเมนต์/ตัวแปรอื่นใน `.env` ไม่หาย, **ไฟล์ที่เขียนไม่มี BOM**, บันทึกแล้วมีผลทันที, สำรอง `.env` ก่อนเขียน, ปุ่มทดสอบไม่แตะเน็ตเมื่อไม่มีคีย์ |
 | test_personas.py | กติกาห้ามกุหลักฐานอยู่ครบทุก persona ที่ผลิตงาน + ครบ 6 ประเภทหลักฐาน + ทางออก (`ต้องการข้อมูลจากคน` / `[ตัวอย่างสมมติ]`) + **ห้ามกุ "การกระทำ"**, reviewer: จับการกุก่อนเรื่องอื่น + **verdict `needs_human` / ห้าม approve งานที่ติดว่าเสร็จ / ห้ามสั่ง revision ที่ agent ทำไม่ได้**, **parser อ่านฟิลด์ที่ prompt สัญญาไว้จริง**, PM ยังจบด้วยคำสั่ง JSON |
 | test_routing_bus.py | routing keywords, publish persist+dispatch, endpoint 201/404 |

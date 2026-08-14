@@ -23,6 +23,8 @@ ENV_TO_FIELD: dict[str, str] = {
     "GEMINI_MODEL": "gemini_model",
     "LLM_PROVIDER": "llm_provider",
     "LLM_FALLBACKS": "llm_fallbacks",
+    "LLM_BUDGET_USD": "llm_budget_usd",
+    "LLM_BUDGET_ACTION": "llm_budget_action",
 }
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]  # app/services/ -> app/ -> backend/
@@ -80,5 +82,16 @@ def apply_to_settings(values: dict[str, str]) -> None:
     settings = get_settings()
     for env_name, value in values.items():
         field = ENV_TO_FIELD.get(env_name)
-        if field is not None:
+        if field is None:
+            continue
+        # ค่าใน `.env` เป็นข้อความเสมอ แต่ field ของ Settings มีชนิดจริง (เช่นเพดานเป็น float)
+        # ⇒ ต้องแปลงเอง: pydantic ไม่ validate ตอน setattr ⇒ ยัด str ลง float field ได้เงียบ ๆ
+        # แล้วไปพังตอนเอาไปเทียบตัวเลขทีหลัง (โผล่เป็น TypeError กลางรอบรัน)
+        info = type(settings).model_fields.get(field)
+        annotation = info.annotation if info is not None else str
+        if annotation is float:
+            setattr(settings, field, float(value or 0))
+        elif annotation is int:
+            setattr(settings, field, int(value or 0))
+        else:
             setattr(settings, field, value)
