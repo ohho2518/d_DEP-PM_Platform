@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,8 @@ from app.constants import ActorType, ProjectType, RunStatus, TaskStatus
 from app.db.session import get_db, get_session_factory
 from app.integrations.ceo_client import CeoClient, get_ceo_client
 from app.metadata.provider import get_metadata_provider
+from app.models.agent_message import AgentMessage
+from app.models.deployment import Deployment
 from app.models.project import Project
 from app.models.task import Task
 from app.orchestrator.engine import planned_task_count
@@ -69,6 +71,55 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
 def get_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> Project:
     """รายละเอียดโปรเจกต์ — UI ใช้รู้ว่ามาจาก d_CEO ไหม (`ceo_task_id`)."""
     return _get_project_or_404(db, project_id)
+
+
+@router.delete(
+    "/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    response_model=None,
+)
+def delete_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> None:
+    """ลบโปรเจกต์พร้อมของทั้งหมดที่ห้อยอยู่ — ใช้ล้างงานทดสอบออกจากบอร์ด.
+
+    🔴 **ลบแล้วไม่มีทางกู้จาก API** (ผลงาน agent ทั้งหมดของโปรเจกต์นั้นหายไปด้วย) —
+    สำรอง `backend/dep_pm.db` ก่อนเสมอตาม WORKING_RULES Rule 3
+
+    ปฏิเสธ (409) โปรเจกต์ที่ผูกกับงานของ d_CEO เพราะฝั่งโน้นยังอ้าง `ceo_task_id` อยู่
+    — ต้องจงใจตัดสายก่อน ไม่ใช่ลบทิ้งแล้วให้เลขาชี้ไปที่ของที่ไม่มีอยู่
+    """
+    project = _get_project_or_404(db, project_id)
+    if project.ceo_task_id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"ลบไม่ได้ — โปรเจกต์นี้รับงานมาจาก d_CEO (task {project.ceo_task_id}) "
+            "ให้ล้าง ceo_task_id ก่อนถ้าตั้งใจลบจริง",
+        )
+
+    tasks = db.execute(select(Task).where(Task.project_id == project_id)).scalars().all()
+    record_audit(
+        db,
+        actor_type=ActorType.HUMAN,
+        action="project.deleted",
+        entity_type="project",
+        entity_id=str(project.id),
+        diff={"name": project.name, "tasks": len(tasks)},
+    )
+
+    # SQLite dev ไม่ enforce FK ondelete — ทำ semantics ที่ประกาศไว้ใน models ให้ตรงเอง
+    # (เหมือน delete_task): messages CASCADE, deployments SET NULL แล้วค่อยลบตัวโปรเจกต์
+    for message in db.execute(
+        select(AgentMessage).where(AgentMessage.project_id == project_id)
+    ).scalars():
+        db.delete(message)
+    for deployment in db.execute(
+        select(Deployment).where(Deployment.project_id == project_id)
+    ).scalars():
+        db.delete(deployment)
+    for task in tasks:
+        db.delete(task)
+    db.delete(project)
+    db.commit()
 
 
 @router.get("/{project_id}/usage", response_model=ProjectUsage)

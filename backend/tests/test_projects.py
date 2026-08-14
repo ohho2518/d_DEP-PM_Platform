@@ -39,6 +39,52 @@ def test_create_and_list_tasks(client):
     assert body["data"][0]["title"] == "Set up CI"
 
 
+# --- ลบโปรเจกต์ (ล้างงานทดสอบออกจากบอร์ด) -------------------------------------
+
+
+def test_delete_project_removes_its_tasks_and_messages(client, db_session):
+    from app.models.agent_message import AgentMessage
+    from app.models.task import Task
+
+    pid = _new_project(client, name="ทิ้งได้").json()["id"]
+    client.post(f"/api/projects/{pid}/tasks", json={"title": "งานในโปรเจกต์ที่จะลบ"})
+    client.post(
+        "/api/agent-messages",
+        json={
+            "project_id": pid,
+            "from_agent_id": "pm",
+            "to_agent_id": "dev",
+            "message_type": "handoff",
+            "payload": {"note": "hi"},
+        },
+    )
+
+    assert client.delete(f"/api/projects/{pid}").status_code == 204
+
+    assert client.get(f"/api/projects/{pid}").status_code == 404
+    assert db_session.query(Task).filter_by(project_id=pid).count() == 0
+    assert db_session.query(AgentMessage).filter_by(project_id=pid).count() == 0
+
+
+def test_delete_project_refuses_when_it_came_from_ceo(client, db_session):
+    """งานที่รับมาจากเลขายังถูกอ้างจากฝั่งโน้น — ลบเงียบ ๆ = เลขาชี้ไปที่ของที่ไม่มีอยู่."""
+    from app.models.project import Project
+
+    pid = _new_project(client, name="งานจากเลขา").json()["id"]
+    db_session.get(Project, pid).ceo_task_id = "4eb918bd-1675-4130-bed3-623392b6ed36"
+    db_session.commit()
+
+    resp = client.delete(f"/api/projects/{pid}")
+
+    assert resp.status_code == 409
+    assert "d_CEO" in resp.json()["detail"]
+    assert client.get(f"/api/projects/{pid}").status_code == 200  # ยังอยู่ครบ
+
+
+def test_delete_missing_project_404(client):
+    assert client.delete("/api/projects/00000000-0000-0000-0000-000000000000").status_code == 404
+
+
 # --- โทเคนแยกตามผู้ให้บริการ (§5 ใบสั่งงาน 2026-08-06) ------------------------
 
 
