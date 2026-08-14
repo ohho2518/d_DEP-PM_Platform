@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -67,6 +68,29 @@ class Settings(BaseSettings):
     # ว่าง = ใช้แม่แบบที่มากับรีโปนี้ (`backend/app/scaffold_kit/`) — เจ้าของแม่แบบคือที่นี่แล้ว
     scaffold_kit_path: str = ""
 
+    # --- ประตูหน้าบ้าน (2026-08-14) ------------------------------------------
+    # ว่าง = ไม่ตรวจ (dev บน localhost — พฤติกรรมเดิม) · ตั้งค่า = ทุก `/api/*` ต้องแนบ
+    # header `X-DEP-PM-Token` · **ต้องตั้งก่อนเปิดพอร์ตออกนอกเครื่อง** เพราะหน้า /settings
+    # แก้คีย์ผู้ให้บริการ AI ได้ (docs/SECURITY.md — Risk 5.2)
+    api_token: str = ""
+
+    @field_validator("api_token")
+    @classmethod
+    def _token_must_be_ascii(cls, value: str) -> str:
+        """ต้องเป็น ASCII — **HTTP header ส่งอักษรไทยไม่ได้เลย**.
+
+        ไม่ใช่เรื่องความปลอดภัยแต่เป็นเรื่องส่งไม่ออก: client encode header เป็น ASCII
+        แล้วโยน `UnicodeEncodeError` ตั้งแต่ต้นทาง ⇒ ตั้ง token ไทยไว้ = ล็อกตัวเองออกจาก API
+        โดยไม่มีใครยิงเข้ามาได้เลยแม้แต่คนที่ถือ token · fail-fast ตอนสตาร์ตดีกว่าไปงงตอนใช้
+        (คนละเรื่องกับ callback secret เมื่อ 3 ส.ค. ที่ปัญหาอยู่ **ฝั่งเทียบค่า** ไม่ใช่ฝั่งส่ง)
+        """
+        if value and not value.isascii():
+            raise ValueError(
+                "API_TOKEN ต้องเป็นตัวอักษร ASCII เท่านั้น (HTTP header ส่งภาษาไทยไม่ได้) — "
+                "ใช้ตัวสุ่มยาว ๆ เช่นผลจาก `python -c \"import secrets;print(secrets.token_urlsafe(32))\"`"
+            )
+        return value
+
     frontend_origin: str = "http://localhost:3000"
 
     @property
@@ -114,6 +138,11 @@ class Settings(BaseSettings):
     def deploy_dispatch_enabled(self) -> bool:
         """True เมื่อ config GitHub ครบพอจะยิง repository_dispatch จริง."""
         return bool(self.github_token.strip()) and bool(self.github_repo.strip())
+
+    @property
+    def api_auth_enabled(self) -> bool:
+        """True เมื่อตั้งประตูหน้าบ้านแล้ว — `/health` บอกออกไปได้ (ไม่ใช่ความลับ)."""
+        return bool(self.api_token.strip())
 
     @property
     def callback_auth_enabled(self) -> bool:

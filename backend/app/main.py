@@ -14,6 +14,7 @@ from app.api import (
     settings_router,
     tasks_router,
 )
+from app.api.auth import require_api_token
 from app.config import get_settings
 
 settings = get_settings()
@@ -31,6 +32,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ประตูหน้าบ้าน — ไม่ตั้ง `API_TOKEN` = ไม่ตรวจ (dev บน localhost เหมือนเดิม)
+# ⚠️ ต้องลงทะเบียน **หลัง** CORS เพื่อให้ preflight ผ่านชั้น CORS ก่อนเสมอ
+app.middleware("http")(require_api_token)
 
 app.include_router(projects_router)
 app.include_router(tasks_router)
@@ -55,4 +60,6 @@ def health() -> dict:
         "ceo_enabled": settings.ceo_enabled,
         "llm_providers": available_providers(),
         "llm_chain": provider_chain(),
+        # เปิดประตูหน้าบ้านหรือยัง — ไม่ใช่ความลับ และ UI ใช้เตือนผู้ใช้ได้ว่ายังไม่ได้ล็อก
+        "api_auth_enabled": settings.api_auth_enabled,
     }

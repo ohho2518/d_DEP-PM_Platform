@@ -26,10 +26,16 @@ import type {
 // พอร์ต 8500 — :8000 เป็นของ d_CEO ที่รันค้างตลอด (ดู AGENTS.md §Ecosystem)
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8500";
 
+// ประตูหน้าบ้านของ backend — ว่าง = backend ไม่ได้ล็อก (dev บน localhost)
+// ⚠️ ค่านี้อยู่ใน bundle ที่ browser โหลดได้ = **ไม่ใช่ความลับจากผู้ใช้เครื่องนี้**
+// มันกันคนนอกที่ยิงเข้าพอร์ตตรง ๆ ไม่ได้กันคนที่เปิดหน้าเว็บนี้อยู่แล้ว
+const TOKEN = process.env.NEXT_PUBLIC_API_TOKEN ?? "";
+const authHeaders: Record<string, string> = TOKEN ? { "X-DEP-PM-Token": TOKEN } : {};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: { "Content-Type": "application/json", ...authHeaders, ...init?.headers },
     cache: "no-store",
   });
   if (!res.ok) {
@@ -70,6 +76,7 @@ export const api = {
     const res = await fetch(`${BASE}/api/projects/${projectId}/design-files`, {
       method: "POST",
       body: form,
+      headers: authHeaders, // ไม่ใส่ Content-Type — ต้องให้ browser ใส่ boundary เอง
       cache: "no-store",
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);

@@ -31,7 +31,7 @@ flowchart LR
 ### ภัยที่พิจารณาแล้ว
 | ภัย | สถานะ MVP | เหตุผล/แผน |
 |-----|-----------|------------|
-| ใครก็ได้ยิง API | ⚠️ จริง แต่ยอมรับ — localhost only, single-user | ต้องทำ auth **ก่อน deploy จริง Sprint 4** (บล็อก deploy ถ้ายังไม่มี) |
+| ใครก็ได้ยิง API | ✅ **มีประตูหน้าบ้านแล้ว 2026-08-14** — ตั้ง `API_TOKEN` → ทุก `/api/*` ต้องแนบ `X-DEP-PM-Token` (เทียบด้วย `hmac.compare_digest`) · ไม่ตั้ง = ไม่ตรวจ (dev) | ยกเว้น: `/health` (probe) · `/docs` (ไม่มีข้อมูล) · `PATCH /api/deployments/:id` (มี secret ของตัวเอง — บังคับ token ด้วยจะทำให้ CI ที่ติดตั้งไปแล้วพัง) · **ยังเป็น token เดียว ไม่ใช่ระบบผู้ใช้** — RBAC ตาม Blueprint §15 ค่อยทำตอน multi-user |
 | **ใครก็ได้แก้คีย์ผ่านหน้า `/settings`** (ตั้งแต่ 2026-08-14) | 🔴 **จุดที่อ่อนไหวที่สุดในระบบตอนนี้** — `PUT /api/settings/llm` เขียนคีย์ลง `.env` ได้โดยไม่มี auth | ยอมรับเฉพาะขณะ bind `127.0.0.1` · **ห้าม expose พอร์ต 8500 ออกนอกเครื่องเด็ดขาดจนกว่าจะมี auth** — ข้อนี้เลื่อนสถานะ auth จาก "ควรมี" เป็น **บล็อกเกอร์** |
 | API key รั่ว | ✅ ป้องกัน: key อยู่ใน `.env` (gitignored), `.env.example` เป็น placeholder, ไม่เคย log · **API ไม่เคยคืนคีย์เต็ม** — `GET /api/settings/llm` คืนเฉพาะค่า mask (`sk-…4f2a`) และ `POST …/test` คืนแค่ผลว่าใช้ได้/ไม่ได้ | กติกาใน AGENTS.md §9.1.14 |
 | Prompt injection ผ่าน requirement/spec → agent ทำเกินสั่ง | ⚠️ มีจริงแต่ blast radius ต่ำ — agent MVP ไม่มี tool ข้างเคียง แค่คืนข้อความ; ผลถูกรีวิว+audit | จะวิกฤตเมื่อ agent มี tools (เขียนโค้ด/รัน command) — ต้อง sandbox ตอนนั้น |
@@ -47,7 +47,7 @@ flowchart LR
 
 | หัวข้อ | สถานะ | รายละเอียด |
 |--------|-------|-----------|
-| Authentication | ⚠️ มีเฉพาะ CI callback | `PATCH /api/deployments/:id` = shared secret (เปิดเมื่อตั้ง `DEPLOY_CALLBACK_SECRET`) · endpoint ที่เหลือยังไม่มี auth by design (MVP single-user) — แผน Blueprint §15: RBAC Owner/Contributor/Viewer; agent เป็น Contributor เสมอ |
+| Authentication | ✅ **shared token ทุก `/api/*`** (`API_TOKEN` + header `X-DEP-PM-Token`) ตั้งค่าจริงแล้ว 2026-08-14 · ⚠️ **token ต้องเป็น ASCII** — HTTP header ส่งภาษาไทยไม่ได้ (client encode ไม่ผ่านตั้งแต่ต้นทาง) มี validator กันไว้ตอนสตาร์ต · ฝั่ง frontend อ่านจาก `NEXT_PUBLIC_API_TOKEN` ซึ่ง**อยู่ใน bundle ที่ browser เห็น** = กันคนนอกยิงพอร์ต ไม่ได้กันคนที่นั่งอยู่หน้าเครื่อง | เดิม: ⚠️ มีเฉพาะ CI callback | `PATCH /api/deployments/:id` = shared secret (เปิดเมื่อตั้ง `DEPLOY_CALLBACK_SECRET`) · endpoint ที่เหลือยังไม่มี auth by design (MVP single-user) — แผน Blueprint §15: RBAC Owner/Contributor/Viewer; agent เป็น Contributor เสมอ |
 | Authorization | ❌ | มาพร้อม auth |
 | Secrets | ✅ | env เท่านั้น; `.env`/`.env.local` gitignored; ตรวจแล้วตอน commit แรกว่าไม่มีหลุด |
 | Encryption in transit | ⚠️ dev = http localhost | Prod (Sprint 4): HTTPS ทั้งสองขา (Vercel/Render จัดการ) |

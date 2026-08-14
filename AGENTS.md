@@ -239,6 +239,9 @@ DEPLOY_CALLBACK_SECRET= # shared secret ของ CI callback (header X-DEP-PM-S
 CEO_API_BASE=          # base URL ของ d_CEO (ปริยาย http://127.0.0.1:8000) — ว่าง = ปิดการเชื่อม
 CEO_TEAM_NAME=         # ชื่อทีมใน d_CEO ที่เรารับงาน (ปริยาย "Research & Development")
 CEO_TIMEOUT_SECONDS=   # timeout ต่อ request ไป d_CEO (ปริยาย 15)
+API_TOKEN=             # ประตูหน้าบ้าน: ตั้งแล้วทุก `/api/*` ต้องแนบ `X-DEP-PM-Token`
+                       # ว่าง = ไม่ตรวจ (dev) · **ต้องเป็น ASCII** (header ส่งภาษาไทยไม่ได้)
+                       # ยกเว้น /health · /docs · PATCH /api/deployments/:id (มี secret ของตัวเอง)
 FRONTEND_ORIGIN=       # CORS origin เดียว (ไม่ใช่ *)
 SCAFFOLD_ALLOWED_ROOT= # รากที่ยอมให้ /bootstrap สร้างโฟลเดอร์ (ปริยาย D:\Dev_Proj) — นอกรากนี้ = 400
 SCAFFOLD_KIT_PATH=     # ว่าง = ใช้แม่แบบที่มากับรีโป (backend/app/scaffold_kit/)

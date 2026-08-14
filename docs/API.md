@@ -24,6 +24,21 @@
 
 ---
 
+## ประตูหน้าบ้าน (ตั้งแต่ 2026-08-14)
+
+ตั้ง `API_TOKEN` ใน `backend/.env` แล้ว **ทุก `/api/*` ต้องแนบ header** `X-DEP-PM-Token`
+ให้ตรง มิฉะนั้น **401** · ไม่ตั้งค่า = ไม่ตรวจ (โหมด dev บน localhost — พฤติกรรมเดิม)
+
+- **ยกเว้น:** `/health` (probe) · `/docs` `/redoc` `/openapi.json` (ไม่มีข้อมูลผู้ใช้) ·
+  `OPTIONS` (CORS preflight ไม่พก custom header) ·
+  **`PATCH /api/deployments/:id`** ซึ่งมี `X-DEP-PM-Secret` ของตัวเองอยู่แล้ว
+  (บังคับ token ด้วยจะทำให้ workflow ที่ติดตั้งไปแล้วทุกตัวพัง)
+- ⚠️ **token ต้องเป็น ASCII** — HTTP header ส่งภาษาไทยไม่ได้ (client encode ไม่ผ่านตั้งแต่ต้นทาง)
+  · มี validator กันไว้ตอนสตาร์ต ไม่ปล่อยให้ไปเจอตอนใช้
+- `GET /health` บอก `api_auth_enabled` ว่าล็อกแล้วหรือยัง (ไม่ใช่ความลับ)
+
+---
+
 ## Endpoints
 
 ### 1) `POST /api/projects` — สร้างโปรเจกต์
