@@ -159,7 +159,9 @@ task ที่ค้างอยู่กลายเป็น `escalated` (ไ�
 - [x] **Deploy dispatch จริง** (2026-07-06): POST → `dispatched: true` → workflow รันบน
       GitHub Actions, Build & Deploy step ผ่าน (callback fail ตามคาด — ดูหมายเหตุด้านล่าง)
 - [ ] Callback ครบวงจร: ต้องมี tunnel (cloudflared) + secret `DEP_PM_API_URL` ใน repo (§3)
-- [ ] Solo↔Team Mode กับ key จริง (รอ OPENAI/GEMINI keys)
+- [x] **Solo↔Team Mode กับ key จริง** (2026-08-14): `AGENT_MODE=team` → `dev` ไป OpenAI
+      `gpt-5.2` · `senior_architect` ไป Google `gemini-3-flash-preview` · reviewer ไป Anthropic
+      — done ทั้งคู่ rev 0 · นับโทเคนได้จริงทั้งสองเจ้า (project `aab43c6a`)
 - [ ] Test suite บน PostgreSQL (รอ infra)
 
 **บทเรียนจาก UAT จริง (2026-07-06):**
