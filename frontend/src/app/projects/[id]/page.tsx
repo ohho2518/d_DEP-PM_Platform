@@ -9,6 +9,7 @@ import {
   ALLOWED_TRANSITIONS,
   STATUS_ORDER,
   type AgentMessage,
+  type DeliverableResult,
   type Project,
   type RunSummary,
   type Task,
@@ -240,7 +241,14 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
         ))}
       </div>
 
-      {selected && <TaskDetail task={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <TaskDetail
+          task={selected}
+          projectId={projectId}
+          canWriteFiles={Boolean(project?.local_path)}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }
@@ -424,7 +432,69 @@ function TaskCard({
   );
 }
 
-function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
+/** เขียนผลงานของ task ลงไฟล์จริงในโฟลเดอร์โปรเจกต์ (ADR-05 S3)
+ *  agent เขียนไฟล์เองไม่ได้ — ขั้นนี้คนกดเอง · ระบบสำรองไฟล์เดิมก่อนทับให้เสมอ */
+function WriteToFile({ task, projectId }: { task: Task; projectId: string }) {
+  const [path, setPath] = useState("docs/PROJECT_OVERVIEW.md");
+  const [result, setResult] = useState<DeliverableResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function write() {
+    setBusy(true);
+    setError(null);
+    try {
+      setResult(await api.writeDeliverable(projectId, task.id, path));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+      <p className="mb-2 text-sm font-semibold">เขียนผลงานลงไฟล์</p>
+      <div className="flex gap-2">
+        <input
+          className="input font-mono text-xs"
+          value={path}
+          onChange={(e) => setPath(e.target.value)}
+          placeholder="docs/PROJECT_OVERVIEW.md"
+        />
+        <button className="btn-ghost whitespace-nowrap" onClick={write} disabled={busy}>
+          {busy ? "กำลังเขียน…" : "เขียน"}
+        </button>
+      </div>
+      <p className="mt-1 text-[11px]" style={{ color: "var(--text3)" }}>
+        เขียนได้เฉพาะใต้โฟลเดอร์ของโปรเจกต์ · สำรองไฟล์เดิมให้ก่อนทับ · ไม่ commit ให้
+      </p>
+      {error && (
+        <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
+          {error}
+        </p>
+      )}
+      {result && (
+        <p className="mt-2 text-xs" style={{ color: "var(--ok)" }}>
+          ✅ เขียนแล้ว {result.bytes.toLocaleString()} ไบต์ → {result.path}
+          {result.backup && ` · สำรองของเดิมไว้ที่ ${result.backup}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function TaskDetail({
+  task,
+  projectId,
+  canWriteFiles,
+  onClose,
+}: {
+  task: Task;
+  projectId: string;
+  canWriteFiles: boolean;
+  onClose: () => void;
+}) {
   const { data } = usePolling(() => api.taskMessages(task.id), 5000);
 
   return (
@@ -482,6 +552,8 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
             ))}
           </ol>
         )}
+
+        {canWriteFiles && <WriteToFile task={task} projectId={projectId} />}
       </aside>
     </div>
   );
