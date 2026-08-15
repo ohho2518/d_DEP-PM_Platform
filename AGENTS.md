@@ -144,6 +144,8 @@ CHANGELOG.md                          ประวัติการเปลี
 AGENTS.md                             ไฟล์นี้ (ต้นฉบับกติกา) · CLAUDE.md/GEMINI.md = pointer
 *.html (3 ไฟล์)                       เอกสารอ้างอิงต้นทาง — read-only ห้ามแก้
 BackUp/                               สำเนาก่อนแก้ตาม WORKING_RULES (gitignored)
+tools/launcher/                       ปุ่มเปิดระบบ — `dep_pm_launcher.py` + `build.ps1`
+                                      → `Start-DEP-PM.exe` ที่รากรีโป (gitignored — build เอาเองได้)
 
 backend/app/{main,config,constants}.py  FastAPI entry + settings + enums กลาง
 backend/app/db/                       engine, session, GUID/JSON portable types (ADR-01)
@@ -178,7 +180,11 @@ frontend/src/components/AgentOffice.tsx  แอนิเมชันสถาน
 
 ## 6. Commands
 
-รันจากโฟลเดอร์ `backend/` (มี `.venv` แล้ว)
+**เปิดระบบทั้งชุด (วิธีปกติ):** ดับเบิลคลิก `Start-DEP-PM.exe` ที่รากรีโป — เช็คของที่ต้องมี ·
+อัปเกรด DB (สำรองก่อน) · สตาร์ต `:8500` + `:3000` · ไม่สตาร์ตซ้อน · ไม่แตะ `:8000`/`:8400`
+· build ใหม่: `.\tools\launcher\build.ps1` (ดู `tools/launcher/README.md`)
+
+คำสั่งด้านล่างคือวิธีมือ — รันจากโฟลเดอร์ `backend/` (มี `.venv` แล้ว)
 
 ```bash
 # Install

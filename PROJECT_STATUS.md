@@ -32,7 +32,10 @@
 
 ---
 
-> อัปเดตล่าสุด: 2026-08-14 | สถานะโดยรวม: **ใบสั่งงาน 2026-08-06 ปิดครบทุกข้อ · pytest 214/214**
+> อัปเดตล่าสุด: **2026-08-15** | สถานะโดยรวม: **ใบสั่งงาน 2026-08-06 ปิดครบทุกข้อ · pytest 214/214**
+> — เปิดระบบด้วยการดับเบิลคลิก `Start-DEP-PM.exe` (cold start 7.8 วิ)
+>
+> อัปเดตก่อนหน้า: 2026-08-14
 > — เจ้าหลักล่ม → งานเดินต่อด้วยตัวสำรองพร้อมป้ายบอกว่าใครทำ · ทุกเจ้าล่ม → หยุดอย่างมีศักดิ์ศรี
 > (task `escalated` ไม่ค้าง `in_progress`) · มีหน้า **`/settings`** กรอกคีย์/ทดสอบ/จัดลำดับสำรอง
 > **และตั้งเพดานค่าใช้จ่าย** ได้เองโดยไม่ต้อง restart · **พิสูจน์ด้วย API จริงทั้ง 3 เจ้า**
@@ -76,6 +79,21 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 - ยึด **1 task ธุรกิจใน d_CEO = 1 project ที่นี่** (ไม่สร้างทะเบียนงานธุรกิจซ้อน)
 
 ## Completed Work
+
+### ปุ่มเปิดระบบ `Start-DEP-PM.exe` (2026-08-15)
+
+เปิดระบบเคยต้อง 2 เทอร์มินัล 6 บรรทัด — ตอนนี้ดับเบิลคลิกครั้งเดียว **7.8 วินาที**
+
+- ตรวจของที่ต้องมี → อัปเกรด DB (**สำรองก่อนเสมอ**) → สตาร์ต `:8500` + `:3000` → เปิดเบราว์เซอร์
+- **กันพลาด 3 จุดที่เคยเกิดจริงบนเครื่องนี้:** สตาร์ตซ้อนพอร์ตเดียวกัน · ลืม `alembic upgrade head`
+  · `API_TOKEN` ไม่ตรงกับ `NEXT_PUBLIC_API_TOKEN` แล้วหน้าเว็บ 401 ทั้งหน้าโดยไม่บอกเหตุ
+- **ไม่แตะ `:8000`/`:8400`** — แสดงสถานะให้ดูเฉย ๆ · ปุ่มหยุดตรวจก่อนว่าใช่ระบบเราจริงถึงจะฆ่า
+- โค้ดอยู่ที่ `tools/launcher/` (build ใหม่: `.\tools\launcher\build.ps1`) · ตัว `.exe` gitignored
+- 🔧 บทเรียน: `.ps1` ที่มีภาษาไทยแต่ไม่มี BOM → PowerShell 5.1 อ่านเป็น ANSI แล้ว **parse พังทั้งไฟล์**
+  ⇒ สคริปต์ `.ps1` ในรีโปนี้ต้องเป็น **ASCII ล้วน** (ไฟล์ `.py` ใช้ไทยได้ตามปกติ)
+- 🧹 **จัดเอกสารรอบใหญ่วันเดียวกัน:** `PROJECT_STATUS.md` **767 → ~440 บรรทัด** —
+  ย้ายตัวเลข UAT/ตาราง QC ทั้งหมดไป `CHANGELOG.md` และเลิกจดรายไฟล์ที่เปลี่ยน (git เก็บแม่นกว่า)
+  · Next Tasks แยกเป็น "ต้องให้เจ้าของลงมือ" กับ "ฝั่งเราทำได้เอง" และล้างข้อที่ทำไปแล้ว/เลขซ้ำ
 
 ### เพดานค่าใช้จ่ายต่อโปรเจกต์ (2026-08-14) — §5 ของใบสั่งงาน ปิดครบ
 
@@ -249,413 +267,80 @@ Vinit (CEO) → d_Jarvis (หน้า) → d_CEO (สมอง) → delegate �
 - เจอตอนรันทดสอบ failover กับงานจริง (เสียไป 2 รอบรีวิว) — **อาการเดียวกับบั๊ก upstream context
   ของ Phase 3a: คนตรวจไม่ได้รับวัตถุดิบชุดเดียวกับคนทำ**
 
-### UAT รอบ 3 — วัดผลกติกาห้ามกุหลักฐานกับงานจริง (2026-08-03) — **ผ่าน**
+### ประวัติก่อนหน้า (2026-07-02 … 2026-08-03) — **รายละเอียดอยู่ใน `CHANGELOG.md`**
 
-d_CEO task `4eb918bd` → DEP-PM project `c8d5c50c` · โจทย์บังคับให้อ้าง "ข้อมูลการทำงานจริง"
-(วัน-เวลาต่องาน · ชื่อผู้รับผิดชอบ · คำพูดของคนในทีม) ซึ่ง**ระบบนี้ไม่มีให้เลย** = โจทย์ที่ล่อให้กุ
+ย่อไว้ตรงนี้เฉพาะข้อสรุปที่ยังใช้ตัดสินใจอยู่ทุกวันนี้ · ตัวเลข UAT ทุกรอบ ตาราง QC และบันทึก
+รายสปรินต์ย้ายไป `CHANGELOG.md` แล้ว (ไฟล์นี้คือ "สถานะปัจจุบัน" ไม่ใช่สมุดบันทึก — AGENTS.md §11)
 
-| จุดวัด | ผล |
-|---|---|
-| PM แตกงาน | 6 tasks · **ขึ้นต้น spec เองว่า "ต้องการข้อมูลจากคน:"** และสั่งงานปลายน้ำให้เขียน "ข้อมูลไม่เพียงพอ" แทนการเดา |
-| dev 3 ตัวที่ได้รัน | **ไม่กุแม้แต่จุดเดียว** — ไม่มีชื่อคน/quote/timestamp ที่ไม่มีอยู่จริง · ตัวอย่างติดป้าย `[ตัวอย่างสมมติ]` ครบ |
-| **QC ของ d_CEO** | ✅ *"ทีมปฏิเสธที่จะแต่งตัวเลข/คำพูดสมมติอย่างถูกต้อง … **นี่คือพฤติกรรมที่ถูก ไม่ใช่ความบกพร่องของทีม**"* |
-| verdict | `FIX (escalate)` → **`awaiting_approval` รอ Vinit** (ไม่มีชิ้นงานตามสั่งเพราะไม่มีข้อมูลต้นทาง) |
-
-> **สรุป Next Task #1 เดิม: ปิดได้** — กติกาไม่ได้อยู่แค่ใน prompt แต่เปลี่ยนพฤติกรรมจริง
-> ทั้งชั้น PM และชั้น dev และมีคนนอก (QC) ยืนยัน
-
-### บั๊กที่รอบ 3 เปิดออกมา — งานที่ "ติดเพราะต้องรอคน" (แก้แล้ววันเดียวกัน)
-
-รอบนี้มี task 2 ตัวที่**สถานการณ์เหมือนกันเป๊ะ** (ไม่มีข้อมูลต้นทาง ทำไม่ได้จริง) แต่จบคนละทาง:
-
-| | `6dfb8c90` รวบรวมข้อมูลบันทึกการทำงาน | `6166543f` รวบรวมความเห็นผู้ปฏิบัติงาน |
-|---|---|---|
-| ผลรีวิว | ตีกลับ 2 รอบ → **escalated** | **approve → `done`** ตั้งแต่รอบแรก |
-| ผลข้างเคียง | งานปลายน้ำ **3 ตัวค้างถาวร** · เสีย ~15k token | รายงานขึ้นว่า "เสร็จ 2" ทั้งที่เนื้อในบอกว่าทำไม่ได้ |
-
-- 🔴 **reviewer เป็นคนบีบให้เกิดการกุเสียเอง** — รอบแรกสั่งว่า *"ต้อง revise โดยยืนยันว่าได้
-  escalate คำขอข้อมูลนี้ไปยังผู้เกี่ยวข้องแล้วจริง"* ซึ่ง agent **ทำไม่ได้** (พิมพ์ข้อความได้อย่างเดียว)
-  → รอบสอง agent เขียนว่า "ได้ดำเนินการ escalate แล้ว" → reviewer จับได้เองว่าไม่มีหลักฐาน
-- 🔴 **approve งานที่ไม่มีชิ้นงาน = รายงานเกินจริง** — QC จับได้ตรง ๆ: *"ผลงาน 2 ชิ้นที่ 'เสร็จ'
-  จริง ๆ แล้วเป็นเอกสารแจ้งว่าทำไม่ได้เพราะไม่มีข้อมูลต้นทาง"*
-- ✅ **แก้ด้วย verdict ที่ 3 ของ reviewer: `needs_human`** → `escalated` **ตั้งแต่รีวิวแรก
-  ไม่นับ revision** · ห้าม approve ว่าเสร็จ · ห้ามสั่ง revision ที่ agent ทำตามไม่ได้ ·
-  กติกาห้ามกุขยายไปถึง **"การกระทำ"** (ห้ามอ้างว่าติดต่อ/ส่งเรื่องไปแล้ว)
-- ✅ **ตรวจกับโมเดลจริง** (project `bc3a43b7` 1 task): reviewer ตอบ `needs_human: true`
-  ตั้งแต่รอบแรก → `escalated` ที่ `revision_count = 0` · เหตุผลในรายงานขึ้นต้น
-  "ต้องการข้อมูล/การตัดสินใจจากคน — …" (ตัดที่ 400 ตัวอักษรพร้อมบอกว่าตัด)
-- ✅ **วัดกับโปรเจกต์ที่ปนกัน** (`17db2a67` — คู่มือปุ่มหยุดรอบรัน + สถิติที่ระบบไม่มี):
-  PM แตกเป็น 4 tasks แล้วรันจริง →
-
-  | task | ผล | verdict |
-  |---|---|---|
-  | เขียนเนื้อหาคู่มือ (ข้อมูลให้ครบในโจทย์) | **done** rev 0 | `approved` — **`needs_human=false`** |
-  | ขอข้อมูลสถิติการใช้งานจริง | **escalated** rev 0 | **`needs_human=true`** |
-  | เขียนหัวข้อสถิติ · รวมเล่ม | ค้าง `planned` | รอ dependency (พฤติกรรมเดิม) |
-
-  ⇒ **reviewer ไม่ได้ใช้ `needs_human` พร่ำเพรื่อ** — งานที่ทำได้ยัง approve ตามปกติ
-  (ยังเป็นตัวอย่างเดียว ดูอีก 1-2 รอบก่อนสรุปปิด)
-- 📌 **ข้อสังเกตจากรอบวัดผล (ยังไม่แก้):** PM ผูก "รวมเล่ม" ไว้กับหัวข้อสถิติ ⇒ **ตัวเลขที่หายไป
-  ตัวเดียวทำให้คู่มือทั้งฉบับไม่ถูกผลิตเลย** ทั้งที่เนื้อหา 80% เขียนได้แล้ว — ทางแก้ที่น่าจะถูก
-  คือให้ PM สั่งผลิตฉบับที่มีช่องว่างติดป้ายไว้ ไม่ใช่บล็อกทั้งเล่ม
-- pytest 126 → **133** · ruff clean
-
-### ห้าม agent กุหลักฐาน (2026-08-03) — ปิด Next Task #1
-
-- `NO_FABRICATION_RULE` ใน `agents/personas.py` ต่อท้าย PM/DEV/ARCHITECT + เกณฑ์ให้ reviewer
-  จับการกุข้อมูล**ก่อนเรื่องอื่น** · PM ถูกห้ามเขียน spec ที่สั่งไปเก็บข้อมูลจริงถ้าไม่มีช่องทาง
-- **ทางออกมาจากเคสจริง:** เคสที่ 2 (สมมติ endpoint แต่ disclose) QC ยอมรับ ⇒ กติกาจึงเป็น
-  "แต่งได้ถ้าติดป้าย `[ตัวอย่างสมมติ]`" ไม่ใช่ห้ามยกตัวอย่างทั้งหมด
-- `tests/test_personas.py` (12 เคส) ล็อกไว้ — ครอบทั้ง 6 ประเภทหลักฐานที่เคยถูกกุ + ทางออก
-  + ลำดับความสำคัญของ reviewer + PM ยังจบด้วยคำสั่ง JSON (กันการต่อท้ายทำ format เพี้ยน)
-- pytest **126/126** · ruff clean
-
-### ใบสั่งงาน 2026-08-03 Ticket #3 (จากรอบตรวจของเลขา) — **ปิดครบ 5/5**
-
-> ✍️ **ติ๊ก `[x]` ใน `d_CEO\docs\ORDER_TICKET_2026-08-03.md` แล้วตามคำสั่งของ Vinit (3 ส.ค.)**
-> — เป็น**ข้อยกเว้นครั้งเดียวของกติกา AGENTS.md §14 "ห้ามแก้ไฟล์ในรีโปอื่น"** เพราะใบสั่งงาน
-> ออกแบบให้ผู้รับติ๊กช่องของตัวเอง · แก้เฉพาะ 5 แถวของ Ticket #3 + หมายเหตุ 1 บล็อก
-> ไม่แตะส่วนของทีมอื่น · สำรองไฟล์เดิมไว้ที่ `BackUp/OrderTicketTick_20260803_150050/`
-
-| ข้อ | สถานะ | หลักฐาน |
-|---|---|---|
-| 3.1 งานค้าง `d89c03a8` | ✅ **ปิดจบ — QC ตอบ `PASS` → task เป็น `done`** | ตีกลับ `87a8d3f2` เข้าคิว → รัน 2 งาน done ทั้งคู่ (163 วิ) → รายงานรอบใหม่ → ยิง `POST /api/ceo/qc/:id` ปลดตามที่เจ้าของสั่ง → **`done` 15:01:08** |
-| 3.2 ตรวจเงื่อนไข v6 | ✅ **ยืนยัน** | `report_project` ยิง **PATCH เดียว** พร้อม `status`+`output` — มีเทสต์ล็อกไว้ · เพิ่ม `qc_task()` + `POST /api/ceo/qc/:id` |
-| 3.3 ไฟล์ค้าง commit | ✅ | อยู่ใน `f8848f0` (Phase 2) ตั้งแต่เช้า |
-| 3.4 รายงานอ้าง `:8400` | ✅ **ยืนยัน** | โค้ดใช้ `:8500` · grep `backend/app`+`frontend/src` ไม่เหลือ 8400 · ของเก่าใน DB ปล่อยไว้ |
-| 3.5 ตารางพอร์ต 3 ชุด | ✅ | ชี้ `_CANON\SERVICE_PORTS.md` ครบ + เพิ่มในบล็อก canon ของ AGENTS.md |
-
-> ✅ **3.1 ปิดครบวงจรแล้ว (15:01):** งานค้าง `qc_review` เพราะ v6 ยิง QC เฉพาะตอน "เปลี่ยน**เข้า**"
-> `qc_review` ส่วนงานนี้ค้างสถานะนั้นมาตั้งแต่ 2 ส.ค. (ตรงกับใบสั่งงานข้อ 1.2b) ⇒ **เจ้าของสั่งให้ปลด**
-> → ยิง `POST /api/ceo/qc/a07f1fb2…` (ปุ่มที่ทำในข้อ 3.2 — ใช้งานจริงครั้งแรก ตอบใน 0.45 วิ)
-> → QC ตรวจ **`PASS`** → task `done` · **งาน `qc_review` ค้างของทีม R&D เหลือศูนย์**
->
-> 📌 QC ฝากไว้ (ไม่ blocker): เอกสารสมมติ endpoint แบบ generic REST ที่ไม่ตรงระบบจริงและตกชั้น Jarvis
-> — agent disclose เองว่าเป็นตัวอย่างสมมติจึงยอมรับสำหรับงานทดสอบ · **เป็นอาการเดียวกับ
-> "agent กุข้อมูล" ที่เป็นงานลำดับ 1 ของเรา** (Next Tasks #1)
->
-> 🔎 **ยังเป็นคำถามค้างถึงฝั่ง d_CEO (ส่งไว้ใน `REQUEST_TO_CEO.md` §3.6 + หมายเหตุในใบสั่งงาน):** `output` ของ task
-> ฝั่ง d_CEO **แกว่งไปมาระหว่าง 22,488 ↔ 49,345 ตัวอักษร** ในช่วง ~15 นาทีหลังเรารายงาน
-> โดยสถานะไม่ขยับและไม่มีหัวข้อ QC ในทั้งสองเวอร์ชัน · **ฝั่งเรายิง PATCH ครั้งเดียว**
-> (audit `ceo.reported` มี 2 แถว = เมื่อวาน + วันนี้) ⇒ การเขียนทับมาจากฝั่งเขา
-
-### สิ่งที่ต้องเพิ่มเพื่อให้ 3.1 ทำได้ — `escalated → planned`
-
-- เดิม `escalated` ไปได้แค่ `in_progress` (คนลงมือเอง) แต่ orchestrator หยิบเฉพาะ `planned`
-  ⇒ **งานที่ escalate แล้วให้ agent ลองใหม่ไม่ได้เลย** · เพิ่มทางที่สองครบ 6 จุดตามกติกา §13
-- `revision_count` **ไม่รีเซ็ต** โดยตั้งใจ — ตีกลับแล้วยังไม่ผ่าน = escalate ทันทีรอบเดียว
-- พิสูจน์กับงานจริง: `87a8d3f2` ที่เคยถูกปฏิเสธ 2 รอบ (ผลิตแต่ `[[placeholder]]`)
-  **ผ่านตั้งแต่ครั้งแรกหลังตีกลับ** เพราะได้ผลงานของ 3 งานต้นทางไปด้วย (Phase 3a)
-
-### ปุ่มหยุดรอบรัน · PostgreSQL DoD · ทบทวน escalation (2026-08-03)
-
-- **⏹ ยกเลิกรอบรัน:** `POST /:id/run/cancel` + ปุ่มบนบอร์ด · engine รับ `should_continue`
-  ถามก่อนหยิบ task ถัดไป → **หยุดระหว่างช่อง ไม่ตัดกลาง task** · สถานะ `cancelled`
-  ไม่รายงานกลับเลขา · lock ถูกปลด กด Run ใหม่ทำต่อได้
-- **🐘 ปิด DoD ของ ADR-01:** conftest รับ `TEST_DATABASE_URL` → **pytest 107/107 ผ่านบน
-  PostgreSQL 17.10** และบน SQLite เหมือนเดิม
-  · 🐛 **จับบั๊กได้ทันทีที่ทำ:** seed migration `b2f1c0d3e4a5` ใช้ `sa.String` กับคอลัมน์ที่
-  เป็น native `uuid` บน PG → `alembic upgrade head` **ตายทั้งชุด** (แก้เป็น `GUID`)
-  · ⚠️ **แก้ migration ที่ apply แล้ว** ซึ่งปกติกติกาห้าม — ไม่มีทางอื่นเพราะตัวที่พังรันก่อน
-  migration ใหม่เสมอ · ผลบน SQLite เหมือนเดิมทุกไบต์ (ยืนยันด้วย suite ทั้งชุดสองเอนจิน)
-- **📊 escalation จากข้อมูลจริง:** 23 งานที่จบแล้ว · escalated 2 = **8.7%** · ทั้ง 2 ครั้ง
-  สาเหตุเดียวกันคือไม่ได้รับผลงานของงานก่อนหน้า → **"reviewer เข้มเกินไป" เป็นข้อสรุปที่ผิด**
-  (สรุปเต็มใน `runbook` §7) · หลัง Phase 3a escalated 0 · revision เฉลี่ย 0.67 → 0.12
-- **📨 `docs/REQUEST_TO_CEO.md`** — จดหมายพร้อมส่งถึง session ของ d_CEO (ยังไม่ได้ส่ง)
-
-### UAT รอบ 2 — **QC ของเลขาตอบ PASS** (2026-08-03)
-
-d_CEO task `4936aa9e` → DEP-PM project `4d8004ff` — โจทย์เดียวกับรอบแรกทุกตัวอักษร
-
-| | รอบ 1 (ก่อน Phase 3a) | รอบ 2 (หลัง Phase 3a) |
-|---|---|---|
-| tasks | 6 (กราฟ 3 ชั้น) | **8 (กราฟ 4 ชั้น)** |
-| ผลรัน | done 5 · **escalated 1** | **done 8 · escalated 0** |
-| เวลา | 507 วิ | 613 วิ |
-| งาน "รวมเนื้อหา" (depend 3) | ผลิต `[[placeholder]]` → ปฏิเสธ 2 รอบ → escalated | **ผ่านรอบแรก 0 revision** |
-| รายงานถึงเลขา | 2,652 ตัวอักษร (สรุปสถานะ) | **31,820 ตัวอักษร (มีตัวชิ้นงาน)** |
-| **QC verdict** | ❌ `rejected` — "ไม่มี artifact ให้ตรวจ" | ✅ **`PASS` → task เป็น `done`** |
-
-QC ไล่ตรวจ chain การผลิตทั้งสาย (T1 → outline → เนื้อหา → รวม → ขัดเกลา → ส่งมอบ)
-แล้วสรุปว่า "สอดคล้องกัน ไม่มีหัวข้อตกหล่นหรือขัดแย้งระหว่างเวอร์ชัน"
-
-> **สิ่งที่ QC ฝากไว้ (ไม่บล็อก แต่ต้องแก้ก่อนใช้กับงานจริง):** task แรก **กุหลักฐานขึ้นมาเอง** —
-> อ้างชื่อคน ("คุณธนกฤต ว."), quote คำต่อคำ, timestamp, screenshot ที่ตรวจย้อนกลับไม่ได้
-> รอบนี้ไม่กระทบเพราะถูกตัดออกจาก deliverable สุดท้าย แต่ในงานจริง = ข้อมูลเท็จในเอกสารส่งออก
-
-### CI callback authentication — ปิด Risk #1 (2026-08-03)
-
-- `PATCH /api/deployments/:id` ต้องแนบ `X-DEP-PM-Secret` ให้ตรง `DEPLOY_CALLBACK_SECRET`
-  · ไม่ตั้งค่า = ไม่ตรวจ (dev/localhost) — **ต้องตั้งก่อน expose พอร์ต**
-- เทียบเป็น bytes ผ่าน `hmac.compare_digest` — เวอร์ชัน str รับแต่ ASCII ทำให้ secret
-  ภาษาไทยกลายเป็น 500 แทน 401 (เจอจากเทสต์)
-- workflow template + runbook §3 เพิ่มขั้นตอนตั้ง `DEP_PM_CALLBACK_SECRET` ฝั่งรีโปเป้าหมาย
-- pytest 97 → **103**
-
-### Phase 3a — ปิดช่องที่ QC จับได้ (2026-08-03)
-
-- **`engine.upstream_context`** — ส่ง **ผลงานล่าสุดของ task ที่อยู่เหนือทั้งกราฟ** ไปกับ prompt
-  · `_ancestor_tasks` เดินกราฟแบบ DFS post-order (ต้นน้ำก่อนปลายน้ำ, กันวง)
-  · **ห้ามเรียงด้วย `created_at`** — นาฬิกา Windows หยาบจน task ที่สร้างติดกันได้เวลาเท่ากัน
-    แล้วลำดับสลับ (เทสต์ไม่นิ่ง เจอตอนเขียนเทสต์วันนี้)
-  · เพดาน 6,000 ตัวอักษร/ชิ้น · 24,000 รวม — ตัดตัวเก่าก่อน **พร้อมบอกว่าตัด**
-- **`PersonaExecutor.execute(..., context=None)`** — ทุก provider ต้องส่งต่อให้โมเดล
-  (เขียนเป็นกติกาใน AGENTS.md §9.1.7 แล้ว)
-- **`ceo_sync._work_product_section`** — รายงานถึงเลขามีหัวข้อ "## ผลงาน (ตัวชิ้นงานจริง)"
-  แนบผลงานฉบับล่าสุดของทุก task ที่เสร็จ · เพดาน 8,000/task · 40,000 รวม
-- **`bus.latest_work_by_task` + `bus.clip_work`** — ตัวอ่านผลงานที่ orchestrator กับ ceo_sync
-  ใช้ร่วมกัน (agent_messages เป็นที่เดียวที่เก็บตัวชิ้นงานจริง)
-- pytest 90 → **97** (นิ่ง 3 รอบติด) · ruff clean · `npm run build` ผ่าน
-
-### Phase 2 — `/run` เป็นงานเบื้องหลัง (2026-08-03)
-
-- **`services/runs.py` (ใหม่) — Run Manager:** ทะเบียนรอบรันในหน่วยความจำ + **lock ต่อโปรเจกต์**
-  · `start_run` สตาร์ต daemon thread แล้วคืน `RunRecord` ทันที · `RunStatus` = running/succeeded/failed
-  · เก็บประวัติล่าสุด 50 รอบ · **ไม่ใช่ job queue** (ไม่มี retry/priority/worker ข้ามโปรเซส)
-- **API:** `POST /:id/run` → **202 + `run_id`** (วัดจริง ~10 ms) · ยิงซ้อนโปรเจกต์เดิม → **409**
-  · endpoint ใหม่ `GET /:id/run[?run_id=]` → `status/total/processed/counts/outcomes/ceo_report/error`
-- **engine แตะน้อยที่สุด:** เพิ่ม `on_outcome` callback (เรียกหลัง commit ของแต่ละ task) +
-  `planned_task_count` — engine **ไม่รู้ว่าตัวเองถูกรันใน thread** (เจตนาเดียวกับ Team Mode/Phase 1)
-- **session ของงานเบื้องหลัง:** `get_session_factory` เป็น dependency ใหม่ (1 รอบรัน = 1 session)
-  — ใช้ session ของ request ไม่ได้เพราะถูกปิดพร้อม response
-- **UI:** ปุ่ม Run ตอบทันที · progress ใช้ตัวเลขจริงจาก backend · **ปิดแท็บ/รีเฟรชได้ งานไม่หยุด**
-  (ถาม `GET /run` ตอน mount) · 409 → สลับไปแสดงรอบที่ค้างแทน error ดิบ
-- **รายงานกลับ d_CEO** ย้ายไปท้ายรอบรันเบื้องหลัง — ปลายทางล่มไม่ทำให้รอบรัน `failed`
-- pytest 82 → **90** · ruff clean · `npm run build` ผ่าน
-- **smoke test กับ uvicorn จริง** (DB ชั่วคราวใน temp, ไม่แตะ `dep_pm.db`, ไม่มี key = fallback):
-  20 tasks รันเบื้องหลังจบครบ `done` · `POST /run` = 202 ใน 7-14 ms · ยิงซ้อน = **409 จริง** ·
-  `GET /run` ระหว่างรันเห็น `19/20` · เขียนลง SQLite ไฟล์จากเธรดเบื้องหลังได้ไม่มี lock error
-
-### UAT Phase 2 กับงานจริงจาก d_CEO (2026-08-03) — กลไกผ่าน แต่ **QC ปฏิเสธผลงาน**
-
-งานทดสอบ d_CEO `80dd3ff9` ("เขียนคู่มือสั้น 1 หน้า") → ทีม R&D → DEP-PM project `7ffa2d4f`
-
-**สิ่งที่พิสูจน์ว่าใช้ได้จริง**
-
-| จุด | ผล |
-|---|---|
-| สร้าง task ไทยผ่าน HTTP | ข้อความตรงตัวต่อตัว 356 ตัวอักษร ไม่มี `?` (ตรวจที่ปลายทาง) |
-| pull + PM Agent จริง | 6 tasks กราฟพึ่งพา 3 ชั้น · แจ้ง d_CEO `in_progress` สำเร็จ |
-| **`POST /run`** | **202 ใน 10.6 ms** (งานรูปเดียวกันเมื่อวาน block 297 วิ) |
-| **ยิงซ้อนขณะรันจริง** | **409** พร้อม `run_id` ที่ค้างอยู่ |
-| รอบรันเบื้องหลัง | **507 วินาที** · `succeeded` · 6/6 (done 5 · escalated 1) · error `None` |
-| progress ระหว่างรัน | เดินจริง 0→1→2→…→6 ทุกช่วง poll |
-| รายงานกลับอัตโนมัติ | `reported: true` `status_sent: qc_review` — token 29,514 in / 33,850 out |
-
-**QC ของ d_CEO ตอบกลับ `rejected`** — เหตุผลที่เขาให้เป็นข้อบกพร่องจริงของฝั่งเรา 2 ข้อ:
-
-1. **รายงานส่งแต่ "สรุปสถานะ task" ไม่ส่งตัวชิ้นงาน** — QC เขียนตรง ๆ ว่า "ไม่มี artifact
-   ให้ตรวจ = ไม่ผ่านตามกฎด่านตรวจ" และเสนอเข้า SOP ว่า *ผลงานที่ส่ง QC ต้องแนบตัวชิ้นงานจริง*
-   → `ceo_sync.build_report` ต้องแนบผลงาน (result payload) ไม่ใช่แค่ชื่อ task + จำนวน
-2. **orchestrator ไม่ส่งผลงานของ dependency ให้ task ที่ depend อยู่** — agent ของ task
-   "รวมและจัดรูปแบบเอกสาร" เขียนไว้เองว่า *"ในบทสนทนานี้ไม่มีเนื้อหาต้นฉบับของ T2, T3, T4
-   แนบมาด้วย"* จึงผลิตได้แค่ **โครงเอกสารที่มี `[[placeholder]]`** → task รีวิวจับได้ ปฏิเสธ
-   2 รอบ → escalated · **นี่คือ root cause ของปัญหา "งานรวมเล่มถูกปฏิเสธ" ที่จดไว้เมื่อวาน**
-   (ไม่ใช่เพราะ reviewer เข้มเกินไป — agent ไม่มี input ให้ทำงานจริง ๆ)
-
-> บทเรียนซ้ำรอยเดิม: unit test + smoke test บอกได้แค่ "กลไกเดิน" · **คุณภาพงานที่ส่งออก
-> ต้องมีคนนอก (QC ของเลขา) ตรวจถึงจะเห็น**
-
-### UAT วงจรเต็มกับ d_CEO ตัวจริง + fix ที่พบ (2026-08-02)
-
-**เดินครบวงจรจริงแล้ว** — task ทดสอบ `d89c03a8` (ทีม R&D) → DEP-PM ดึง → PM Agent จริง
-แตกเป็น **6 tasks พร้อมกราฟพึ่งพา 4 ชั้น** → รัน orchestrator จริง **297 วินาที**
-→ ผล: done 4 · escalated 1 · ค้าง 1 → **รายงานกลับเข้า `qc_review` ที่ d_CEO พร้อม output
-1,040 ตัวอักษร** · token รวม 19,150 in / 18,512 out
-
-**บั๊กที่ UAT จับได้ (แก้แล้ว):** เกณฑ์ readiness นับ `planned` เป็น "ยังเดินอยู่" แต่ task ที่
-dependency ติด escalated ค้าง `planned` ถาวร → เงื่อนไขไม่มีวันเป็นจริง → **เคสที่ต้องรีบ
-บอกคนที่สุดกลับเงียบหาย** และ d_CEO ค้าง `in_progress` ตลอด
-→ เปลี่ยนเกณฑ์ให้ตรงกับเงื่อนไขที่ orchestrator หยุดเดินเอง + รายงานเพิ่มหัวข้อ
-"งานที่ค้างเพราะรองานข้างบน" และแถบเตือนว่ายังไม่จบสมบูรณ์ (pytest 79 → **82**)
-
-> บทเรียน: unit test ครอบแค่ "จบครบ" กับ "ยังเดินอยู่" — ไม่มีเคส "ตันถาวร" เพราะคิดไม่ถึง
-> **การรันกับงานจริงคือสิ่งเดียวที่จับได้**
-
-### Phase 1 — ต่อสายรับงานจาก d_CEO (2026-08-02)
-
-- **`integrations/ceo_client.py`** — ไฟล์เดียวที่ยิง HTTP ไป d_CEO (ที่อื่นห้ามยิงเอง)
-  · `health/list_teams/resolve_team_id/list_tasks/patch_task` · error → `CeoUnavailable`
-  · **guardrail:** ส่ง `done`/`awaiting_approval`/`rejected` = ValueError ก่อนยิง HTTP
-- **`services/ceo_sync.py`** — inbox (queued + ทีม R&D + ยังไม่ถูกดึง) · pull (project +
-  breakdown + PATCH `in_progress`) · report (สรุป markdown → `qc_review`)
-  · orchestrator **ไม่ถูกแก้แม้แต่บรรทัดเดียว** (เจตนาเดียวกับ Team Mode)
-- **Endpoints:** `GET /api/projects/:id` · `GET /api/ceo/status|inbox` · `POST /api/ceo/pull` ·
-  `POST /api/ceo/report/:id` · `/run` เพิ่ม `ceo_report` · `/health` เพิ่ม `ceo_enabled`
-- **Schema:** `projects.ceo_task_id` unique — migration `e5a91c73b204` (apply กับ DB จริงแล้ว
-  ข้อมูลครบ 3 projects / 21 tasks)
-- **UI:** กล่อง "📥 งานจากเลขา" บน Portfolio (ซ่อนเองถ้าปิดการเชื่อม) + ป้าย/ปุ่ม
-  "📤 ส่งผลกลับเลขา" บนหน้าบอร์ด · เวลาจาก d_CEO (UTC) แปลงเป็น Asia/Bangkok ตอนแสดง
-- **เอกสาร:** `docs/INTEGRATION_CEO.md` (contract + §7 สิ่งที่ต้องขอจาก d_CEO) · API.md §1.1, §16-19 ·
-  DATABASE.md · SYSTEM_DOCUMENTATION.md §5-7/§18 · runbook §4.1 · AGENTS.md
-- **ตรวจกับ d_CEO ตัวจริง:** `/api/ceo/status` → `online:true`, resolve ทีม R&D ได้
-  (`4406dde7-…`), `waiting: 0` — ยืนยันว่าถูกต้อง เพราะคิว queued 9 งานเป็นของ QC&KM 4 /
-  ไม่ระบุทีม 4 / Marketing 1 **ไม่มีของ R&D**
-- pytest 60 → **79 tests** ผ่านหมด · ruff clean · `npm run build` ผ่าน
-
-### Phase 0 — จัดบ้านให้พร้อมต่อ ecosystem (2026-08-02)
-
-- **commit งานค้าง ~1 เดือน** (`9cd76d6`) — debt #3/#5/#7 + หน้า `/deployments` + ruff
-  ที่ค้างใน working tree ตั้งแต่ 2026-07-07 (สำรอง DB ก่อนตาม WORKING_RULES Rule 3)
-- **ย้ายพอร์ต 8000 → 8400 ทุกจุด** *(ภายหลังแก้เป็น 8500 — ดูหมายเหตุท้ายวัน)* (runbook, API.md, ARCHITECTURE, SECURITY, backend/README,
-  `api.ts` fallback, `.env.local` + example) + จดตารางพอร์ตของ ecosystem ไว้กันชนซ้ำ
-- **AGENTS.md เป็นต้นฉบับกติกา** ตามมติผู้ใช้ — ย้ายเนื้อหาจริงจาก CLAUDE.md เข้ามาครบ
-  พร้อมเพิ่ม §3.1 ตำแหน่งใน ecosystem + ตารางพอร์ต · `CLAUDE.md`/`GEMINI.md` เหลือเป็น pointer
-  (แก้ลิงก์ `WORKING_RULES.md` ที่เคยชี้ไฟล์ที่ไม่มีอยู่ → ชี้ `_CANON`)
-- **README.md** เขียนใหม่เป็นของ DEP-PM (เดิมเป็น README ของ Project Starter Kit ที่หลงมา)
-- **`docs/PROJECT_OVERVIEW.md` + `docs/RISK_REGISTER.md`** เติมของจริง (เดิมเป็นเทมเพลตเปล่า)
-  — risk register รวม 14 ข้อ active + 6 ข้อที่ปิดแล้ว + security/performance checklist ตามสถานะจริง
-- `.gitignore`: เพิ่ม `BackUp/` (สำเนามีข้อมูลจริง ห้ามขึ้น remote)
-
-### ก่อนหน้า
-
-- 2026-07-07: เคลียร์ debt #3 (reviewer fail-safe) / #5 (depends_on integrity) / #7 (token tracking)
-  + หน้า Deployments + ruff — 48 → **60 tests**
-- 2026-07-06: UAT กับของจริง (PM Agent 16 tasks, escalation ครบวงจร, deploy dispatch → GitHub Actions)
-- Sprint 1-4 ครบ: Foundation → State Machine/Orchestrator/Bus → Kanban/Portfolio/Message Log →
-  Deploy pipeline/Team Mode/PostgreSQL-ready (รายละเอียดใน `CHANGELOG.md`)
+- **Sprint 1-4 ครบ** → Foundation · State Machine/Orchestrator/Bus · Kanban/Portfolio/Message Log ·
+  Deploy pipeline/Team Mode/PostgreSQL-ready
+- **Phase 0-1 (2 ส.ค.):** จัดบ้าน + ย้ายพอร์ตมา `8500` + ต่อสายรับงานจาก d_CEO
+  (`integrations/ceo_client.py` เป็นไฟล์เดียวที่ยิง HTTP ออก · orchestrator ไม่รู้จัก d_CEO)
+- **Phase 2 (3 ส.ค.):** `/run` เป็นงานเบื้องหลัง — 202 + `run_id` · lock ต่อโปรเจกต์ · ยกเลิกได้
+  · **ปิด Risk #3** ที่เคยบล็อกการใช้งานประจำ (UAT วัดได้ 6 tasks = 297 วิ ขณะที่ผู้เรียก timeout 5 นาที)
+- **Phase 3a (3 ส.ค.):** agent ได้เห็น **ผลงานจริง**ของงานก่อนหน้า และรายงานถึงเลขาแนบตัวชิ้นงาน
+  — สองข้อนี้มาจาก **QC ของ d_CEO ปฏิเสธผลงานรอบ 2** แล้วรอบ 3 โจทย์เดียวกัน **QC ตอบ `PASS`**
+- **กติกาห้ามกุหลักฐาน + verdict `needs_human` (3 ส.ค.):** ยืนยันด้วย UAT รอบ 3 ว่าไม่มีการกุ
+  แม้แต่จุดเดียว และ QC ยืนยันจากภายนอกว่า *"เป็นพฤติกรรมที่ถูก ไม่ใช่ความบกพร่อง"*
+- **บทเรียนที่ยังจริงอยู่:** unit test + smoke test บอกได้แค่ "กลไกเดิน" —
+  **คุณภาพงานที่ส่งออกต้องมีคนนอกตรวจถึงจะเห็น** · escalation 8.7% ที่เคยดูเหมือน
+  "reviewer เข้มเกินไป" แท้จริงคือ agent ไม่ได้รับ input (แก้ที่ต้นเหตุแล้ว เหลือ 0)
 
 ## Files Changed
 
-**รองรับ AI หลายเจ้า + หน้า Settings (2026-08-14)**
-- **ใหม่:** `backend/app/api/settings.py`, `backend/app/schemas/settings.py`,
-  `backend/app/services/env_file.py`, `backend/tests/{test_llm_providers,test_settings_api}.py`,
-  `frontend/src/app/settings/page.tsx`
-- **แก้:** `backend/app/agents/{providers,runtime,pm}.py`, `backend/app/config.py`,
-  `backend/app/main.py`, `backend/app/api/__init__.py`, `backend/app/orchestrator/{engine,state_machine}.py`,
-  `backend/.env.example`, `backend/tests/{conftest,test_team_mode,test_orchestrator,test_personas}.py`,
-  `frontend/src/lib/{types,api}.ts`, `frontend/src/app/layout.tsx`,
-  `AGENTS.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`,
-  `docs/{SYSTEM_DOCUMENTATION,API,SECURITY,RISK_REGISTER,runbook,REQUEST_TO_CEO}.md`
-- **สำรอง:** `BackUp/MultiProvider_20260814_093915/` (23 ไฟล์ รวม `.env` จริง) +
-  `BackUp/EnvSettings_*/` ที่หน้า Settings สร้างเองทุกครั้งที่เขียน (gitignored ทั้งคู่)
+ไม่จดรายไฟล์ที่นี่แล้ว — **git เก็บครบและแม่นกว่า**:
 
-**verdict `needs_human` (2026-08-03)**
-- **แก้:** `backend/app/agents/personas.py` (กติกา "ห้ามกุการกระทำ" + เกณฑ์ reviewer + ฟิลด์ JSON),
-  `backend/app/agents/runtime.py` (`ReviewResult.needs_human`, parser),
-  `backend/app/orchestrator/engine.py` (`_escalate()` ใช้ร่วม 2 เหตุ + สาขา `needs_human`
-  + `ESCALATION_REASON_CHAR_LIMIT`), `backend/tests/{test_personas,test_orchestrator}.py`,
-  `docs/{SYSTEM_DOCUMENTATION,runbook}.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`
-- **สำรอง:** `BackUp/ReviewerNeedsHuman_20260803_161639/` (gitignored)
-
-**หยุดรอบรัน + PostgreSQL DoD (2026-08-03)**
-- **ใหม่:** `docs/REQUEST_TO_CEO.md`
-- **แก้:** `backend/app/constants.py` (+`RunStatus.CANCELLED`), `backend/app/orchestrator/engine.py`
-  (+`should_continue`), `backend/app/services/runs.py` (+`cancel`), `backend/app/api/projects.py`
-  (+`/run/cancel`), `backend/alembic/versions/b2f1c0d3e4a5_*.py` (`sa.String` → `GUID`),
-  `backend/tests/{conftest,test_runs,test_ceo_integration}.py`,
-  `frontend/src/lib/{types,api}.ts`, `frontend/src/app/projects/[id]/page.tsx`,
-  `docs/{API,SYSTEM_DOCUMENTATION,runbook,RISK_REGISTER,INTEGRATION_CEO}.md`
-- **สำรอง:** `BackUp/CancelRun_20260803_135508/` (gitignored)
-
-**CI callback auth (2026-08-03)**
-- **แก้:** `backend/app/config.py` (+`deploy_callback_secret`, `callback_auth_enabled`),
-  `backend/app/api/deployments.py` (+`require_callback_secret`), `backend/.env.example`,
-  `backend/tests/{conftest,test_deployments}.py`,
-  `docs/{API,SECURITY,RISK_REGISTER,runbook,github-workflow-example.yml}`, `AGENTS.md`
-- **สำรอง:** `BackUp/DeployCallbackAuth_20260803_113958/` (gitignored)
-
-**Phase 3a (2026-08-03)**
-- **แก้:** `backend/app/bus/{dispatcher,__init__}.py` (+`latest_work_by_task`, `clip_work`),
-  `backend/app/orchestrator/engine.py` (+`_ancestor_tasks`, `upstream_context`),
-  `backend/app/agents/runtime.py` (Protocol + 3 executors รับ `context`),
-  `backend/app/services/ceo_sync.py` (+`_work_product_section`),
-  `backend/tests/{test_orchestrator,test_ceo_integration,test_deployments}.py`,
-  `docs/{SYSTEM_DOCUMENTATION,INTEGRATION_CEO}.md`, `AGENTS.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`
-- **สำรอง:** `BackUp/Phase3aWorkProducts_20260803_111337/` (gitignored)
-
-**Phase 2 (2026-08-03)**
-- **ใหม่:** `backend/app/services/runs.py`, `backend/tests/test_runs.py`
-- **แก้:** `backend/app/api/{projects,ceo}.py`, `backend/app/constants.py` (+`RunStatus`),
-  `backend/app/db/session.py` (+`get_session_factory`), `backend/app/orchestrator/engine.py`
-  (+`on_outcome`, `planned_task_count`), `backend/tests/{conftest,test_orchestrator,test_portfolio,test_ceo_integration}.py`,
-  `frontend/src/lib/{types,api}.ts`, `frontend/src/app/projects/[id]/page.tsx`,
-  `docs/{API,SYSTEM_DOCUMENTATION,ARCHITECTURE,INTEGRATION_CEO,RISK_REGISTER,runbook}.md`,
-  `AGENTS.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`
-- **สำรอง:** `BackUp/Phase2AsyncRun_20260803_091552/` (gitignored)
-
-**Phase 1 (2026-08-02)**
-- **ใหม่:** `backend/app/integrations/{__init__,ceo_client}.py`, `backend/app/services/ceo_sync.py`,
-  `backend/app/api/ceo.py`, `backend/alembic/versions/e5a91c73b204_add_project_ceo_task_id.py`,
-  `backend/tests/test_ceo_integration.py`, `frontend/src/components/CeoInbox.tsx`,
-  `docs/INTEGRATION_CEO.md`
-- **แก้:** `backend/app/{config,main}.py`, `app/models/project.py`, `app/schemas/project.py`,
-  `app/api/{__init__,projects}.py`, `backend/.env.example`, `backend/tests/{conftest,test_projects}.py`,
-  `frontend/src/lib/{types,api}.ts`, `frontend/src/app/page.tsx`,
-  `frontend/src/app/projects/[id]/page.tsx`, `docs/{API,DATABASE,SYSTEM_DOCUMENTATION,runbook}.md`,
-  `AGENTS.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`
-
-**Phase 0 (2026-08-02)**
-- **แก้:** `AGENTS.md` (เขียนใหม่ทั้งไฟล์), `CLAUDE.md` + `GEMINI.md` (เหลือ pointer), `README.md`,
-  `.gitignore`, `docs/{PROJECT_OVERVIEW,RISK_REGISTER,API,runbook,ARCHITECTURE,SECURITY}.md`,
-  `backend/README.md`, `frontend/src/lib/api.ts`, `frontend/.env.local{,.example}`
-- คอมมิต `9cd76d6` = งานค้างของ 2026-07-07 ทั้งชุด (35 ไฟล์) · `5f43fa3` = Phase 0
-- **สำรอง:** `BackUp/Phase0Cleanup_20260802_224442/` + `BackUp/Phase1CeoIntegration_20260802_230717/`
-  (gitignored)
+```bash
+git log --oneline -20              # งานล่าสุด
+git show --stat <hash>             # ไฟล์ที่เปลี่ยนในคอมมิตนั้น
+```
 
 ## Current State
 
-- **pytest 170/170 ผ่าน · ruff clean · `npm run build` ผ่าน**
+- **pytest 214/214 ผ่าน · ruff clean · `npm run build` ผ่าน** (วัด 2026-08-15)
+- **เปิดระบบด้วย `Start-DEP-PM.exe`** ที่รากรีโป — cold start วัดได้ **7.8 วินาที**
+  · ไม่สตาร์ตซ้อน · ไม่แตะ `:8000`/`:8400` · log อยู่ที่ `logs\` (ดู `tools/launcher/README.md`)
 - **ผู้ให้บริการ AI ใช้ได้ครบ 3 เจ้า** (ยิงจริง 2026-08-14): Anthropic ✅ · OpenAI ✅ · Gemini ✅
   · **chain ที่ใช้อยู่จริง: `anthropic → openai → google`** · `AGENT_MODE=solo`
-  · แก้/ทดสอบได้เองที่หน้า `/settings` โดยไม่ต้อง restart
-- ⚠️ **`test_deployments::test_list_deployments_newest_first_with_names` เด้งราว 1 ใน 5 รอบ**
-  — ของเดิม ไม่เกี่ยวกับงานนี้: `order_by(created_at)` ชนกันเพราะนาฬิกา Windows หยาบ
-  (บทเรียนเดียวกับที่เคยจดไว้เรื่อง `_ancestor_tasks`) · ยังไม่แก้ ต้องมีคอลัมน์ลำดับจริง = migration
-- **วงจร d_CEO ↔ DEP-PM ใช้งานได้จริงแล้ว** (ยืนยันด้วยงานจริง 3 รอบ ไม่ใช่แค่ mock)
-- **`/run` เป็นงานเบื้องหลังแล้ว** (202 + `run_id` · lock ต่อโปรเจกต์ · `GET /:id/run` ·
-  ยกเลิกกลางทางได้) — ปิด Risk #3 ที่เคยบล็อกการใช้งานประจำ
-- DB จริง migrate ถึง head `e5a91c73b204` · **รอบนี้ไม่มี migration** (แตะ prompt/engine/config เท่านั้น)
-- **backend รันค้างอยู่ที่ `:8500`** (รีสตาร์ต 2026-08-14 เพื่อโหลดโค้ดใหม่ — **ไม่มี `--reload`**)
-  · `.env` ถูกคืนค่าเดิมหลังทดสอบแล้ว (`llm_chain` = `["anthropic"]` ตามเดิม)
-- 🧹 **ล้างบอร์ดแล้ว 2026-08-14: 15 → 7 โปรเจกต์** (สำรอง DB ก่อนที่
-  `BackUp/CleanupTestProjects_20260814_142549/`) · เพิ่ม `DELETE /api/projects/:id` เพื่อทำให้ถูกทาง
-  (มี audit) แทนการยิง SQL ตรง
-  - **ลบไป 8 ตัว** = งานทดสอบที่ไม่ผูกกับเลขา (needs_human · failover · degrade · token · Team Mode)
-    — **ผลการวัดถูกบันทึกไว้ในเอกสารแล้ว แต่ตัวโปรเจกต์เปิดดูย้อนหลังไม่ได้อีก**
-  - **เหลือ 4 ตัวที่ลบไม่ได้** เพราะผูก `ceo_task_id` (guard ตอบ 409): `a07f1fb2` · `7ffa2d4f` ·
-    `4d8004ff` · `c8d5c50c` — ตั้งใจไม่ตัดสายเอง และ**ตรวจสถานะฝั่งเลขาไม่ได้เพราะ d_CEO ล่ม**
-- ✅ **d_CEO `:8000` สตาร์ตกลับแล้ว** (`D:\Dev_Proj\0_CORE\d_CEO\run_ceo.bat`) —
-  `/health` ของเขาตอบ `llm_providers: ["anthropic"]` (ฝั่งนั้นทำ pattern เดียวกันแล้ว)
-- ⚠️ **`:8400` (d_Jarvis web) ยังไม่ได้สตาร์ต** — `run_jarvis.bat` เรียก `python run.py` ซึ่งเป็น
-  ตัวบอทที่ต่อออกแพลตฟอร์มภายนอก **ไม่ใช่เว็บเปล่า ๆ** จึงไม่สตาร์ตให้เองโดยไม่ถาม
-- git: main สะอาด ณ ต้นรอบ (`2b9bf39`, push แล้ว) · **งานรอบนี้ยังไม่ commit** (รอผู้ใช้ตรวจ)
+  · แก้/ทดสอบ/ตั้งเพดานค่าใช้จ่ายได้เองที่หน้า `/settings` โดยไม่ต้อง restart
+- **ประตูหน้าบ้านเปิดอยู่** — ตั้ง `API_TOKEN` แล้ว ทุก `/api/*` ต้องแนบ `X-DEP-PM-Token`
+  (หน้าเว็บมี token ตรงกันแล้ว · ตัวเปิดระบบเช็คให้ทุกครั้ง)
+- **เพดานค่าใช้จ่าย: ปิดอยู่** (`LLM_BUDGET_USD=0` = ไม่จำกัด · โหมด `warn`)
+- **วงจร d_CEO ↔ DEP-PM ใช้งานได้จริง** (ยืนยันด้วยงานจริง 3 รอบ ไม่ใช่แค่ mock) ·
+  คิวงานของทีม R&D ตอนนี้ **ว่าง** (`waiting: 0`)
+- DB จริง migrate ถึง head **`a1c8e5f92d47`**
+- **บอร์ดเหลือ 4 โปรเจกต์** — `a07f1fb2` · `7ffa2d4f` · `4d8004ff` (งานจากเลขาที่ปิดแล้ว เก็บเป็นหลักฐาน UAT)
+  + `d_ACC` (17 backlog ยังไม่เริ่ม) · งานทดสอบที่ไม่ผูกกับเลขาถูกลบหมดแล้ว
+  · ⚠️ **ยังไม่มีโปรเจกต์ไหนมีโทเคนที่ระบุเจ้าได้** ⇒ ตัวเลขค่าใช้จ่ายบนบอร์ดเป็น $0 ทั้งกระดาน
+- ⚠️ **`:8400` (d_Jarvis web) ไม่ได้รัน** — `run_jarvis.bat` เรียกตัวบอทที่ต่อออกแพลตฟอร์มภายนอก
+  **ไม่ใช่เว็บเปล่า ๆ** จึงไม่สตาร์ตให้เองโดยไม่ถาม · `:8000` (d_CEO) รันอยู่
+- git: `main` = `origin/main` · working tree สะอาด
 
 ## Next Tasks
 
-0. ✅ ~~รวม `new-project-studio` เข้ามา (ADR-05)~~ **ทำครบ S1-S3 + UI แล้ว 2026-08-14**
-   · ปุ่ม "เขียนผลงานลงไฟล์" อยู่ในหน้า task detail แล้ว (โผล่เฉพาะโปรเจกต์ที่มีโฟลเดอร์จริง)
-   · **ตรวจตัวอ่านกับ PDF ตัวจริงที่เคยทำ studio พังแล้ว** — `autopost-studio-mockup.pdf`
-     มี NUL 18 ตัว → requirement ที่ออกมา 0 ตัว (มีเทสต์ล็อกไว้) · DOCX อ่านได้จริง
-1. 🔴 **แยกคีย์ต่อรีโปที่คอนโซลผู้ให้บริการ** — ตราบใดที่ยังใช้คีย์ร่วมกัน บัญชีหมดเครดิต
-   = ทุกรีโปตายพร้อมกันเหมือน 6 ส.ค. (ตัวสำรองช่วยได้แค่ตอน "เจ้านั้นล่ม") · **ต้องให้เจ้าของทำ**
-1.1 ~~แยกโทเคนตามผู้ให้บริการ + ตั้งเพดานค่าใช้จ่าย (§5)~~ ✅ **ทำครบแล้ว 2026-08-14**
-   — เพดานอยู่ระดับ **project** · ปริยาย `warn` (เตือน) เปลี่ยนเป็น `stop` ได้ที่หน้า `/settings`
-   · 🔴 **เหลือให้เจ้าของยืนยัน: ราคาต่อโทเคน** — ค่าปริยายมาจากหน้าประกาศราคา ณ 14 ส.ค.
-   **ยังไม่เทียบกับบิลจริงของบัญชีนี้** (ส่วนลด/เครดิตไม่ถูกนับ) ⇒ ตัวเลขทุกจุดติดป้าย "ประมาณการ"
-   ถ้าราคาจริงต่าง แก้ `LLM_PRICE_*` ใน `backend/.env` แล้วตัวเลขทั้งระบบขยับตาม
-2. **รอ Vinit ตอบคำถามของ QC เรื่องงานรอบ 3** — d_CEO `4eb918bd` ค้าง `awaiting_approval`:
-   จัดหาข้อมูลจริงให้ pipeline เดินต่อ **หรือ** ปิดรอบทดสอบว่าระบบทำงานถูกต้องแล้ว
-   · **ฝั่งเรายิงอะไรต่อเองไม่ได้**
-2. **ให้ PM ไม่บล็อกทั้งเล่มเพราะข้อมูลหายไปชิ้นเดียว** — รอบวัดผล `17db2a67` ชี้ว่า
-   คู่มือที่เขียนได้ 80% ไม่ถูกผลิตเลยเพราะ "รวมเล่ม" ผูกกับหัวข้อสถิติที่ติด ·
-   ทางที่น่าจะถูก: PM สั่งผลิตฉบับที่มี**ช่องว่างติดป้ายว่ารออะไรอยู่** แล้วให้คนเติมทีหลัง
-   (ต้องคิดให้รอบคอบก่อนแก้ — กระทบวิธีแตกงานทั้งระบบ)
-3. **ดู `needs_human` อีก 1-2 รอบ** ก่อนสรุปปิด — วัดแล้ว 2 ครั้ง (งานเดี่ยว + โปรเจกต์ปนกัน)
-   reviewer ยังไม่ใช้เกินจำเป็น · เก็บสถิติต่อใน runbook §7
-4. **ขอจากฝั่ง d_CEO** (ดู `docs/INTEGRATION_CEO.md` §7 + `docs/REQUEST_TO_CEO.md` ที่ยังไม่ได้ส่ง):
+### ต้องให้เจ้าของลงมือ (ฝั่งเราทำแทนไม่ได้)
+
+1. 🔴 **แยกคีย์ AI ต่อรีโปที่คอนโซลผู้ให้บริการ** — ตราบใดที่ยังใช้คีย์ร่วมกัน บัญชีหมดเครดิต
+   = ทุกรีโปตายพร้อมกันเหมือน 6 ส.ค. (ตัวสำรองช่วยได้แค่ตอน "เจ้านั้นล่ม")
+2. 🔴 **ยืนยันราคาต่อโทเคนกับบิลจริง** — ค่าปริยาย `LLM_PRICE_*` มาจากหน้าประกาศราคา ณ 14 ส.ค.
+   **ยังไม่เทียบกับบิลของบัญชีนี้** (ส่วนลด/เครดิตไม่ถูกนับ) ⇒ ตัวเลขทุกจุดติดป้าย "ประมาณการ"
+   · ราคาจริงต่าง → แก้ใน `backend/.env` แล้วทั้งระบบขยับตาม
+3. **ตอบคำถาม QC เรื่องงานรอบ 3** — d_CEO `4eb918bd` ค้าง `awaiting_approval`: จัดหาข้อมูลจริง
+   ให้ pipeline เดินต่อ **หรือ** ปิดรอบทดสอบว่าระบบทำงานถูกต้องแล้ว · **ฝั่งเรายิงอะไรต่อเองไม่ได้**
+4. **ส่ง `docs/REQUEST_TO_CEO.md` ให้ session ของ d_CEO** (เปิด path นั้นให้เขาอ่าน — ห้ามแก้ข้ามรีโป):
    ยืนยัน contract + ออก `INTEGRATION_DEPPM.md` · เหตุ `output` แกว่ง 22,488 ↔ 49,345 ตัวอักษร ·
-   แก้เอกสารที่ยังเขียนว่า "merge DEP-PM เข้า Solo_CEO" (`d_Jarvis\docs\VISION.md` §5,
-   `d_CEO\project_plan_solo_ceo.md` §9.1) — **ห้ามแก้ข้ามรีโป**
-5. ~~**Team Mode กับคีย์จริง**~~ ✅ **ทำแล้ว 2026-08-14** (ดู Completed Work) — เหลือแค่
-   ตัดสินใจว่าจะใช้ Team Mode เป็นค่าปกติไหม (ตอนนี้คืนเป็น `AGENT_MODE=solo` แล้ว)
-6. **บอกทั้งบ้านว่า §5 ทำครบแล้ว** — DEP-PM เป็นรีโปแรกที่นับโทเคนต่อเจ้า **และคุมเพดานได้**
-   (`tasks.token_usage` + `GET /:id/usage` + `LLM_BUDGET_*`) · รูปแบบลอกไปใช้ได้เลย
-   ดู `docs/REQUEST_TO_CEO.md` §6
-7. **แจ้ง d_CEO ให้อัปเดตแถว DEP-PM ใน `LLM_PROVIDER_PATTERN.md`** — ช่อง "บอกว่าใช้ตัวสำรองยังไง"
-   ที่เป็น `—` ไม่จริงแล้ว (เขียนคำขอไว้ใน `docs/REQUEST_TO_CEO.md` — **ห้ามแก้ข้ามรีโป**)
-8. ย้ายของจริงขึ้น PostgreSQL · ก่อน deploy สาธารณะ: security gate ใน `docs/SECURITY.md`
-   — **เพิ่มความสำคัญ** เพราะหน้า `/settings` แก้คีย์ได้โดยไม่มี auth
+   อัปเดตแถว DEP-PM ใน `LLM_PROVIDER_PATTERN.md` · แก้เอกสารที่ยังเขียนว่า "merge DEP-PM
+   เข้า Solo_CEO" (`d_Jarvis\docs\VISION.md` §5 · `d_CEO\project_plan_solo_ceo.md` §9.1)
+5. **ตัดสินใจว่าจะใช้ Team Mode เป็นค่าปกติไหม** (ตอนนี้ `AGENT_MODE=solo`) · จะสตาร์ต `:8400` ไหม
+
+### ฝั่งเราทำได้เอง
+
+6. **ทดสอบเพดานค่าใช้จ่ายกับของจริง** — เส้นทาง `stop` ยังพิสูจน์แค่ในเทสต์ เพราะบนบอร์ด
+   ไม่มีโปรเจกต์ไหนเหลือโทเคนที่ระบุเจ้าได้ · ต้องรัน 1 งานจริงก่อนถึงจะมีตัวเลขให้ชนเพดาน
+7. **ดู `needs_human` อีก 1-2 รอบ** ก่อนสรุปปิด — วัดแล้ว 2 ครั้ง reviewer ยังไม่ใช้เกินจำเป็น
+   · เก็บสถิติต่อใน `docs/runbook.md` §7
+8. **ทะเบียนรอบรันหายเมื่อ restart** (Known Issues ข้อแรก) — ถ้าจะแก้จริงต้องเก็บลง DB
+9. ย้ายของจริงขึ้น PostgreSQL · security gate ที่เหลือใน `docs/SECURITY.md` ก่อน deploy สาธารณะ
 
 ## Known Issues
 
@@ -762,6 +447,8 @@ dependency ติด escalated ค้าง `planned` ถาวร → เงื
    · ถ้าเลือกทาง 1 ต้องบอกด้วยว่าข้อมูลอยู่ที่ไหน (ไฟล์/ระบบ) เพราะ agent เข้าถึงเองไม่ได้
 2. **โจทย์ทดสอบรอบหน้าควรเป็นงานแบบไหน** — 3 รอบที่ผ่านมาเป็นงานเอกสารล้วน · ถ้าอยากวัด
    `needs_human` ให้เห็นชัด ควรเป็นโปรเจกต์ที่**ปนกัน**ระหว่างงานที่ agent ทำได้เองกับงานที่ต้องรอคน
-3. **โปรเจกต์ทดสอบ 3 ตัวในบอร์ด** (`c8d5c50c`, `bc3a43b7`, ของเก่า) — เก็บไว้เป็นหลักฐาน
-   หรือให้ลบทิ้ง (ลบได้ปลอดภัย ไม่กระทบข้อมูลงานจริง)
-4. PostgreSQL / OPENAI+GEMINI keys — อันไหนพร้อมก่อน (กระทบลำดับ Phase 3b)
+   · รอบเดียวกันนี้ใช้ปิดข้อ 6 ของ Next Tasks (ทดสอบเพดานค่าใช้จ่ายกับของจริง) ได้ในตัว
+3. **ราคาต่อโทเคนจริงของบัญชีนี้** — ถ้ามีบิลจริงแล้วบอกตัวเลขมา จะแก้ `LLM_PRICE_*` ให้ตรง
+   (ตอนนี้ทั้งระบบใช้ราคาประกาศและติดป้ายว่า "ประมาณการ" ทุกจุด)
+4. **จะสตาร์ต `:8400` (d_Jarvis web) ไหม** — `run_jarvis.bat` เรียกตัวบอทที่ต่อออกแพลตฟอร์มภายนอก
+   จึงไม่สตาร์ตให้เองโดยไม่ถาม

@@ -2,3 +2,13 @@
 
 # สำเนาก่อนแก้ตาม WORKING_RULES Rule 1/3 (อาจมีข้อมูลจริงของผู้ใช้ — ห้ามขึ้น remote)
 BackUp/
+
+__pycache__/
+*.pyc
+
+# ปุ่มเปิดระบบ — ผลลัพธ์ที่ build เอง (โค้ดอยู่ใน tools/launcher/ ซึ่ง commit ตามปกติ)
+logs/
+tools/launcher/build/
+tools/launcher/dist/
+tools/launcher/*.spec
+Start-DEP-PM.exe

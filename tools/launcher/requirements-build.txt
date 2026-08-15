@@ -1,0 +1,6 @@
+# เครื่องมือสำหรับ **build ปุ่มเปิดระบบ** เท่านั้น — ไม่ใช่ dependency ของตัวระบบ
+# จึงแยกออกจาก backend/requirements.txt (ระบบที่รันจริงไม่ต้องมีตัวนี้)
+#
+#   backend\.venv\Scripts\pip install -r tools\launcher\requirements-build.txt
+#   .\tools\launcher\build.ps1
+pyinstaller==6.11.1
