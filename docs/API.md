@@ -399,6 +399,52 @@ Request: `{ "task_id": "…", "path": "docs/PROJECT_OVERVIEW.md" }` →
 
 ---
 
+### 1.3) `GET /api/projects/:id/stages` — เส้นทาง 6 ขั้นของโปรเจกต์
+```json
+{ "kind": "code", "current": "build",
+  "stages": [
+    { "stage": "idea", "label": "ไอเดีย", "state": "done" },
+    { "stage": "structure", "label": "โครงสร้าง", "state": "done" },
+    { "stage": "plan", "label": "แผนงาน", "state": "done" },
+    { "stage": "build", "label": "ลงมือ", "state": "current" },
+    { "stage": "ship", "label": "ส่งขึ้นระบบ", "state": "todo" },
+    { "stage": "market", "label": "การตลาด", "state": "todo" } ],
+  "next_action": "เหลืออีก 4 งาน — กด Run ให้ agent ทำต่อ",
+  "ready_to_promote": false, "open_tasks": 4, "total_tasks": 7 }
+```
+- 🔴 **คำนวณสดทุกครั้ง ไม่ได้เก็บในฐานข้อมูล** — เกณฑ์เป็นสิ่งที่ปลอมไม่ได้: มีโฟลเดอร์จริงไหม ·
+  มี task ที่พ้น `backlog` แล้วหรือยัง · เหลืองานค้างกี่ใบ · เคย deploy สำเร็จหรือยัง
+- **ชนิดงานเปลี่ยนเส้นทาง:** `doc` ไม่มีขั้น `structure` และเรียกขั้น `ship` ว่า **"ส่งมอบ"** ·
+  `idea` มีแค่ 3 ขั้นแรกแล้วจบที่ `ready_to_promote: true`
+- `market` ยัง**ไม่ผ่านเสมอ** จนกว่าจะต่อ d_MOS (ก้อนที่ 4) — `next_action` บอกตรง ๆ ว่ายังไม่เปิดใช้
+- `state` ∈ `done` | `current` | `todo` · `current: null` = เดินครบเส้นแล้ว
+
+### 1.4) `POST /api/projects/:id/promote` — ยกระดับไอเดีย → โปรเจกต์จริง
+Request: `{ "kind": "code" | "doc", "target": "D:\\Dev_Proj\\4_RND\\d_X", "purpose": "", "stack": "", "is_python": true, "relation": "general" }`
+```json
+{ "project": { "…": "…", "kind": "code" },
+  "target": "D:\\Dev_Proj\\4_RND\\d_X", "created": ["AGENTS.md", "…"], "steps": ["…"] }
+```
+- **409** ถ้าโปรเจกต์ไม่ใช่ชนิด `idea` · **422** ถ้าขอยกระดับกลับเป็น `idea`
+- ใส่ `target` = scaffold โฟลเดอร์จริงให้ในคราวเดียว (เหมือน §1.2) · ไม่ใส่ = เปลี่ยนชนิดงานอย่างเดียว
+- **งานที่ศึกษาไว้ทั้งหมดอยู่ครบ** — ยกระดับไม่ใช่การเริ่มใหม่ · scaffold ล้ม (400) = **ไม่เปลี่ยนชนิด**
+  (ไม่งั้นได้โปรเจกต์ `code` ที่ไม่มีบ้านอยู่)
+
+### 1.5) `GET /api/projects/ideas/preview` · `POST /api/projects/ideas/import`
+```json
+{ "roots": ["D:\\Dev_Proj\\IDEAs", "D:\\Dev_Proj\\6_KM\\Ideas"],
+  "found": 9, "already_on_board": 0,
+  "items": [ { "name": "3D Cartoon Animation Workflow", "source_root": "D:\\Dev_Proj\\IDEAs",
+               "files": ["…"], "is_folder": true, "updated": "2026-07-30" } ] }
+```
+- `preview` **ไม่เขียนอะไรเลย** · `import` (body `{"names": []}` = เอาทั้งหมดที่ยังไม่มี) คืน `201` + รายการโปรเจกต์ที่สร้าง
+- **ยิงซ้ำได้** — เทียบด้วยชื่อในกลุ่มโปรเจกต์ชนิด `idea` · รอบสองคืน `[]`
+- **ไฟล์ต้นทางไม่ถูกย้าย/แก้/ลบ** · ไฟล์ชื่อเดียวกันหลายนามสกุล (`.md` + `.html`) นับเป็นไอเดียเดียว
+- ไอเดียที่เป็น**ไฟล์เดี่ยวไม่ได้ `local_path`** — โฟลเดอร์ต้นทางเป็นของรวม ผูกไว้ = เปิดสิทธิ์เขียนทับกัน
+- โฟลเดอร์ที่ไปตามหาตั้งได้ที่ `IDEA_ROOTS` (คั่นด้วย `;`)
+
+---
+
 ### 19.1) `GET /api/projects/:id/usage` — โทเคนแยกตามผู้ให้บริการ + ค่าใช้จ่ายเทียบเพดาน
 ```json
 { "project_id": "…",

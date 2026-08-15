@@ -10,6 +10,7 @@ from app.models.agent import Agent
 from app.models.deployment import Deployment
 from app.models.project import Project
 from app.models.task import Task
+from app.services import stages
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
@@ -44,7 +45,11 @@ def portfolio(db: Session = Depends(get_db)) -> dict:
                 "id": str(p.id),
                 "name": p.name,
                 "type": p.type,
+                "kind": p.kind,
                 "status": p.status,
+                # ขั้นปัจจุบัน + ขั้นต่อไป — คำนวณสดจากของจริง (services/stages.py)
+                # หน้ารวมจึงบอกได้ว่า "โปรเจกต์ไหนติดอยู่ตรงไหน" โดยไม่ต้องเปิดเข้าไปดูทีละอัน
+                "pipeline": stages.project_stages(db, p),
                 "task_counts": counts.get(str(p.id), {}),
                 "total_tasks": sum(counts.get(str(p.id), {}).values()),
                 "last_deployment": (

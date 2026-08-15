@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.constants import ProjectStatus, ProjectType
+from app.constants import ProjectKind, ProjectStatus, ProjectType
 from app.db.base import Base, TimestampMixin
 from app.db.types import GUID, new_uuid
 
@@ -33,6 +33,11 @@ class Project(Base, TimestampMixin):
     # โฟลเดอร์จริงบนดิสก์ของโปรเจกต์นี้ (ADR-05) — ตั้งตอน bootstrap · null = ไม่มีโฟลเดอร์ผูกไว้
     # ใช้เป็น "รั้ว" ของทุกการเขียนไฟล์: ไฟล์ดีไซน์เข้า `_design_input/` และผลงานเขียนได้เฉพาะใต้นี้
     local_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # ชนิดงาน (code/doc/idea) — ตัดสินว่าเส้นทาง 6 ขั้นเปิดขั้นไหนบ้าง
+    # ค่าปริยาย `code` ทำให้ของเดิมทั้งหมดยังหมายความเหมือนเดิมทุกประการ
+    kind: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=ProjectKind.CODE.value, server_default=ProjectKind.CODE.value
+    )
 
     tasks: Mapped[list[Task]] = relationship(
         back_populates="project", cascade="all, delete-orphan"

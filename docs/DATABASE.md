@@ -122,9 +122,16 @@ erDiagram
 | metadata_registry_ref | VARCHAR(500) | NULL | จองไว้สำหรับ DEP Engine จริง (ADR-02) |
 | ceo_task_id | VARCHAR(36) | NULL, **UNIQUE** | task ใน d_CEO ที่ถูก delegate ลงมา (Phase 1) — NULL = โปรเจกต์ที่สร้างเองในระบบ |
 | local_path | VARCHAR(500) | NULL | โฟลเดอร์จริงบนดิสก์ (ตั้งตอน `/bootstrap` — ADR-05) · **เป็นรั้วของทุกการเขียนไฟล์**: ไฟล์ดีไซน์เข้า `_design_input/` และผลงานของ task เขียนได้เฉพาะใต้นี้ · NULL = ไม่มีโฟลเดอร์ผูกไว้ (งานจากเลขา/โปรเจกต์เดิม) |
+| kind | VARCHAR(20) | NOT NULL, server_default 'code' | ชนิดงาน `code`/`doc`/`idea` — ตัดสินว่าเส้นทาง 6 ขั้นเปิดขั้นไหนบ้าง |
 | created_at | DATETIME(tz) | NOT NULL, server_default now | |
 
 Query pattern: `GET /portfolio` อ่านทุกแถว (โปรเจกต์น้อย — ไม่ต้อง index เพิ่ม)
+
+**ทำไมไม่มีคอลัมน์ `stage`:** ขั้นบนเส้นทางงาน (ไอเดีย → โครงสร้าง → แผนงาน → ลงมือ → ส่งขึ้นระบบ
+→ การตลาด) **คำนวณสดทุกครั้งที่อ่าน** จาก `local_path` + สถานะ task + deployment ที่มีอยู่จริง
+(`services/stages.py`) — สถานะที่ต้องให้คนหรือโค้ดมากดอัปเดตจะไม่ตรงกับความจริงในที่สุด
+และเราเคยโดนบทเรียนนี้มาแล้ว (รายงานว่า "เสร็จ" ทั้งที่ไม่มีชิ้นงาน — QC จับได้ 3 ส.ค.)
+· ส่วน `kind` เก็บจริงเพราะเป็น**เจตนาของคน** ที่ระบบเดาจากข้อมูลไม่ได้
 
 **ทำไม `ceo_task_id` ต้อง UNIQUE:** บังคับกติกา **"1 task ธุรกิจใน d_CEO = 1 project ที่นี่"**
 (ไม่สร้างทะเบียนงานธุรกิจซ้อน — `AGENTS.md` §3.1) และกันการดึงงานเดิมซ้ำ
@@ -189,6 +196,7 @@ Status flow: `queued` → `running` (dispatch สำเร็จ) → `success|f
 | `c7d4e2a9b1f3` | เพิ่ม `tasks.tokens_input/tokens_output` | server_default "0" — แถวเก่าได้ 0 อัตโนมัติ |
 | `e5a91c73b204` | เพิ่ม `projects.ceo_task_id` + unique constraint | ใช้ `batch_alter_table` (SQLite ไม่รองรับ ADD CONSTRAINT) · แถวเก่าได้ NULL = ไม่ถือว่ามาจาก d_CEO |
 | `a1c8e5f92d47` | เพิ่ม `projects.local_path` | ADR-05 — โฟลเดอร์จริงของโปรเจกต์ · เป็น**รั้ว**ของทุกการเขียนไฟล์ (ไฟล์ดีไซน์ + ผลงานที่เขียนลงไฟล์) · nullable เพราะโปรเจกต์เดิม/งานจากเลขาไม่มีโฟลเดอร์ผูกไว้ |
+| `b6e2f4a81c39` | เพิ่ม `projects.kind` | เส้นทาง 6 ขั้น (2026-08-15) · `server_default='code'` ⇒ แถวเดิมทั้งหมดหมายความเหมือนเดิมเป๊ะ ไม่ต้องเดาย้อนหลัง · **ไม่มีคอลัมน์ stage คู่มาด้วยโดยตั้งใจ** (คำนวณสด) |
 | `f3a9c1d7e2b8` | เพิ่ม `tasks.token_usage` (JSON) | §5 ใบสั่งงาน 2026-08-06 — โทเคนแยกตามผู้ให้บริการ · **nullable โดยตั้งใจ**: แถวเก่าแยกที่มาไม่ได้จริง ปล่อย NULL แล้วรายงานเป็น `untracked` · เขียนมือพร้อม `import app.db.types` (บทเรียนของ `a14314b6f9a2`) · apply กับ DB จริงแล้ว 2026-08-14 (57 tasks ครบ) |
 
 ### กติกา migration (จาก ADR-01 + CLAUDE.md Database Rules)

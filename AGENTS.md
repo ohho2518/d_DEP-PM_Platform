@@ -160,6 +160,8 @@ backend/app/metadata/                 MetadataProvider interface + Stub (ADR-02)
 backend/app/integrations/             client ของระบบข้างเคียง — ceo_client.py (d_CEO) §3.1
 backend/app/services/                 audit + task-plan persistence + deploy dispatcher + ceo_sync + runs (Run Manager) + env_file (เขียน .env จากหน้า Settings) + usage (โทเคนแยกตามผู้ให้บริการ)
 backend/app/services/scaffold.py      เปิดโปรเจกต์ใหม่จริง — copy kit · git init · เอกสารกำกับ (ADR-05, ย้ายมาจาก new-project-studio)
+backend/app/services/stages.py        เส้นทาง 6 ขั้นของโปรเจกต์ — **คำนวณสดจากของจริง ไม่เก็บใน DB**
+backend/app/services/ideas.py         ดึงไอเดียเก่าจากดิสก์ขึ้นบอร์ด (อ่านอย่างเดียว · ยิงซ้ำได้)
 backend/app/services/design_files.py  อ่านไฟล์ดีไซน์ที่อัปโหลด → requirement ให้ PM แตกงาน
 backend/app/services/deliverables.py  เขียนผลงานของ task ลงไฟล์จริง (มีรั้ว + สำรองก่อนทับ)
 backend/app/scaffold_kit/             แม่แบบเอกสารโปรเจกต์ใหม่ — **เจ้าของแม่แบบคือรีโปนี้แล้ว**
@@ -256,6 +258,8 @@ API_TOKEN=             # ประตูหน้าบ้าน: ตั้ง�
 FRONTEND_ORIGIN=       # CORS origin เดียว (ไม่ใช่ *)
 SCAFFOLD_ALLOWED_ROOT= # รากที่ยอมให้ /bootstrap สร้างโฟลเดอร์ (ปริยาย D:\Dev_Proj) — นอกรากนี้ = 400
 SCAFFOLD_KIT_PATH=     # ว่าง = ใช้แม่แบบที่มากับรีโป (backend/app/scaffold_kit/)
+IDEA_ROOTS=            # โฟลเดอร์ที่ไปตามหาไอเดียเก่ามาขึ้นบอร์ด **คั่นด้วย `;`** (path มี `,` ได้)
+                       # ปริยาย: D:\Dev_Proj\IDEAs;D:\Dev_Proj\6_KM\Ideas
 ```
 
 **`frontend/.env.local`**
@@ -320,7 +324,12 @@ NEXT_PUBLIC_API_URL=   # base URL ของ backend — ค่าปัจจุ
     บัญชีใช้ไม่ได้ (สลับเจ้า) · ชั่วคราว (ลองซ้ำ) · โจทย์ผิด (**ห้ามสลับ** สลับไปก็ผิดเหมือนกัน)
 14. **ห้ามส่งคีย์ออกทาง API หรือลง log** — `/api/settings/llm` คืนได้เฉพาะค่า mask ·
     หน้า Settings แก้คีย์ได้โดยไม่มี auth ⇒ **bind `127.0.0.1` เท่านั้น** (docs/SECURITY.md)
-15. **ตัวเลขเงินในระบบเป็น "ประมาณการ" เสมอ ห้ามเรียกว่าค่าใช้จ่ายจริง** — คิดจากราคาที่ตั้งไว้
+15. **ขั้นบนเส้นทางงาน (`ProjectStage`) ห้ามเก็บเป็นคอลัมน์ ห้ามคำนวณฝั่ง frontend** —
+    คำนวณที่ `services/stages.py` ที่เดียวจากหลักฐานที่ปลอมไม่ได้ (โฟลเดอร์ · task · deployment)
+    · เก็บเป็นสถานะเมื่อไหร่ มันจะไม่ตรงกับความจริงเมื่อนั้น · ส่วน `projects.kind` เก็บจริง
+    เพราะเป็น**เจตนาของคน** ที่เดาจากข้อมูลไม่ได้ · เพิ่มขั้นใหม่ = แก้ `STAGES_BY_KIND` +
+    `_is_done()` + `types.ts` (`ProjectStage`, `STAGE_COLOR`) + เทสต์ ในคอมมิตเดียวกัน
+16. **ตัวเลขเงินในระบบเป็น "ประมาณการ" เสมอ ห้ามเรียกว่าค่าใช้จ่ายจริง** — คิดจากราคาที่ตั้งไว้
     ใน `.env` × โทเคนที่นับได้ (ส่วนลด/เครดิตของบัญชีไม่ถูกนับ) · ทุกจุดที่แสดงต้องติดป้ายกำกับ
     · โทเคนที่ระบุเจ้าไม่ได้ **ไม่คิดเงิน** แต่ต้องบอกว่ามีอยู่ (`excludes_untracked`)
     ไม่งั้นคนอ่านจะเข้าใจว่าใช้น้อยกว่าจริง · เพดานถามก่อนหยิบ task ใหม่เท่านั้น

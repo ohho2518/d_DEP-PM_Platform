@@ -51,6 +51,8 @@ export interface Project {
   ceo_task_id: string | null;
   /** โฟลเดอร์จริงบนดิสก์ (ตั้งตอน bootstrap — ADR-05) */
   local_path: string | null;
+  /** ชนิดงาน — ของเดิมทั้งหมดเป็น "code" */
+  kind: ProjectKind;
   created_at: string;
 }
 
@@ -68,11 +70,82 @@ export interface AgentMessage {
   created_at: string;
 }
 
+/** ชนิดงาน — ตัดสินว่าเส้นทาง 6 ขั้นเปิดขั้นไหนบ้าง · backend: `constants.ProjectKind` */
+export type ProjectKind = "code" | "doc" | "idea";
+
+/** ขั้นบนเส้นทางงาน · backend: `constants.ProjectStage` (คำนวณสด ไม่ได้เก็บใน DB) */
+export type ProjectStage = "idea" | "structure" | "plan" | "build" | "ship" | "market";
+
+/** ลำดับ + สีประจำขั้น — ใช้ร่วมกันทุกหน้า ห้ามนิยามซ้ำที่อื่น */
+export const STAGE_COLOR: Record<ProjectStage, string> = {
+  idea: "var(--gemini)",
+  structure: "#6f7cf5",
+  plan: "var(--claude)",
+  build: "var(--warn)",
+  ship: "var(--ok)",
+  market: "#e8508d",
+};
+
+export interface StageItem {
+  stage: ProjectStage;
+  /** ชื่อที่คนอ่าน — ขั้นเดียวกันเรียกต่างกันได้ตามชนิดงาน (doc: "ส่งมอบ") */
+  label: string;
+  state: "done" | "current" | "todo";
+}
+
+export interface ProjectStages {
+  kind: ProjectKind;
+  /** null = เดินครบเส้นแล้ว */
+  current: ProjectStage | null;
+  stages: StageItem[];
+  /** ประโยคเดียวที่บอกว่าต้องทำอะไรต่อ */
+  next_action: string;
+  ready_to_promote: boolean;
+  open_tasks: number;
+  total_tasks: number;
+}
+
+export interface PromoteRequest {
+  kind: "code" | "doc";
+  /** ใส่ = สร้างโฟลเดอร์จริงให้ในคราวเดียว · ไม่ใส่ = เปลี่ยนชนิดงานอย่างเดียว */
+  target?: string;
+  purpose?: string;
+  stack?: string;
+  is_python?: boolean;
+  relation?: string;
+}
+
+export interface PromoteResult {
+  project: Project;
+  target: string;
+  created: string[];
+  steps: string[];
+}
+
+export interface IdeaSource {
+  name: string;
+  source_root: string;
+  files: string[];
+  is_folder: boolean;
+  updated: string;
+}
+
+export interface IdeaPreview {
+  roots: string[];
+  found: number;
+  already_on_board: number;
+  /** เฉพาะที่ยังไม่อยู่บนบอร์ด */
+  items: IdeaSource[];
+}
+
 export interface PortfolioProject {
   id: string;
   name: string;
   type: string;
+  kind: ProjectKind;
   status: string;
+  /** เส้นทางของโปรเจกต์นี้ — หน้ารวมใช้บอกว่า "ติดอยู่ตรงไหน" */
+  pipeline: ProjectStages;
   task_counts: Partial<Record<TaskStatus, number>>;
   total_tasks: number;
   last_deployment: {

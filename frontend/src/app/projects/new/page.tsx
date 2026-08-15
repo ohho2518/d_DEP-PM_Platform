@@ -5,7 +5,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/api";
-import type { BootstrapResult, ProjectRelation, Task } from "@/lib/types";
+import type { BootstrapResult, ProjectKind, ProjectRelation, Task } from "@/lib/types";
+
+/** ชนิดงาน — ตัดสินว่าเส้นทาง 6 ขั้นเปิดขั้นไหนบ้าง (ต้องตรงกับ `constants.ProjectKind`) */
+const KINDS: { value: ProjectKind; label: string; hint: string }[] = [
+  { value: "code", label: "งานมีโค้ด", hint: "ครบทุกขั้น — จบที่ deploy ขึ้นระบบจริง" },
+  { value: "doc", label: "งานเอกสาร", hint: "ไม่มีโครงโค้ด — ขั้นสุดท้ายคือส่งมอบไฟล์" },
+  { value: "idea", label: "💡 ไอเดีย (เก็บไว้ต่อยอด)", hint: "ยังไม่ลงมือ — ยกระดับเป็นโปรเจกต์จริงทีหลังได้" },
+];
 
 type Step = "form" | "plan" | "confirming" | "bootstrapped";
 
@@ -26,6 +33,7 @@ export default function NewProjectPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
+  const [kind, setKind] = useState<ProjectKind>("code");
   const [type, setType] = useState<"new" | "existing" | "bootstrap">("new");
   const [repoUrl, setRepoUrl] = useState("");
   const [requirement, setRequirement] = useState("");
@@ -68,9 +76,16 @@ export default function NewProjectPage() {
       const project = await api.createProject({
         name,
         type,
+        kind,
         ...(type === "existing" ? { repo_url: repoUrl } : {}),
       });
       setProjectId(project.id);
+
+      // ไอเดียยังไม่ต้องแตกงาน — เก็บโจทย์ไว้ก่อน แล้วค่อยยกระดับเมื่อพร้อมทำจริง
+      if (kind === "idea") {
+        router.push(`/projects/${project.id}`);
+        return;
+      }
 
       if (type === "new") {
         const res = await api.breakdown(project.id, requirement);
@@ -125,6 +140,36 @@ export default function NewProjectPage() {
             />
           </label>
 
+          {/* ชนิดงาน — ตัดสินเส้นทางของโปรเจกต์นี้ (ก้อนที่ 1 ของการรื้อ UI 2026-08-15) */}
+          <div className="space-y-1.5">
+            <span className="block text-sm" style={{ color: "var(--text2)" }}>
+              งานนี้เป็นแบบไหน
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {KINDS.map((k) => (
+                <button
+                  type="button"
+                  key={k.value}
+                  onClick={() => setKind(k.value)}
+                  title={k.hint}
+                  className={kind === k.value ? "btn-primary" : "btn-ghost"}
+                >
+                  {k.label}
+                </button>
+              ))}
+            </div>
+            <span className="block text-xs" style={{ color: "var(--text3)" }}>
+              {KINDS.find((k) => k.value === kind)?.hint}
+            </span>
+          </div>
+
+          {kind === "idea" ? (
+            <p className="text-xs" style={{ color: "var(--text3)" }}>
+              ไอเดียจะถูกเก็บขึ้นบอร์ดเฉย ๆ <b>ยังไม่เรียก AI และยังไม่แตกงาน</b> —
+              เปิดดูแล้วสั่งให้ช่วยหาข้อมูลต่อได้ พอพร้อมค่อยกด &ldquo;ยกระดับเป็นโปรเจกต์จริง&rdquo;
+            </p>
+          ) : (
+          <>
           <div className="flex flex-col gap-2 text-sm">
             {(
               [
@@ -237,18 +282,24 @@ export default function NewProjectPage() {
               />
             </label>
           )}
+          </>
+          )}
 
           <button
             disabled={busy}
             className="btn-primary"
           >
-            {busy
-              ? type === "bootstrap"
-                ? "กำลังสร้างโฟลเดอร์…"
-                : "กำลังสร้าง task plan…"
-              : type === "bootstrap"
-                ? "สร้างโปรเจกต์จริง + ลงบอร์ด"
-                : "สร้างโปรเจกต์ + แตกงาน"}
+            {kind === "idea"
+              ? busy
+                ? "กำลังเก็บ…"
+                : "เก็บไอเดียขึ้นบอร์ด"
+              : busy
+                ? type === "bootstrap"
+                  ? "กำลังสร้างโฟลเดอร์…"
+                  : "กำลังสร้าง task plan…"
+                : type === "bootstrap"
+                  ? "สร้างโปรเจกต์จริง + ลงบอร์ด"
+                  : "สร้างโปรเจกต์ + แตกงาน"}
           </button>
         </form>
       )}

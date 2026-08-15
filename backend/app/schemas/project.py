@@ -3,15 +3,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.constants import ProjectStatus, ProjectType
+from app.constants import ProjectKind, ProjectStage, ProjectStatus, ProjectType
 
 
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     type: ProjectType = ProjectType.NEW
+    #: ชนิดงาน — ไม่ส่ง = `code` (พฤติกรรมเดิมของทุกโปรเจกต์ก่อน 2026-08-15)
+    kind: ProjectKind = ProjectKind.CODE
     repo_url: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
@@ -79,7 +82,75 @@ class ProjectRead(BaseModel):
     ceo_task_id: str | None = None
     #: โฟลเดอร์จริงบนดิสก์ (ตั้งตอน bootstrap — ADR-05) · null = ไม่มีโฟลเดอร์ผูกไว้
     local_path: str | None = None
+    #: ชนิดงาน — ตัดสินว่าเส้นทาง 6 ขั้นเปิดขั้นไหนบ้าง (code = ค่าเดิมของทุกโปรเจกต์ก่อน 15 ส.ค.)
+    kind: ProjectKind = ProjectKind.CODE
     created_at: datetime
+
+
+class StageItem(BaseModel):
+    stage: ProjectStage
+    #: ชื่อที่คนอ่าน — ขั้นเดียวกันเรียกต่างกันได้ตามชนิดงาน (doc: "ส่งมอบ" ไม่ใช่ "ส่งขึ้นระบบ")
+    label: str
+    #: done | current | todo
+    state: str
+
+
+class ProjectStages(BaseModel):
+    """เส้นทางของโปรเจกต์หนึ่ง — **คำนวณจากของจริงทุกครั้งที่อ่าน** ไม่ได้เก็บในฐานข้อมูล."""
+
+    kind: ProjectKind
+    #: ขั้นที่กำลังอยู่ · null = เดินครบเส้นแล้ว
+    current: ProjectStage | None
+    stages: list[StageItem]
+    #: ประโยคเดียวที่บอกว่าต้องทำอะไรต่อ
+    next_action: str
+    #: ไอเดียที่พร้อมยกระดับเป็นโปรเจกต์จริงแล้ว (โชว์ปุ่มบนบอร์ด)
+    ready_to_promote: bool = False
+    open_tasks: int = 0
+    total_tasks: int = 0
+
+
+class PromoteRequest(BaseModel):
+    """ยกระดับไอเดีย → โปรเจกต์จริง (ไอเดียเท่านั้น)."""
+
+    #: จะกลายเป็นงานชนิดไหน — ไอเดียยกระดับเป็นไอเดียอีกไม่ได้
+    kind: Literal[ProjectKind.CODE, ProjectKind.DOC] = ProjectKind.CODE
+    #: โฟลเดอร์ปลายทาง — ใส่แล้ว scaffold ให้เลย · ไม่ใส่ = ยกระดับเฉย ๆ ยังไม่สร้างโฟลเดอร์
+    target: str = ""
+    purpose: str = ""
+    stack: str = ""
+    is_python: bool = True
+    relation: str = "general"
+
+
+class PromoteResponse(BaseModel):
+    project: ProjectRead
+    #: โฟลเดอร์ที่สร้างให้ (ว่าง = ยกระดับอย่างเดียว ยังไม่ได้สร้างโฟลเดอร์)
+    target: str = ""
+    created: list[str] = Field(default_factory=list)
+    steps: list[str] = Field(default_factory=list)
+
+
+class IdeaSource(BaseModel):
+    name: str
+    source_root: str
+    files: list[str]
+    is_folder: bool
+    #: วันที่แก้ไขล่าสุดของไฟล์ต้นทาง (ISO date) — ว่างได้ถ้าอ่านไม่ได้
+    updated: str = ""
+
+
+class IdeaPreview(BaseModel):
+    roots: list[str]
+    found: int
+    already_on_board: int
+    #: เฉพาะที่ยังไม่อยู่บนบอร์ด
+    items: list[IdeaSource]
+
+
+class IdeaImportRequest(BaseModel):
+    #: เลือกเฉพาะบางเรื่อง (ไม่ส่ง = เอาทั้งหมดที่ยังไม่มี)
+    names: list[str] = Field(default_factory=list)
 
 
 class BootstrapRequest(BaseModel):

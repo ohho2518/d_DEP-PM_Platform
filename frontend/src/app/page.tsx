@@ -1,10 +1,12 @@
 "use client";
 // Portfolio View — โทนสีตาม ai-dev-team-complete.html + polling (ADR-04)
 import Link from "next/link";
+import { useState } from "react";
 import { api } from "@/lib/api";
 import { CeoInbox } from "@/components/CeoInbox";
+import { NextAction, StageBar } from "@/components/StageBar";
 import { usePolling } from "@/lib/usePolling";
-import { STATUS_ORDER, type TaskStatus } from "@/lib/types";
+import { STATUS_ORDER, type IdeaPreview, type ProjectKind, type TaskStatus } from "@/lib/types";
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
   backlog: "#c8cce0",
@@ -17,6 +19,13 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
   escalated: "var(--danger)",
 };
 
+/** ป้ายชนิดงาน — ต้องตรงกับ `constants.ProjectKind` ฝั่ง backend */
+const KIND_LABEL: Record<ProjectKind, { text: string; color: string }> = {
+  code: { text: "งานมีโค้ด", color: "var(--claude)" },
+  doc: { text: "งานเอกสาร", color: "var(--codex)" },
+  idea: { text: "💡 ไอเดีย", color: "var(--gemini)" },
+};
+
 const AGENT_COLOR: Record<string, string> = {
   anthropic: "var(--claude)",
   openai: "var(--codex)",
@@ -24,7 +33,7 @@ const AGENT_COLOR: Record<string, string> = {
 };
 
 export default function PortfolioPage() {
-  const { data, error } = usePolling(api.portfolio);
+  const { data, error, refresh } = usePolling(api.portfolio);
 
   if (error)
     return (
@@ -37,6 +46,8 @@ export default function PortfolioPage() {
   return (
     <div className="space-y-8">
       <CeoInbox />
+
+      <IdeaInbox onImported={refresh} />
 
       <section>
         <div className="mb-4 flex items-center justify-between">
@@ -55,13 +66,18 @@ export default function PortfolioPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.projects.map((p) => (
               <Link key={p.id} href={`/projects/${p.id}`} className="card p-4 transition hover:shadow-md">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <h2 className="font-semibold">{p.name}</h2>
-                  <span className="chip">{p.type}</span>
+                  <span className="chip" style={{ color: KIND_LABEL[p.kind].color }}>
+                    {KIND_LABEL[p.kind].text}
+                  </span>
                 </div>
-                <p className="mt-1 text-xs" style={{ color: "var(--text3)" }}>
-                  {p.total_tasks} tasks · status: {p.status}
-                </p>
+
+                {/* เส้นทางของโปรเจกต์ — เห็นจากหน้ารวมว่าติดอยู่ขั้นไหน ไม่ต้องเปิดเข้าไปทีละอัน */}
+                <div className="mt-3 space-y-1.5">
+                  <StageBar pipeline={p.pipeline} compact />
+                  <NextAction pipeline={p.pipeline} />
+                </div>
 
                 {p.total_tasks > 0 && (
                   <div className="mt-3 flex h-2 overflow-hidden rounded-full" style={{ background: "#f0f1f8" }}>
@@ -119,5 +135,89 @@ export default function PortfolioPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+/** ไอเดียเก่าที่ยังกองอยู่ในดิสก์ — ดึงขึ้นบอร์ดได้ (มติผู้ใช้ 2026-08-15)
+ *  ซ่อนตัวเองเมื่อไม่มีอะไรใหม่ให้ดึง — ไม่รบกวนหน้าจอในวันปกติ */
+function IdeaInbox({ onImported }: { onImported: () => void }) {
+  const [preview, setPreview] = useState<IdeaPreview | null>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+
+  async function look() {
+    setBusy(true);
+    try {
+      setPreview(await api.ideaPreview());
+      setOpen(true);
+    } catch {
+      setPreview(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pull() {
+    setBusy(true);
+    try {
+      const created = await api.importIdeas();
+      setDone(`ดึงขึ้นบอร์ดแล้ว ${created.length} ไอเดีย`);
+      setOpen(false);
+      setPreview(null);
+      onImported();
+    } catch (e) {
+      setDone(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card flex flex-col gap-2 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-semibold">💡 ไอเดียที่เก็บไว้ในเครื่อง</span>
+        <button className="btn-ghost" onClick={look} disabled={busy}>
+          {busy ? "กำลังดู…" : "ดูว่ามีอะไรบ้าง"}
+        </button>
+      </div>
+
+      {done && (
+        <p className="text-xs" style={{ color: "var(--ok)" }}>{done}</p>
+      )}
+
+      {open && preview && (
+        <div className="space-y-2">
+          <p className="text-xs" style={{ color: "var(--text2)" }}>
+            เจอ {preview.found} เรื่อง · อยู่บนบอร์ดแล้ว {preview.already_on_board} ·
+            ยังไม่ได้ดึง <b>{preview.items.length}</b>
+          </p>
+          <p className="font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
+            {preview.roots.join(" · ")}
+          </p>
+          {preview.items.length > 0 && (
+            <>
+              <ul className="max-h-48 space-y-1 overflow-y-auto text-xs" style={{ color: "var(--text2)" }}>
+                {preview.items.map((i) => (
+                  <li key={`${i.source_root}/${i.name}`} className="flex items-center gap-2">
+                    <span>{i.is_folder ? "📁" : "📄"}</span>
+                    <span className="truncate">{i.name}</span>
+                    <span className="chip">{i.updated || "—"}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex items-center gap-3">
+                <button className="btn-primary" onClick={pull} disabled={busy}>
+                  ดึงขึ้นบอร์ดทั้งหมด
+                </button>
+                <span className="text-[11px]" style={{ color: "var(--text3)" }}>
+                  ไฟล์ต้นทางไม่ถูกย้าย/แก้/ลบ · ยิงซ้ำได้ ของเดิมถูกข้าม
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

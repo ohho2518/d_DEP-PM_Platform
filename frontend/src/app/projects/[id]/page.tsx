@@ -1,8 +1,9 @@
 "use client";
 // Kanban Board + Agent Office (การ์ตูน agent แสดงสถานะจริง) + Task detail / Message Log
 // โทนสีตาม ai-dev-team-complete.html
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import AgentOffice from "@/components/AgentOffice";
+import { NextAction, StageBar } from "@/components/StageBar";
 import { api } from "@/lib/api";
 import { usePolling } from "@/lib/usePolling";
 import {
@@ -11,6 +12,7 @@ import {
   type AgentMessage,
   type DeliverableResult,
   type Project,
+  type ProjectStages,
   type ProjectUsage,
   type RunSummary,
   type Task,
@@ -63,6 +65,8 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   const [notice, setNotice] = useState<string | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [usage, setUsage] = useState<ProjectUsage | null>(null);
+  const [pipeline, setPipeline] = useState<ProjectStages | null>(null);
+  const [promoting, setPromoting] = useState(false);
   const [reporting, setReporting] = useState(false);
 
   const running = run?.status === "running";
@@ -73,12 +77,18 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
     api.getProject(projectId).then(setProject).catch(() => setProject(null));
   }, [projectId]);
 
-  // ค่าใช้จ่ายโดยประมาณ — โหลดตอนเปิดหน้าและตอนรอบรันจบ · จงใจไม่ poll ระหว่างรัน
-  // (ตัวเลขขยับต่อ task ไม่ใช่ต่อวินาที และหน้านี้ poll สองอย่างอยู่แล้ว)
+  // เส้นทาง 6 ขั้น — โหลดใหม่ทุกครั้งที่ task เปลี่ยน (ขั้นคำนวณจาก task/โฟลเดอร์/deployment)
+  const reloadPipeline = useCallback(() => {
+    api.projectStages(projectId).then(setPipeline).catch(() => setPipeline(null));
+  }, [projectId]);
+
+  // ค่าใช้จ่ายโดยประมาณ + เส้นทาง — โหลดตอนเปิดหน้าและตอนรอบรันจบ · จงใจไม่ poll ระหว่างรัน
+  // (ทั้งคู่ขยับต่อ task ไม่ใช่ต่อวินาที และหน้านี้ poll สองอย่างอยู่แล้ว)
   useEffect(() => {
     if (running) return;
     api.projectUsage(projectId).then(setUsage).catch(() => setUsage(null));
-  }, [projectId, running]);
+    reloadPipeline();
+  }, [projectId, running, reloadPipeline]);
 
   // รอบรันอยู่ฝั่ง backend แล้ว (Phase 2) — เปิด/รีเฟรชหน้ากลางรอบก็เห็นความคืบหน้าต่อได้
   // 404 = โปรเจกต์นี้ยังไม่เคยรันในโปรเซสนี้
@@ -145,6 +155,27 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
     }
   }
 
+  /** ไอเดีย → โปรเจกต์จริง · ยังไม่สร้างโฟลเดอร์ให้ตรงนี้ (ทำต่อได้ที่ขั้นโครงสร้าง) */
+  async function promote(kind: "code" | "doc") {
+    setPromoting(true);
+    setNotice(null);
+    try {
+      const result = await api.promoteProject(projectId, { kind });
+      setProject(result.project);
+      reloadPipeline();
+      void refresh();
+      setNotice(
+        kind === "code"
+          ? "↑ ยกระดับเป็นงานมีโค้ดแล้ว — ขั้นต่อไปคือสร้างโฟลเดอร์จริงของโปรเจกต์"
+          : "↑ ยกระดับเป็นงานเอกสารแล้ว — งานที่ศึกษาไว้ยังอยู่ครบ",
+      );
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPromoting(false);
+    }
+  }
+
   async function reportToCeo() {
     setReporting(true);
     setNotice(null);
@@ -207,6 +238,37 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
           </button>
         </div>
       </div>
+
+      {/* เส้นทาง 6 ขั้น — ค่าทั้งหมดคำนวณสดฝั่ง backend จากโฟลเดอร์/task/deployment ที่มีจริง */}
+      {pipeline && (
+        <div className="card space-y-2 p-3">
+          <StageBar pipeline={pipeline} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <NextAction pipeline={pipeline} />
+            {pipeline.kind === "idea" && (
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="text-xs" style={{ color: "var(--text3)" }}>
+                  พร้อมทำจริงแล้ว? ยกระดับเป็น
+                </span>
+                <button
+                  onClick={() => promote("code")}
+                  disabled={promoting}
+                  className="btn-ghost"
+                >
+                  ↑ งานมีโค้ด
+                </button>
+                <button
+                  onClick={() => promote("doc")}
+                  disabled={promoting}
+                  className="btn-ghost"
+                >
+                  ↑ งานเอกสาร
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ไฟล์ดีไซน์ → requirement → PM แตกงาน (ADR-05 S3) — เฉพาะโปรเจกต์ที่มีโฟลเดอร์จริง */}
       {project?.local_path && (

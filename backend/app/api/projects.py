@@ -10,7 +10,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.pm import breakdown_requirement
-from app.constants import ActorType, Priority, ProjectType, RunStatus, TaskStatus
+from app.constants import (
+    ActorType,
+    Priority,
+    ProjectKind,
+    ProjectType,
+    RunStatus,
+    TaskStatus,
+)
 from app.db.session import get_db, get_session_factory
 from app.integrations.ceo_client import CeoClient, get_ceo_client
 from app.metadata.provider import get_metadata_provider
@@ -26,9 +33,14 @@ from app.schemas.project import (
     DeliverableRequest,
     DeliverableResponse,
     DesignUploadResponse,
+    IdeaImportRequest,
+    IdeaPreview,
     ProjectCreate,
     ProjectRead,
+    ProjectStages,
     ProjectUsage,
+    PromoteRequest,
+    PromoteResponse,
 )
 from app.schemas.scan import ScanResponse
 from app.schemas.task import (
@@ -42,7 +54,7 @@ from app.schemas.task import (
     TaskPlan,
     TaskRead,
 )
-from app.services import deliverables, design_files, runs, scaffold, usage
+from app.services import deliverables, design_files, ideas, runs, scaffold, stages, usage
 from app.services.audit import record_audit
 from app.services.tasks import persist_task_plan
 
@@ -62,6 +74,7 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
         name=payload.name,
         type=payload.type.value,
         repo_url=payload.repo_url,
+        kind=payload.kind.value,
     )
     db.add(project)
     record_audit(
@@ -70,17 +83,106 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
         action="project.created",
         entity_type="project",
         entity_id=None,  # id assigned on flush below
-        diff={"name": payload.name, "type": payload.type.value},
+        diff={"name": payload.name, "type": payload.type.value, "kind": payload.kind.value},
     )
     db.commit()
     db.refresh(project)
     return project
 
 
+#: ⚠️ เส้นทางที่ขึ้นต้นด้วยคำตายตัว **ต้องประกาศก่อน** `/{project_id}` เสมอ
+#: ไม่งั้น FastAPI จะจับ "ideas" เป็น project_id แล้วตอบ 422 (จับคู่ตามลำดับที่ประกาศ)
+@router.get("/ideas/preview", response_model=IdeaPreview)
+def preview_ideas(db: Session = Depends(get_db)) -> dict:
+    """ไอเดียที่กองอยู่ในดิสก์ — ดูก่อนว่าจะดึงอะไรเข้ามาบ้าง (ยังไม่เขียนอะไรทั้งสิ้น)."""
+    return ideas.preview(db)
+
+
+@router.post("/ideas/import", response_model=list[ProjectRead], status_code=status.HTTP_201_CREATED)
+def import_ideas(payload: IdeaImportRequest, db: Session = Depends(get_db)) -> list[Project]:
+    """ดึงไอเดียเก่าขึ้นบอร์ดเป็นโปรเจกต์ชนิด `idea` — **ยิงซ้ำได้ ของเดิมถูกข้าม**.
+
+    ไฟล์ต้นทางไม่ถูกย้าย/แก้/ลบ · ไอเดียที่เป็นไฟล์เดี่ยวจะไม่มี `local_path`
+    (ผูกโฟลเดอร์รวมไว้ = เปิดสิทธิ์เขียนทับของคนอื่น — รั้วของ ADR-05 ต้องแคบ)
+    """
+    created = ideas.import_ideas(db, names=payload.names or None)
+    for project in created:
+        record_audit(
+            db,
+            actor_type=ActorType.HUMAN,
+            action="project.idea_imported",
+            entity_type="project",
+            entity_id=str(project.id),
+            diff={"name": project.name, "local_path": project.local_path},
+        )
+    db.commit()
+    for project in created:
+        db.refresh(project)
+    return created
+
+
 @router.get("/{project_id}", response_model=ProjectRead)
 def get_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> Project:
     """รายละเอียดโปรเจกต์ — UI ใช้รู้ว่ามาจาก d_CEO ไหม (`ceo_task_id`)."""
     return _get_project_or_404(db, project_id)
+
+
+@router.get("/{project_id}/stages", response_model=ProjectStages)
+def get_project_stages(project_id: uuid.UUID, db: Session = Depends(get_db)) -> dict:
+    """เส้นทาง 6 ขั้นของโปรเจกต์นี้ — **คำนวณสด** จากโฟลเดอร์/task/deployment ที่มีอยู่จริง."""
+    project = _get_project_or_404(db, project_id)
+    return stages.project_stages(db, project)
+
+
+@router.post("/{project_id}/promote", response_model=PromoteResponse)
+def promote_project(
+    project_id: uuid.UUID, payload: PromoteRequest, db: Session = Depends(get_db)
+) -> dict:
+    """ยกระดับไอเดีย → โปรเจกต์จริง โดย**เก็บงานที่ศึกษาไว้แล้วทั้งหมด**.
+
+    ใส่ `target` = สร้างโฟลเดอร์จริงให้ในคราวเดียว (เหมือน `/bootstrap`) ·
+    ไม่ใส่ = เปลี่ยนชนิดงานอย่างเดียว ค่อยไปสร้างโฟลเดอร์ทีหลังได้
+    """
+    project = _get_project_or_404(db, project_id)
+    if project.kind != ProjectKind.IDEA.value:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"ยกระดับได้เฉพาะโปรเจกต์ชนิดไอเดีย — ตัวนี้เป็น '{project.kind}' อยู่แล้ว",
+        )
+
+    result: dict = {"target": "", "created": [], "steps": []}
+    if payload.target.strip():
+        try:
+            manifest = scaffold.scaffold(
+                payload.target,
+                project.name,
+                purpose=payload.purpose,
+                stack=payload.stack,
+                is_python=payload.is_python,
+                relation=payload.relation,
+            )
+        except scaffold.ScaffoldError as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+        project.local_path = manifest["target"]
+        result = {
+            "target": manifest["target"],
+            "created": manifest["created"],
+            "steps": manifest["steps"],
+        }
+
+    was = project.kind
+    project.kind = payload.kind.value
+    record_audit(
+        db,
+        actor_type=ActorType.HUMAN,
+        action="project.promoted",
+        entity_type="project",
+        entity_id=str(project.id),
+        diff={"kind": {"from": was, "to": project.kind}, "target": result["target"]},
+    )
+    db.commit()
+    db.refresh(project)
+    return {"project": project, **result}
 
 
 @router.post("/bootstrap", response_model=BootstrapResponse, status_code=status.HTTP_201_CREATED)

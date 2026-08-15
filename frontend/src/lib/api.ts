@@ -11,11 +11,16 @@ import type {
   DeliverableResult,
   DeploymentList,
   DesignUploadResult,
+  IdeaPreview,
   LlmSettings,
   LlmSettingsUpdate,
   Portfolio,
   Project,
+  ProjectKind,
+  ProjectStages,
   ProjectUsage,
+  PromoteRequest,
+  PromoteResult,
   ProviderTestResult,
   RunSummary,
   Task,
@@ -48,10 +53,35 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   portfolio: () => request<Portfolio>("/api/portfolio"),
 
-  createProject: (body: { name: string; type: "new" | "existing"; repo_url?: string }) =>
-    request<Project>("/api/projects", { method: "POST", body: JSON.stringify(body) }),
+  createProject: (body: {
+    name: string;
+    type: "new" | "existing";
+    repo_url?: string;
+    kind?: ProjectKind;
+  }) => request<Project>("/api/projects", { method: "POST", body: JSON.stringify(body) }),
 
   getProject: (projectId: string) => request<Project>(`/api/projects/${projectId}`),
+
+  /** เส้นทาง 6 ขั้นของโปรเจกต์ — คำนวณสดจากของจริง ไม่ใช่ค่าที่เก็บไว้ */
+  projectStages: (projectId: string) =>
+    request<ProjectStages>(`/api/projects/${projectId}/stages`),
+
+  /** ยกระดับไอเดีย → โปรเจกต์จริง (ใส่ target = สร้างโฟลเดอร์ให้ในคราวเดียว) */
+  promoteProject: (projectId: string, body: PromoteRequest) =>
+    request<PromoteResult>(`/api/projects/${projectId}/promote`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  /** ไอเดียเก่าที่ยังไม่อยู่บนบอร์ด — ดูก่อนดึง (ไม่เขียนอะไร) */
+  ideaPreview: () => request<IdeaPreview>("/api/projects/ideas/preview"),
+
+  /** ดึงไอเดียเก่าขึ้นบอร์ด — ยิงซ้ำได้ ของเดิมถูกข้าม */
+  importIdeas: (names?: string[]) =>
+    request<Project[]>("/api/projects/ideas/import", {
+      method: "POST",
+      body: JSON.stringify({ names: names ?? [] }),
+    }),
 
   /** เปิดโปรเจกต์ใหม่ "ของจริง" — สร้างโฟลเดอร์ + เอกสาร + git แล้วลงบอร์ดในคราวเดียว (ADR-05) */
   bootstrapProject: (body: BootstrapRequest) =>
