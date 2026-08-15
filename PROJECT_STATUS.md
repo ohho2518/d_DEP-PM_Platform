@@ -298,7 +298,8 @@ git show --stat <hash>             # ไฟล์ที่เปลี่ยน�
 ## Current State
 
 - **pytest 214/214 ผ่าน · ruff clean · `npm run build` ผ่าน** (วัด 2026-08-15)
-- **เปิดระบบด้วย `Start-DEP-PM.exe`** ที่รากรีโป — cold start วัดได้ **7.8 วินาที**
+- **เปิดระบบด้วยชอร์ตคัต "เปิดระบบ DEP-PM" บนหน้า Desktop** (→ `Start-DEP-PM.exe` ที่รากรีโป)
+  — cold start วัดได้ **7.8 วินาที**
   · ไม่สตาร์ตซ้อน · ไม่แตะ `:8000`/`:8400` · log อยู่ที่ `logs\` (ดู `tools/launcher/README.md`)
 - **ผู้ให้บริการ AI ใช้ได้ครบ 3 เจ้า** (ยิงจริง 2026-08-14): Anthropic ✅ · OpenAI ✅ · Gemini ✅
   · **chain ที่ใช้อยู่จริง: `anthropic → openai → google`** · `AGENT_MODE=solo`
