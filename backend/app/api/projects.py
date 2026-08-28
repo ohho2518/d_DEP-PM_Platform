@@ -33,6 +33,7 @@ from app.schemas.project import (
     DeliverableRequest,
     DeliverableResponse,
     DesignUploadResponse,
+    GitCommitResponse,
     IdeaImportRequest,
     IdeaPreview,
     ProjectCreate,
@@ -41,6 +42,7 @@ from app.schemas.project import (
     ProjectUsage,
     PromoteRequest,
     PromoteResponse,
+    ScaffoldOptions,
 )
 from app.schemas.scan import ScanResponse
 from app.schemas.task import (
@@ -121,6 +123,23 @@ def import_ideas(payload: IdeaImportRequest, db: Session = Depends(get_db)) -> l
     return created
 
 
+@router.get("/scaffold-options", response_model=ScaffoldOptions)
+def scaffold_options() -> dict:
+    """ตัวเลือกของฟอร์มเปิดโปรเจกต์ใหม่ — รากที่อนุญาต + โฟลเดอร์ทีมที่มีอยู่จริงบนดิสก์.
+
+    คืนสิ่งที่ `new-project-studio` เคยฝังมากับหน้า HTML ของมัน: คนเลือก **ทีมเจ้าของ**
+    แล้วระบบประกอบ path ให้เอง แทนการพิมพ์ path เต็มเอง (พิมพ์เองพลาดกฎจัดระเบียบ
+    2026-07-25 ได้ง่าย — โปรเจกต์ต้องอยู่ใต้โฟลเดอร์ทีม ไม่ใช่ที่รากของ Dev_Proj)
+
+    อ่านอย่างเดียว ไม่แตะดิสก์ · ไม่มีโฟลเดอร์ทีมเลย → `teams: []` แล้วฟอร์มกลับไปพิมพ์เอง
+    """
+    return {
+        "allowed_root": str(scaffold.allowed_root()),
+        "teams": scaffold.list_teams(),
+        "inbox": scaffold.INBOX_DIR,
+    }
+
+
 @router.get("/{project_id}", response_model=ProjectRead)
 def get_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> Project:
     """รายละเอียดโปรเจกต์ — UI ใช้รู้ว่ามาจาก d_CEO ไหม (`ceo_task_id`)."""
@@ -194,6 +213,9 @@ def bootstrap_project(payload: BootstrapRequest, db: Session = Depends(get_db)) 
 
     ลำดับตั้งใจ: **scaffold ก่อน แล้วค่อยลงบอร์ด** — ถ้าสร้างโฟลเดอร์ไม่ได้จะได้ไม่มี
     project ค้างในระบบที่ไม่มีของจริงรองรับ · ไม่ auto-commit git (คนต้องตรวจก่อนเสมอ)
+
+    `kind` (`code`/`doc`) ตัดสินเส้นทาง 6 ขั้นของโปรเจกต์นี้ — `idea` ถูกปฏิเสธตั้งแต่
+    ชั้น validate (**422**) เพราะไอเดียคือสิ่งที่ยังไม่ลงมือ จึงไม่ควรมีโฟลเดอร์จริง
     """
     try:
         manifest = scaffold.scaffold(
@@ -210,7 +232,10 @@ def bootstrap_project(payload: BootstrapRequest, db: Session = Depends(get_db)) 
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
     project = Project(
-        name=payload.name, type=ProjectType.NEW.value, local_path=manifest["target"]
+        name=payload.name,
+        type=ProjectType.NEW.value,
+        kind=payload.kind.value,
+        local_path=manifest["target"],
     )
     db.add(project)
     db.flush()
@@ -234,7 +259,12 @@ def bootstrap_project(payload: BootstrapRequest, db: Session = Depends(get_db)) 
         action="project.bootstrapped",
         entity_type="project",
         entity_id=None,
-        diff={"name": payload.name, "target": manifest["target"], "relation": payload.relation},
+        diff={
+            "name": payload.name,
+            "target": manifest["target"],
+            "relation": payload.relation,
+            "kind": payload.kind.value,
+        },
     )
     db.commit()
     db.refresh(project)
@@ -324,6 +354,35 @@ def _project_dir_or_400(project: Project) -> Path:
             status.HTTP_400_BAD_REQUEST, f"ไม่พบโฟลเดอร์ของโปรเจกต์: {folder}"
         )
     return folder
+
+
+@router.post("/{project_id}/commit", response_model=GitCommitResponse)
+def commit_project(project_id: uuid.UUID, db: Session = Depends(get_db)) -> dict:
+    """commit แรกของโปรเจกต์ที่เพิ่งเปิด — **คนเป็นคนกด** ไม่ใช่ของอัตโนมัติ.
+
+    ปุ่มเดียวกับที่ `new-project-studio` เคยมีข้างสรุปผล bootstrap: ระบบสร้างเอกสารให้
+    แต่ไม่ commit ให้เอง เพราะคนต้องได้ตรวจช่อง `Need confirmation` ก่อนเสมอ
+    (`scaffold.git_commit_initial` มีมาตั้งแต่ ADR-05 แต่ยังไม่เคยมีทางเรียกจากหน้าเว็บ)
+
+    ไม่มีอะไรให้ commit = **ไม่ใช่ error** — คืนข้อความบอกว่า clean อยู่แล้ว
+    """
+    project = _get_project_or_404(db, project_id)
+    folder = _project_dir_or_400(project)
+    try:
+        detail = scaffold.git_commit_initial(folder)
+    except scaffold.ScaffoldError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+    record_audit(
+        db,
+        actor_type=ActorType.HUMAN,
+        action="project.committed",
+        entity_type="project",
+        entity_id=str(project.id),
+        diff={"target": str(folder), "detail": detail},
+    )
+    db.commit()
+    return {"detail": detail}
 
 
 @router.post("/{project_id}/design-files", response_model=DesignUploadResponse)

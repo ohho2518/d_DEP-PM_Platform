@@ -11,6 +11,7 @@ import type {
   DeliverableResult,
   DeploymentList,
   DesignUploadResult,
+  GitCommitResult,
   IdeaPreview,
   LlmSettings,
   LlmSettingsUpdate,
@@ -23,6 +24,7 @@ import type {
   PromoteResult,
   ProviderTestResult,
   RunSummary,
+  ScaffoldOptions,
   Task,
   TaskList,
   TaskStatus,
@@ -83,12 +85,19 @@ export const api = {
       body: JSON.stringify({ names: names ?? [] }),
     }),
 
+  /** ราก + โฟลเดอร์ทีมที่มีอยู่จริง — ฟอร์มใช้ประกอบ path ปลายทางให้ผู้ใช้ */
+  scaffoldOptions: () => request<ScaffoldOptions>("/api/projects/scaffold-options"),
+
   /** เปิดโปรเจกต์ใหม่ "ของจริง" — สร้างโฟลเดอร์ + เอกสาร + git แล้วลงบอร์ดในคราวเดียว (ADR-05) */
   bootstrapProject: (body: BootstrapRequest) =>
     request<BootstrapResult>("/api/projects/bootstrap", {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  /** commit แรกของโปรเจกต์ที่เพิ่งเปิด — **คนกดเอง** ระบบไม่ commit ให้อัตโนมัติ */
+  commitProject: (projectId: string) =>
+    request<GitCommitResult>(`/api/projects/${projectId}/commit`, { method: "POST" }),
 
   deleteProject: (projectId: string) =>
     request<unknown>(`/api/projects/${projectId}`, { method: "DELETE" }),

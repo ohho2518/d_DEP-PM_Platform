@@ -264,10 +264,30 @@ export type ProjectRelation =
   | "eco-team"
   | "eco-core";
 
+export interface ScaffoldTeam {
+  name: string;
+  /** คำอธิบายสั้น ๆ ว่าโฟลเดอร์นี้ของใคร */
+  hint: string;
+}
+
+/** ตัวเลือกของฟอร์มเปิดโปรเจกต์ใหม่ — **ราก/รายชื่อทีมมาจาก backend เท่านั้น ห้าม hardcode** */
+export interface ScaffoldOptions {
+  allowed_root: string;
+  teams: ScaffoldTeam[];
+  /** ชื่อโฟลเดอร์พักของใหม่ที่ยังไม่รู้ทีม (ค่าเริ่มต้นของฟอร์ม) */
+  inbox: string;
+}
+
+export interface GitCommitResult {
+  detail: string;
+}
+
 export interface BootstrapRequest {
   name: string;
   /** โฟลเดอร์ปลายทาง — ต้องอยู่ใต้ SCAFFOLD_ALLOWED_ROOT ของ backend */
   target: string;
+  /** ชนิดงาน — `idea` ส่งมาไม่ได้ (ยังไม่ลงมือ = ไม่ควรมีโฟลเดอร์จริง) · ไม่ส่ง = `code` */
+  kind?: Exclude<ProjectKind, "idea">;
   purpose?: string;
   stack?: string;
   is_python?: boolean;

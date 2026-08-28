@@ -3,9 +3,15 @@
 // กรอกข้อมูล → (new) ส่ง requirement ให้ PM Agent แตกงาน / (existing) สั่ง scan
 // → เห็น task plan → ยืนยัน scope → ไปที่บอร์ด
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import type { BootstrapResult, ProjectKind, ProjectRelation, Task } from "@/lib/types";
+import type {
+  BootstrapResult,
+  ProjectKind,
+  ProjectRelation,
+  ScaffoldOptions,
+  Task,
+} from "@/lib/types";
 
 /** ชนิดงาน — ตัดสินว่าเส้นทาง 6 ขั้นเปิดขั้นไหนบ้าง (ต้องตรงกับ `constants.ProjectKind`) */
 const KINDS: { value: ProjectKind; label: string; hint: string }[] = [
@@ -26,6 +32,12 @@ const RELATIONS: { value: ProjectRelation; label: string }[] = [
   { value: "eco-core", label: "Ecosystem — แกนกลาง d_CEO/d_Jarvis (+ contract)" },
 ];
 
+/** ชั้นที่ติ๊ก "เป็น Product/Service ด้วย" ได้ — ต้องตรงกับ `_DUAL_PS_RELATIONS` ฝั่ง backend */
+const DUAL_PS_RELATIONS: ProjectRelation[] = ["eco-team", "middleware"];
+
+/** รากสำรองตอนที่ยังโหลด scaffold-options ไม่เสร็จ (หรือ backend ตอบไม่ได้) */
+const FALLBACK_ROOT = "D:\\Dev_Proj";
+
 export default function NewProjectPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("form");
@@ -39,29 +51,97 @@ export default function NewProjectPage() {
   const [requirement, setRequirement] = useState("");
 
   // โหมด bootstrap — สร้างโฟลเดอร์จริงบนดิสก์ (ADR-05)
-  const [target, setTarget] = useState("D:\\Dev_Proj\\");
+  const [options, setOptions] = useState<ScaffoldOptions | null>(null);
+  const [teamDir, setTeamDir] = useState("");
+  /** ผู้ใช้พิมพ์ path เอง = หยุดประกอบให้อัตโนมัติ (เลือกทีมใหม่ = กลับมา auto) */
+  const [typedTarget, setTypedTarget] = useState("");
+  const [targetTouched, setTargetTouched] = useState(false);
   const [purpose, setPurpose] = useState("");
   const [stack, setStack] = useState("");
   const [relation, setRelation] = useState<ProjectRelation>("general");
+  const [ecoTeam, setEcoTeam] = useState("");
+  const [dualPs, setDualPs] = useState(false);
   const [isPython, setIsPython] = useState(true);
+  const [designFiles, setDesignFiles] = useState<File[]>([]);
   const [manifest, setManifest] = useState<BootstrapResult | null>(null);
+  const [savedDesign, setSavedDesign] = useState<string[]>([]);
+  const [designError, setDesignError] = useState<string | null>(null);
+  const [commitMsg, setCommitMsg] = useState<string | null>(null);
+  const [committing, setCommitting] = useState(false);
 
   const [projectId, setProjectId] = useState<string | null>(null);
   const [plan, setPlan] = useState<Task[]>([]);
   const [source, setSource] = useState<string>("");
 
+  const root = options?.allowed_root ?? FALLBACK_ROOT;
+
+  // ราก + โฟลเดอร์ทีมมาจาก backend เสมอ (เปลี่ยน SCAFFOLD_ALLOWED_ROOT แล้วฟอร์มตามทันที)
+  // ตั้งค่าเริ่มต้นเป็น _INBOX เหมือน new-project-studio — ที่พักของใหม่ที่ยังไม่รู้ทีม
+  useEffect(() => {
+    let alive = true;
+    api
+      .scaffoldOptions()
+      .then((opts) => {
+        if (!alive) return;
+        setOptions(opts);
+        if (opts.teams.some((t) => t.name === opts.inbox)) setTeamDir(opts.inbox);
+      })
+      .catch(() => {
+        /* โหลดไม่ได้ = พิมพ์ path เองเหมือนเดิม ไม่ต้องขึ้น error ทั้งหน้า */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // `<ราก>\<ทีม>\<ชื่อโปรเจกต์>` — คิดสดตอน render (ไม่เก็บเป็น state คู่ขนาน ไม่งั้นต้องมี
+  // effect คอยไล่ให้ตรงกันเอง) · ทีมว่าง = วางที่ราก ซึ่ง backend เตือนให้เองใน steps
+  const target = targetTouched
+    ? typedTarget
+    : `${root}${teamDir ? `\\${teamDir}` : ""}\\${name.trim()}`;
+
   async function submitBootstrap() {
     const result = await api.bootstrapProject({
       name,
       target,
+      // ชนิดงานที่เลือกไว้ข้างบน — เส้นทาง 6 ขั้นของโปรเจกต์ขึ้นกับค่านี้
+      // (`idea` มาไม่ถึงตรงนี้: เลือกไอเดียแล้วฟอร์มจะไม่มีโหมด bootstrap ให้เลือก)
+      kind: kind === "idea" ? "code" : kind,
       purpose,
       stack,
       relation,
       is_python: isPython,
+      team: relation === "eco-team" ? ecoTeam : "",
+      dual_ps: DUAL_PS_RELATIONS.includes(relation) ? dualPs : false,
     });
     setManifest(result);
     setProjectId(result.project.id);
+
+    // ไฟล์ดีไซน์ที่แนบมาตอนเปิดโปรเจกต์ → `_design_input/` (ยังไม่เรียก AI — ส่งให้ PM ที่บอร์ด)
+    // แนบไม่สำเร็จต้อง**ไม่กลบ**ความจริงว่าโฟลเดอร์ถูกสร้างไปแล้ว
+    if (designFiles.length) {
+      try {
+        const uploaded = await api.uploadDesignFiles(result.project.id, designFiles);
+        setSavedDesign(uploaded.saved);
+      } catch (err) {
+        setDesignError(err instanceof Error ? err.message : String(err));
+      }
+    }
     setStep("bootstrapped");
+  }
+
+  async function commitNow() {
+    if (!projectId) return;
+    setCommitting(true);
+    setCommitMsg(null);
+    try {
+      const res = await api.commitProject(projectId);
+      setCommitMsg(`✅ ${res.detail}`);
+    } catch (err) {
+      setCommitMsg(`❌ ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setCommitting(false);
+    }
   }
 
   async function submitForm(e: React.FormEvent) {
@@ -194,15 +274,54 @@ export default function NewProjectPage() {
             <div className="space-y-4">
               <label className="block">
                 <span className="mb-1 block text-sm" style={{ color: "var(--text2)" }}>
-                  โฟลเดอร์ปลายทาง (ต้องอยู่ใต้ D:\Dev_Proj)
+                  ทีมเจ้าของ (โฟลเดอร์ปลายทาง)
+                </span>
+                <select
+                  value={teamDir}
+                  onChange={(e) => {
+                    // เลือกทีม = สั่งชัดเจน → กลับมาประกอบ path ให้อัตโนมัติอีกครั้ง
+                    setTeamDir(e.target.value);
+                    setTargetTouched(false);
+                  }}
+                  className="input"
+                >
+                  <option value="">
+                    {options?.teams.length
+                      ? "— พิมพ์ path เอง (วางที่ราก ผิดกฎจัดระเบียบ) —"
+                      : "— พิมพ์ path เอง —"}
+                  </option>
+                  {options?.teams.map((t) => (
+                    <option key={t.name} value={t.name}>
+                      {t.hint ? `${t.name} — ${t.hint}` : t.name}
+                    </option>
+                  ))}
+                </select>
+                {teamDir && (
+                  <span className="mt-1 block font-mono text-xs" style={{ color: "var(--text3)" }}>
+                    📁 {root}\{teamDir}
+                  </span>
+                )}
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm" style={{ color: "var(--text2)" }}>
+                  โฟลเดอร์ปลายทาง (ต้องอยู่ใต้ {root})
                 </span>
                 <input
                   required
                   value={target}
-                  onChange={(e) => setTarget(e.target.value)}
+                  onChange={(e) => {
+                    setTypedTarget(e.target.value);
+                    setTargetTouched(true);
+                  }}
                   className="input font-mono text-sm"
-                  placeholder="D:\Dev_Proj\4_RND\d_ProjectName"
+                  placeholder={`${root}\\4_RND\\d_ProjectName`}
                 />
+                <span className="mt-1 block text-xs" style={{ color: "var(--text3)" }}>
+                  {targetTouched
+                    ? "พิมพ์เอง — เลือกทีมใหม่เมื่อไหร่ ระบบจะกลับมาประกอบ path ให้"
+                    : "ประกอบให้จาก ทีม + ชื่อโปรเจกต์ — แก้เองได้"}
+                </span>
               </label>
 
               <label className="block">
@@ -241,6 +360,31 @@ export default function NewProjectPage() {
                 </select>
               </label>
 
+              {relation === "eco-team" && (
+                <label className="block">
+                  <span className="mb-1 block text-sm" style={{ color: "var(--text2)" }}>
+                    สังกัดทีมไหนใน ecosystem (ต่อท้ายบรรทัด Ecosystem ใน AGENTS.md)
+                  </span>
+                  <input
+                    value={ecoTeam}
+                    onChange={(e) => setEcoTeam(e.target.value)}
+                    className="input"
+                    placeholder="เช่น Marketing Team — d_MOS"
+                  />
+                </label>
+              )}
+
+              {DUAL_PS_RELATIONS.includes(relation) && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={dualPs}
+                    onChange={(e) => setDualPs(e.target.checked)}
+                  />
+                  ตัวนี้เป็น Product/Service ด้วย (ขาย/ให้บริการภายนอก)
+                </label>
+              )}
+
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -250,9 +394,12 @@ export default function NewProjectPage() {
                 เป็นงาน Python (เขียน requirements.txt + .env.example ให้)
               </label>
 
+              <DesignDropZone files={designFiles} onChange={setDesignFiles} />
+
               <p className="text-xs" style={{ color: "var(--text3)" }}>
                 ขั้นนี้ <b>ไม่เรียก AI เลย</b> — ได้โฟลเดอร์ + เอกสารกำกับ + git init เสมอ ·
-                <b>ไม่ commit ให้</b> คุณตรวจเองก่อน · การเติมเนื้อหาเอกสารเป็นงานบนบอร์ดคนละขั้น
+                <b>ไม่ commit ให้</b> คุณตรวจเองก่อน (มีปุ่ม commit ให้กดหลังตรวจ) ·
+                การเติมเนื้อหาเอกสารเป็นงานบนบอร์ดคนละขั้น
               </p>
             </div>
           ) : type === "new" ? (
@@ -316,6 +463,22 @@ export default function NewProjectPage() {
                 <li key={i}>· {s}</li>
               ))}
             </ul>
+            {savedDesign.length > 0 && (
+              <p className="mt-3 text-sm" style={{ color: "var(--text2)" }}>
+                📎 ไฟล์ดีไซน์ที่เก็บไว้ใน <span className="font-mono text-xs">_design_input\</span>:{" "}
+                {savedDesign.join(", ")} —{" "}
+                <span style={{ color: "var(--text3)" }}>
+                  ส่งให้ PM แตกงานได้ที่แผง &ldquo;ไฟล์ดีไซน์&rdquo; บนบอร์ด
+                </span>
+              </p>
+            )}
+            {designError && (
+              <p className="mt-3 text-sm" style={{ color: "var(--danger)" }}>
+                ⚠️ โฟลเดอร์สร้างเรียบร้อยแล้ว แต่แนบไฟล์ดีไซน์ไม่สำเร็จ: {designError}
+                <br />
+                ลองแนบใหม่ได้ที่แผง &ldquo;ไฟล์ดีไซน์&rdquo; บนบอร์ด
+              </p>
+            )}
             <details className="mt-3 text-sm">
               <summary style={{ color: "var(--text3)" }}>
                 ไฟล์ที่สร้าง ({manifest.created.length})
@@ -327,13 +490,24 @@ export default function NewProjectPage() {
           </div>
 
           <p className="text-sm" style={{ color: "var(--text2)" }}>
-            ยังไม่ commit ให้ — เปิดโฟลเดอร์ตรวจก่อน แล้ว commit เองตามปกติ ·
+            ยังไม่ commit ให้ — เปิดโฟลเดอร์ตรวจช่อง <code>Need confirmation</code> ก่อน
+            แล้วค่อยกดปุ่มข้างล่าง (หรือ commit เองจากเทอร์มินัลก็ได้) ·
             บนบอร์ดมี task <b>&quot;Sign-off เอกสารกำกับก่อนเริ่มงาน&quot;</b> รออยู่แล้ว
           </p>
 
-          <button onClick={() => router.push(`/projects/${projectId}`)} className="btn-primary">
-            ไปที่บอร์ด
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button onClick={() => router.push(`/projects/${projectId}`)} className="btn-primary">
+              ไปที่บอร์ด
+            </button>
+            <button onClick={commitNow} disabled={committing} className="btn-ghost">
+              {committing ? "กำลัง commit…" : "📌 Commit เลย"}
+            </button>
+            {commitMsg && (
+              <span className="text-sm" style={{ color: "var(--text2)" }}>
+                {commitMsg}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -389,6 +563,78 @@ export default function NewProjectPage() {
             )}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** ช่องลากไฟล์ดีไซน์/สเปกมาแนบตอนเปิดโปรเจกต์ (เหมือน new-project-studio)
+ *  ไฟล์ถูกเก็บลง `_design_input/` หลัง bootstrap สำเร็จ — **ยังไม่เรียก AI ที่นี่** */
+function DesignDropZone({
+  files,
+  onChange,
+}: {
+  files: File[];
+  onChange: (files: File[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [hot, setHot] = useState(false);
+
+  function add(list: FileList | null) {
+    if (!list?.length) return;
+    onChange([...files, ...Array.from(list)]);
+  }
+
+  return (
+    <div>
+      <span className="mb-1 block text-sm" style={{ color: "var(--text2)" }}>
+        ไฟล์ดีไซน์/สเปก (ถ้ามี) — .md / .txt / .pdf / .docx / รูป
+      </span>
+      <div
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setHot(true);
+        }}
+        onDragLeave={() => setHot(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setHot(false);
+          add(e.dataTransfer.files);
+        }}
+        className="cursor-pointer rounded-lg border-2 border-dashed p-5 text-center text-sm"
+        style={{
+          borderColor: hot ? "var(--claude)" : "var(--border)",
+          color: "var(--text3)",
+        }}
+      >
+        📎 ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        hidden
+        onChange={(e) => {
+          add(e.target.files);
+          e.target.value = ""; // เลือกไฟล์ชื่อเดิมซ้ำได้ (ไม่งั้น onChange ไม่ยิง)
+        }}
+      />
+      {files.length > 0 && (
+        <ul className="mt-2 space-y-1 text-sm" style={{ color: "var(--text2)" }}>
+          {files.map((f, i) => (
+            <li key={`${f.name}-${i}`} className="flex items-center gap-2">
+              <span>📄 {f.name}</span>
+              <button
+                type="button"
+                onClick={() => onChange(files.filter((_, j) => j !== i))}
+                style={{ color: "var(--text3)" }}
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

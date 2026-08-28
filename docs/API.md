@@ -353,10 +353,25 @@ Side effects ต่องาน: สร้าง project (`ceo_task_id` ผู�
 > ระบบนี้ยังไม่มี authentication ⇒ **bind `127.0.0.1` เท่านั้น** (docs/SECURITY.md) ·
 > ขาออก**ไม่มีคีย์เต็มเด็ดขาด** (mask อย่างเดียว)
 
+### 1.2.1) `GET /api/projects/scaffold-options` — ตัวเลือกของฟอร์มเปิดโปรเจกต์ใหม่
+```json
+{ "allowed_root": "D:\\Dev_Proj",
+  "teams": [ { "name": "0_CORE", "hint": "เลขา/Orchestrator + ระบบกลาง" },
+             { "name": "4_RND", "hint": "วิจัยและพัฒนา" },
+             { "name": "_INBOX", "hint": "ยังไม่จัดทีม — ต้องย้ายออกภายใน 7 วัน" } ],
+  "inbox": "_INBOX" }
+```
+- อ่านอย่างเดียว ไม่แตะดิสก์ · รายชื่อทีม**อ่านจากโฟลเดอร์จริง**ใต้ `SCAFFOLD_ALLOWED_ROOT`
+  (ขึ้นต้นด้วย `<เลข>_` + `_INBOX`) — เพิ่มทีมใหม่แล้วฟอร์มเห็นเองโดยไม่ต้องแก้โค้ด
+- ฟอร์มใช้ประกอบ `target` = `<allowed_root>\<ทีม>\<ชื่อโปรเจกต์>` แทนให้คนพิมพ์ path เต็มเอง
+  (พฤติกรรมเดิมของ `new-project-studio` · ราก **ห้าม hardcode ฝั่ง frontend**)
+- รากไม่มีอยู่จริง/อ่านไม่ได้ → `teams: []` แล้วฟอร์มกลับไปพิมพ์เอง — ไม่ใช่ error
+- ⚠️ ต้องประกาศ route นี้**ก่อน** `/{project_id}` เสมอ ไม่งั้นถูกจับเป็น project_id → 422
+
 ### 1.3) `POST /api/projects/bootstrap` — เปิดโปรเจกต์ใหม่ **ของจริง** (ADR-05)
 Request:
 ```json
-{ "name": "d_NewThing", "target": "D:\\Dev_Proj\\4_RND\\d_NewThing",
+{ "name": "d_NewThing", "target": "D:\\Dev_Proj\\4_RND\\d_NewThing", "kind": "code",
   "purpose": "…", "stack": "Python 3.12 + FastAPI",
   "relation": "product", "is_python": true, "team": "", "dual_ps": false }
 ```
@@ -365,8 +380,20 @@ Response `201`: `{ project, target, created[], steps[], first_task_id }`
   แล้ว**ลงบอร์ดพร้อม task "Sign-off เอกสารกำกับก่อนเริ่มงาน"** ในคราวเดียว
 - **ไม่เรียก AI เลย** (deterministic ล้วน — "AI ล่ม ระบบไม่ล่ม") · **ไม่ auto-commit** git
 - `relation` กำหนดว่าจะได้เอกสารชุดไหน (`eco-core`/`eco-team` ได้ `INTEGRATION_CEO.md` เพิ่ม)
+- `kind` (`code` ปริยาย · `doc`) กำหนด**เส้นทาง 6 ขั้น**ของโปรเจกต์ที่ลงบอร์ด (§1.3 stages)
 - **400** เมื่อ target อยู่นอก `SCAFFOLD_ALLOWED_ROOT` หรือ `relation` ไม่รู้จัก
   — ตรวจก่อนแตะดิสก์ ไม่มีโฟลเดอร์/โปรเจกต์ค้าง
+- **422** เมื่อ `kind: "idea"` — ไอเดียคือสิ่งที่ยังไม่ลงมือ จึงไม่ควรมีโฟลเดอร์จริง
+  (จะเปิดโฟลเดอร์ให้ไอเดียต้องผ่าน `/promote` ซึ่งเปลี่ยนชนิดเป็น `code`/`doc` ไปพร้อมกัน)
+
+### 1.3.1) `POST /api/projects/:id/commit` — commit แรกของโปรเจกต์ที่เพิ่งเปิด
+Response `200`: `{ "detail": "git: commit แรกเรียบร้อย" }`
+- `git add -A` + commit ข้อความ `chore: initial bootstrap (new-project-studio)` ในโฟลเดอร์
+  ของโปรเจกต์นั้นเท่านั้น · ใช้ git identity ของเครื่อง
+- **ไม่มีอะไรให้ commit = ไม่ใช่ error** — คืน `"git: ไม่มีอะไรให้ commit (clean อยู่แล้ว)"`
+- 🔴 **คนเป็นคนกด** — `/bootstrap` ยัง**ไม่ commit ให้เอง** เพราะต้องได้ตรวจช่อง
+  `Need confirmation` ก่อน (ปุ่มเดียวกับที่ `new-project-studio` เคยมี)
+- **400** ถ้าโปรเจกต์ไม่มี `local_path` / โฟลเดอร์หาย / ยังไม่เป็น git repo
 
 ### 1.4) `POST /api/projects/:id/design-files` — อัปโหลดไฟล์ดีไซน์ (multipart)
 Form: `files` (หลายไฟล์) + `note` (ไม่บังคับ) →

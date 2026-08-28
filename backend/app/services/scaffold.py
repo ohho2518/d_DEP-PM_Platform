@@ -18,8 +18,12 @@ from pathlib import Path
 from app.config import get_settings
 
 
-def _allowed_root() -> Path:
-    """รากที่อนุญาตให้ scaffold ลงไปได้ — กันสร้างโฟลเดอร์นอกพื้นที่งานโดยไม่ตั้งใจ."""
+def allowed_root() -> Path:
+    """รากที่อนุญาตให้ scaffold ลงไปได้ — กันสร้างโฟลเดอร์นอกพื้นที่งานโดยไม่ตั้งใจ.
+
+    public เพราะฟอร์ม "เปิดโปรเจกต์ใหม่" ต้องรู้ค่านี้เพื่อประกอบ path ปลายทางให้ผู้ใช้
+    (ฝั่งหน้าเว็บ**ห้าม hardcode** — ไม่งั้นเปลี่ยน `SCAFFOLD_ALLOWED_ROOT` แล้วฟอร์มโกหก)
+    """
     return Path(get_settings().scaffold_allowed_root).resolve()
 
 
@@ -283,7 +287,7 @@ def list_teams() -> list[dict]:
 
     คืน [] ถ้าไม่มีโฟลเดอร์ทีมเลย → UI กลับไปเป็นแบบพิมพ์ path เองเหมือนเดิม
     """
-    root = _allowed_root()
+    root = allowed_root()
     try:
         names = sorted(
             d.name for d in root.iterdir() if d.is_dir() and _TEAM_DIR_RE.match(d.name)
@@ -303,7 +307,7 @@ def resolve_target(target: str) -> Path:
     if re.match(r"^[A-Za-z]:(?![\\/])", t):
         t = t[:2] + "\\" + t[2:]
     p = Path(t).resolve()
-    root = _allowed_root()
+    root = allowed_root()
     if root not in p.parents and p != root:
         raise ScaffoldError(
             f"target ต้องอยู่ใต้ {root} เท่านั้น — ได้ {p}"
@@ -561,7 +565,7 @@ def scaffold(
 
     steps: list[str] = []
     # เตือน (ไม่บล็อก) ถ้าวางไว้ที่รากทั้งที่มีโฟลเดอร์ทีมอยู่แล้ว — กฎจัดระเบียบ 2026-07-25
-    if target.parent == _allowed_root() and list_teams():
+    if target.parent == allowed_root() and list_teams():
         steps.append(
             "⚠ วางไว้ที่รากของ Dev_Proj — ตามกฎจัดระเบียบ โปรเจกต์ควรอยู่ใต้โฟลเดอร์ทีม "
             f"(หรือ {INBOX_DIR} ถ้ายังไม่รู้ว่าทีมไหน)"

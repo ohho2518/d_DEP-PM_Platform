@@ -110,6 +110,106 @@ def test_bootstrap_refuses_unknown_relation_before_touching_disk(client, scaffol
     assert client.get("/api/portfolio").json()["projects"] == []  # ไม่มี project ค้างบนบอร์ด
 
 
+def test_bootstrap_keeps_the_kind_the_user_picked(client, scaffold_root):
+    """เลือก "งานเอกสาร" แล้วต้องได้โปรเจกต์ `doc` — ไม่ใช่ `code` ตามค่าปริยาย.
+
+    ชนิดงานเปลี่ยนเส้นทาง 6 ขั้น (`doc` ข้ามขั้นโครงสร้าง) ⇒ เดาแทนผู้ใช้ไม่ได้
+    """
+    resp = client.post(
+        "/api/projects/bootstrap",
+        json={
+            "name": "d_คู่มือ",
+            "target": str(scaffold_root / "d_Doc"),
+            "kind": "doc",
+            "relation": "general",
+        },
+    )
+
+    assert resp.status_code == 201
+    pid = resp.json()["project"]["id"]
+    assert resp.json()["project"]["kind"] == "doc"
+    assert client.get(f"/api/projects/{pid}/stages").json()["kind"] == "doc"
+
+
+def test_bootstrap_defaults_to_code_like_before(client, scaffold_root):
+    """ไม่ส่ง `kind` = `code` เหมือนเดิมทุกประการ (ของเก่าที่ยิงมาต้องไม่เปลี่ยนความหมาย)."""
+    resp = client.post(
+        "/api/projects/bootstrap",
+        json={"name": "d_Default", "target": str(scaffold_root / "d_Default")},
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["project"]["kind"] == "code"
+
+
+def test_bootstrap_refuses_to_open_a_folder_for_an_idea(client, scaffold_root):
+    """ไอเดียคือสิ่งที่ยัง**ไม่ลงมือ** — ขอโฟลเดอร์จริงให้มันไม่ได้ (ต้องไปทาง /promote)."""
+    target = scaffold_root / "d_Idea"
+
+    resp = client.post(
+        "/api/projects/bootstrap",
+        json={"name": "d_Idea", "target": str(target), "kind": "idea"},
+    )
+
+    assert resp.status_code == 422
+    assert not target.exists()  # ปฏิเสธตั้งแต่ชั้น validate ยังไม่แตะดิสก์
+
+
+def test_scaffold_options_reads_the_team_folders_off_the_disk(client, scaffold_root):
+    """ฟอร์มต้องได้รายชื่อทีมจากของจริง — เพิ่มทีมใหม่แล้วเห็นเลยโดยไม่ต้องแก้โค้ด."""
+    (scaffold_root / "4_RND").mkdir()
+    (scaffold_root / "0_CORE").mkdir()
+    (scaffold_root / "_INBOX").mkdir()
+    (scaffold_root / "ไม่ใช่โฟลเดอร์ทีม").mkdir()
+
+    body = client.get("/api/projects/scaffold-options").json()
+
+    assert body["allowed_root"] == str(scaffold_root)
+    assert [t["name"] for t in body["teams"]] == ["0_CORE", "4_RND", "_INBOX"]
+    assert body["inbox"] == "_INBOX"
+    assert body["teams"][1]["hint"]  # ทีมที่รู้จักต้องมีคำอธิบายให้คนเลือกถูก
+
+
+def test_scaffold_options_survives_a_root_that_does_not_exist(client, monkeypatch, tmp_path):
+    """รากที่ตั้งไว้หาย = ฟอร์มกลับไปพิมพ์ path เอง **ไม่ใช่หน้าเว็บพัง**."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "scaffold_allowed_root", str(tmp_path / "ไม่มีอยู่"))
+
+    body = client.get("/api/projects/scaffold-options").json()
+
+    assert body["teams"] == []
+
+
+def test_commit_button_makes_the_first_commit(client, scaffold_root, monkeypatch):
+    from app.services import scaffold as scaffold_service
+
+    pid, folder = _bootstrap(client, scaffold_root, name="d_Commit")
+    seen: list[Path] = []
+
+    def fake_commit(target: Path) -> str:
+        seen.append(target)
+        return "git: commit แรกเรียบร้อย"
+
+    # ไม่ยิง git จริง — commit ต้องมี identity ของเครื่อง เทสต์จึงจะแกว่งตามเครื่องที่รัน
+    monkeypatch.setattr(scaffold_service, "git_commit_initial", fake_commit)
+
+    resp = client.post(f"/api/projects/{pid}/commit")
+
+    assert resp.status_code == 200
+    assert resp.json()["detail"] == "git: commit แรกเรียบร้อย"
+    assert seen == [folder]  # commit ในโฟลเดอร์ของโปรเจกต์นั้นเท่านั้น
+
+
+def test_commit_refuses_a_project_without_a_folder(client):
+    pid = _new_project(client, name="ไม่มีโฟลเดอร์").json()["id"]
+
+    resp = client.post(f"/api/projects/{pid}/commit")
+
+    assert resp.status_code == 400
+    assert "bootstrap" in resp.json()["detail"]
+
+
 # --- S3: ไฟล์ดีไซน์ + เขียนผลงานลงไฟล์จริง -----------------------------------
 
 

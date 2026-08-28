@@ -153,12 +153,33 @@ class IdeaImportRequest(BaseModel):
     names: list[str] = Field(default_factory=list)
 
 
+class ScaffoldTeam(BaseModel):
+    """โฟลเดอร์ทีมหนึ่งใบใต้ `SCAFFOLD_ALLOWED_ROOT` — อ่านจากดิสก์จริง ไม่ใช่รายชื่อตายตัว."""
+
+    name: str
+    #: คำอธิบายสั้น ๆ ว่าโฟลเดอร์นี้ของใคร (ว่าง = ไม่รู้จักชื่อนี้)
+    hint: str = ""
+
+
+class ScaffoldOptions(BaseModel):
+    """ตัวเลือกที่ฟอร์ม "เปิดโปรเจกต์ใหม่ของจริง" ต้องใช้ประกอบ path ปลายทางให้ผู้ใช้."""
+
+    #: ราก `SCAFFOLD_ALLOWED_ROOT` ที่ resolve แล้ว — frontend ห้าม hardcode เอง
+    allowed_root: str
+    teams: list[ScaffoldTeam]
+    #: ชื่อโฟลเดอร์พักของใหม่ที่ยังไม่รู้ทีม — ฟอร์มเลือกอันนี้ให้เป็นค่าเริ่มต้น
+    inbox: str
+
+
 class BootstrapRequest(BaseModel):
     """เปิดโปรเจกต์ใหม่ "ของจริง" — สร้างโฟลเดอร์ + เอกสาร + git แล้วลงบอร์ดในคราวเดียว (ADR-05)."""
 
     name: str = Field(..., min_length=1, max_length=200)
     #: โฟลเดอร์ปลายทาง — ต้องอยู่ใต้ `SCAFFOLD_ALLOWED_ROOT` เท่านั้น
     target: str = Field(..., min_length=3)
+    #: ชนิดงาน — `idea` ไม่มีที่นี่โดยตั้งใจ: ไอเดียคือสิ่งที่ยัง**ไม่ลงมือ** จึงไม่ควรมีโฟลเดอร์จริง
+    #: (เส้นทางของมันจบที่ปุ่มยกระดับ → `/promote` ซึ่งรับ code/doc เหมือนกัน)
+    kind: Literal[ProjectKind.CODE, ProjectKind.DOC] = ProjectKind.CODE
     purpose: str = ""
     stack: str = ""
     is_python: bool = True
@@ -200,3 +221,9 @@ class BootstrapResponse(BaseModel):
     steps: list[str]
     #: task แรกที่ตั้งให้บนบอร์ด (sign-off เอกสารก่อนเริ่มงาน)
     first_task_id: str
+
+
+class GitCommitResponse(BaseModel):
+    """ผลของ commit แรก — ข้อความเดียวกับที่ `new-project-studio` เคยโชว์ข้างปุ่ม."""
+
+    detail: str
