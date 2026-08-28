@@ -97,6 +97,62 @@ def test_bootstrap_refuses_a_target_outside_the_allowed_root(client, scaffold_ro
     assert not outside.exists()  # ต้องไม่แอบสร้างก่อนแล้วค่อยปฏิเสธ
 
 
+def test_bootstrap_refuses_to_open_a_project_on_top_of_the_root(client, scaffold_root):
+    """🔴 เกิดขึ้นจริง 2 ครั้ง (26 + 28 ส.ค.) — target = รากพอดี แล้วเอกสารของพื้นที่งานถูกทับ.
+
+    เดิม `resolve_target` เขียนว่า `p != root` = "รากพอดีก็ผ่าน" · ฟอร์มเก่าใส่ค่าปริยาย
+    เป็นรากไว้ในช่อง target ⇒ กด submit โดยไม่แก้ = scaffold ลงรากทันที
+    """
+    keep = scaffold_root / "AGENTS.md"
+    keep.write_text("กติกาของพื้นที่งาน ห้ามหาย", encoding="utf-8")
+    (scaffold_root / "4_RND").mkdir()
+
+    resp = client.post(
+        "/api/projects/bootstrap",
+        json={"name": "d_ทับราก", "target": str(scaffold_root)},
+    )
+
+    assert resp.status_code == 400
+    assert "ราก" in resp.json()["detail"]
+    assert keep.read_text(encoding="utf-8") == "กติกาของพื้นที่งาน ห้ามหาย"  # ของเดิมอยู่ครบ
+    assert not (scaffold_root / ".git").exists()  # ไม่ได้ git init ทับพื้นที่งานด้วย
+    assert client.get("/api/portfolio").json()["projects"] == []
+
+
+def test_bootstrap_backs_up_whatever_it_is_about_to_overwrite(client, scaffold_root):
+    """ตาข่ายชั้นสอง — ปลายทางมีของอยู่แล้ว ต้องได้สำเนาก่อนถูกทับ (WORKING_RULES Rule 1)."""
+    target = scaffold_root / "d_มีของอยู่แล้ว"
+    target.mkdir()
+    (target / "AGENTS.md").write_text("ของเดิมที่คนเขียนเอง", encoding="utf-8")
+
+    resp = client.post(
+        "/api/projects/bootstrap",
+        json={"name": "d_มีของอยู่แล้ว", "target": str(target), "relation": "product"},
+    )
+
+    assert resp.status_code == 201
+    # ไฟล์ใหม่มาจากแม่แบบ (ของเดิมถูกทับจริง) …
+    assert "ของเดิมที่คนเขียนเอง" not in (target / "AGENTS.md").read_text(encoding="utf-8")
+    # … แต่ของเดิมยังกู้ได้จากสำเนา และ steps บอกไว้ว่าสำรองไปที่ไหน
+    copies = list((target / "BackUp").glob("Scaffold_*/AGENTS.md"))
+    assert len(copies) == 1
+    assert copies[0].read_text(encoding="utf-8") == "ของเดิมที่คนเขียนเอง"
+    assert any("สำรอง" in step for step in resp.json()["steps"])
+
+
+def test_bootstrap_into_a_fresh_folder_says_nothing_about_backups(client, scaffold_root):
+    """โฟลเดอร์ใหม่เอี่ยม = ไม่มีอะไรต้องสำรอง อย่าไปสร้าง BackUp/ เปล่า ๆ ให้รก."""
+    target = scaffold_root / "d_ใหม่เอี่ยม"
+
+    resp = client.post(
+        "/api/projects/bootstrap", json={"name": "d_ใหม่เอี่ยม", "target": str(target)}
+    )
+
+    assert resp.status_code == 201
+    assert not (target / "BackUp").exists()
+    assert not any("สำรอง" in step for step in resp.json()["steps"])
+
+
 def test_bootstrap_refuses_unknown_relation_before_touching_disk(client, scaffold_root):
     target = scaffold_root / "d_BadRelation"
 

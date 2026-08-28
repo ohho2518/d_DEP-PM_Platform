@@ -300,7 +300,13 @@ def list_teams() -> list[dict]:
 
 
 def resolve_target(target: str) -> Path:
-    """คืน Path ที่ resolve แล้ว พร้อม validate ว่าอยู่ใต้ allowed_root (กัน scaffold โฟลเดอร์มั่ว)"""
+    """คืน Path ที่ resolve แล้ว พร้อม validate ว่าอยู่ **ใต้** allowed_root (กัน scaffold โฟลเดอร์มั่ว)
+
+    🔴 **ตัวรากเองไม่ใช่ปลายทางที่ใช้ได้** — เดิมเงื่อนไขเขียนว่า `p != root` ซึ่งแปลว่า
+    "รากพอดีก็ผ่าน" แล้ว scaffold ก็ไปเขียนทับเอกสารของพื้นที่งานทั้งก้อน
+    **เกิดขึ้นจริง 2 ครั้ง** (26 ส.ค. `d_ShopeeFeed` · 28 ส.ค. `d_Songtify` — ทั้งคู่ลง
+    `D:\\Dev_Proj` เพราะฟอร์มเก่าใส่ค่าปริยายเป็นรากไว้ในช่อง target แล้วกดผ่าน)
+    """
     t = target.strip()
     # ซ่อม path แบบ drive-relative ("D:Dev_Proj\x" — backslash หลัง drive หาย
     # เช่นจากค่าเก่าที่ browser จำไว้) — ไม่งั้น resolve จะพาไปใต้ cwd แบบเงียบ ๆ
@@ -308,11 +314,56 @@ def resolve_target(target: str) -> Path:
         t = t[:2] + "\\" + t[2:]
     p = Path(t).resolve()
     root = allowed_root()
-    if root not in p.parents and p != root:
+    if p == root:
+        raise ScaffoldError(
+            f"target เป็นรากของพื้นที่งานพอดี ({root}) — เปิดโปรเจกต์ทับรากไม่ได้ "
+            "ต้องระบุโฟลเดอร์ของโปรเจกต์เอง เช่น "
+            f"{root}\\4_RND\\d_ชื่อโปรเจกต์"
+        )
+    if root not in p.parents:
         raise ScaffoldError(
             f"target ต้องอยู่ใต้ {root} เท่านั้น — ได้ {p}"
         )
     return p
+
+
+#: ไฟล์ที่ scaffold เขียนตายตัวนอกเหนือจากชุดใน kit — ใช้คิดว่าต้องสำรองอะไรก่อนทับ
+_OVERWRITTEN_EXTRAS = [".gitignore", "requirements.txt", ".env.example"]
+
+
+def files_at_risk(target: Path) -> list[Path]:
+    """ไฟล์ที่มีอยู่แล้วใน target และ **กำลังจะถูก scaffold เขียนทับ**.
+
+    คิดจากของจริงในแม่แบบ (kit) + ไฟล์ที่เขียนตายตัว — ไม่ใช่รายชื่อที่พิมพ์ค้างไว้
+    เพิ่มไฟล์ใน kit แล้วรายการนี้ตามเอง (ลืมอัปเดตรายชื่อ = สำรองไม่ครบโดยไม่มีใครรู้)
+    """
+    kit = _kit()
+    rel: list[str] = [*KIT_ROOT_DOCS, *_OVERWRITTEN_EXTRAS]
+    for d in KIT_DIRS:
+        src = kit / d
+        if src.is_dir():
+            rel += [str(Path(d) / f.relative_to(src)) for f in src.rglob("*") if f.is_file()]
+    return [target / r for r in rel if (target / r).is_file()]
+
+
+def backup_before_overwrite(target: Path) -> str:
+    """สำรองไฟล์เดิมที่กำลังจะถูกทับ ลง ``<target>/BackUp/Scaffold_<เวลา>/`` (WORKING_RULES Rule 1).
+
+    คืน path ของโฟลเดอร์สำรอง · สตริงว่าง = ไม่มีอะไรต้องสำรอง (โฟลเดอร์ใหม่เอี่ยม)
+
+    🔴 **ทำไมต้องมี:** scaffold เขียนทับโดยไม่ถามและไม่สำรองมาตลอด — ถ้าปลายทางมีของอยู่แล้ว
+    เนื้อเดิมหายถาวร (กู้จาก git ไม่ได้ถ้ายังไม่ commit) · ด่านแรกคือห้ามยิงลงราก
+    (`resolve_target`) ด่านนี้คือตาข่ายรับกรณีที่เหลือ เช่นเผลอชี้ทับโฟลเดอร์โปรเจกต์อื่น
+    """
+    at_risk = files_at_risk(target)
+    if not at_risk:
+        return ""
+    folder = target / "BackUp" / f"Scaffold_{dt.datetime.now():%Y%m%d_%H%M%S}"
+    for src in at_risk:
+        dest = folder / src.relative_to(target)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+    return str(folder)
 
 
 def copy_kit(target: Path) -> list[str]:
@@ -334,6 +385,12 @@ def copy_kit(target: Path) -> list[str]:
     return created
 
 
+#: บังคับ UTF-8 ตอนอ่าน output ของ git — **ห้ามใช้ `text=True` เปล่า ๆ**
+#: Windows จะถอดรหัสด้วย ANSI codepage ของเครื่อง (เครื่องนี้ = cp874) แล้วพังทันที
+#: ที่ path มีตัวอักษรไทย · เจอจริงตอนเทสต์ชื่อโฟลเดอร์ไทย (WORKING_RULES §6.1 ข้อเดียวกัน)
+_GIT_TEXT = {"encoding": "utf-8", "errors": "replace"}
+
+
 def git_init(target: Path) -> str:
     """git init -b main (ข้ามถ้าเป็น repo แล้ว) · คืนข้อความสถานะ"""
     if (target / ".git").is_dir():
@@ -341,7 +398,7 @@ def git_init(target: Path) -> str:
     try:
         subprocess.run(
             ["git", "init", "-b", "main"],
-            cwd=target, check=True, capture_output=True, text=True,
+            cwd=target, check=True, capture_output=True, **_GIT_TEXT,
         )
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         raise ScaffoldError(f"git init ล้มเหลว: {e}") from e
@@ -357,14 +414,14 @@ def git_commit_initial(target: Path) -> str:
         raise ScaffoldError("ยังไม่เป็น git repo — ต้อง bootstrap ก่อน")
     try:
         subprocess.run(["git", "add", "-A"], cwd=target,
-                       check=True, capture_output=True, text=True)
+                       check=True, capture_output=True, **_GIT_TEXT)
         st = subprocess.run(["git", "status", "--porcelain"], cwd=target,
-                            check=True, capture_output=True, text=True)
+                            check=True, capture_output=True, **_GIT_TEXT)
         if not st.stdout.strip():
             return "git: ไม่มีอะไรให้ commit (clean อยู่แล้ว)"
         subprocess.run(
-            ["git", "commit", "-m", "chore: initial bootstrap (new-project-studio)"],
-            cwd=target, check=True, capture_output=True, text=True,
+            ["git", "commit", "-m", "chore: initial bootstrap (DEP-PM)"],
+            cwd=target, check=True, capture_output=True, **_GIT_TEXT,
         )
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         detail = (getattr(e, "stderr", "") or str(e)).strip()
@@ -570,6 +627,11 @@ def scaffold(
             "⚠ วางไว้ที่รากของ Dev_Proj — ตามกฎจัดระเบียบ โปรเจกต์ควรอยู่ใต้โฟลเดอร์ทีม "
             f"(หรือ {INBOX_DIR} ถ้ายังไม่รู้ว่าทีมไหน)"
         )
+
+    # Rule 1 — สำรองก่อนทับเสมอ ต้องเกิดก่อนการเขียนครั้งแรกของรอบนี้
+    saved = backup_before_overwrite(target)
+    if saved:
+        steps.append(f"⚠ ปลายทางมีไฟล์เดิมอยู่ — สำรองไว้ที่ {saved} ก่อนเขียนทับ")
 
     created = copy_kit(target)
     steps.append(f"คัดลอก kit: {len(created)} รายการ")
